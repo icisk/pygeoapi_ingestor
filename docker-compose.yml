@@ -1,0 +1,18 @@
+version: "3"
+
+services:
+  pygeoapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+    - ./config.yml:/pygeoapi/local.config.yml
+    ports:
+      - "5000:80"
+    environment:
+    - FTP_HOST=<FTP_HOST>
+    - FTP_DIR=<FTP_DIR>
+    - FTP_USER=<FTP_USER>
+    - FTP_PASS=<FTP_PASS>
+    - DEFAULT_BUCKET=<DEFAULT_BUCKET>
+    - DEFAULT_REMOTE_DIR=<DEFAULT_REMOTE_DIR>
