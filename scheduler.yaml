@@ -1,0 +1,14 @@
+living_lab:
+  name: forli
+  bbox: 
+  - 12
+  - 44
+  - 13
+  - 45
+  scheduler: 
+    smhi:
+      frequency: 5 16 * * *
+      
+    copernicus:
+      frequency: onetime
+      query: {}
