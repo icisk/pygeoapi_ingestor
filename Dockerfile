@@ -7,7 +7,7 @@ RUN apt-get update && \
     apt-get install -y git 
 
 COPY ./plugins/ ./plugins
-RUN pip install ./plugins netcdf4 h5netcdf
+RUN pip install ./plugins netcdf4 h5netcdf shyaml
 RUN rm -rf ./process
 
 COPY ./entrypoint.sh /entrypoint.sh
