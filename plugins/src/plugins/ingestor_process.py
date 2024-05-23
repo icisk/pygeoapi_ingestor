@@ -37,7 +37,6 @@ import fsspec
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 import os
 import s3fs
-# from climate_eed import fetch_var_smhi
 import datetime
 import xarray as xr
 
@@ -190,10 +189,6 @@ class IngestorProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Cannot process without a data_dir')
         if living_lab is None:
             raise ProcessorExecuteError('Cannot process without a living_lab')
-        # if zarr_out is None:
-        #     raise ProcessorExecuteError('Cannot process without a zarr_out')
-        
-        # data = fetch_var_smhi(living_lab=living_lab, data_dir=data_dir, issue_date=issue_date,ftp_config=ftp_config)  #(collections=collections,repository="smhi")
 
         data_array = []
 
@@ -213,56 +208,33 @@ class IngestorProcessProcessor(BaseProcessor):
         for file_nc in files:
             file_nc_path = f"{local_folder}/{file_nc}"
             data = read_netcdf(file_nc)
+            
+            # extract data variables key
+            data_var = [var for var in data.data_vars if var not in ['geo_x', 'geo_y', 'geo_z']][0]
+            model = file_nc_path.split(f'{data_var}_')[1].split('.')[0]
 
-            model = file_nc_path.split('COUT_')[1].split('.')[0]
-            data.coords['model'] = model
-
-            if "COUT" in data:
-                data["COUT"] = data["COUT"].expand_dims('model')
-
+            if data_var in data:
+                data[f"{data_var}_{model}"] = data[data_var]
+                data[f"{data_var}_{model}"].attrs['long_name'] = f"{data_var}_{model}"
+                # drop the original data variable
+                data = data.drop_vars(data_var)
             data_array.append(data)
 
         data = xr.merge(data_array)
 
-
-                
-        # for each value in model coordinate create new variable with the model name
-        for model in data['model'].values:
-            data[f"COUT_{model}"] = data['COUT'].where(data['model'] == model)
-            data[f"COUT_{model}"].attrs['long_name'] = f"COUT_{model}"
-
-
-        # drop the original COUT variable and model variable
-
-
         df = data.to_dataframe()
-        print("Original DataFrame:\n", df)
 
         # Reset the index to convert the MultiIndex into columns
         df_reset = df.reset_index()
-        df_reset = df_reset.drop(columns=['geo_z','COUT','model'])
+        df_reset = df_reset.drop(columns=['geo_z'])
 
-        print("NEW DataFrame:\n", df_reset)
-
-        # print("RESETTED DataFrame:\n", df_reset)
         # Set 'geo_x' and 'geo_y' as part of the new index and drop 'id'
         df_reindexed = df_reset.set_index(['geo_x', 'geo_y', 'id','time'])
 
-        print("Reindexed DataFrame:\n", df_reindexed)
-
         df_reindexed = df_reindexed.stack().dropna().unstack()
-
-        print("Transformed DataFrame:\n", df_reindexed)
-
-        # apply id value to all the columns adding a new variable with id as name
-        # df_reindexed['id_var'] = df_reindexed.index.get_level_values('id')
 
         # drop id from the index
         df_reindexed = df_reindexed.reset_index().set_index(['geo_x', 'geo_y', 'time'])
-
-        print("Transformed DataFrame 2:\n", df_reindexed)
-
-        #####################
 
         # convert the dataframe to xarray dataset
         data = xr.Dataset.from_dataframe(df_reindexed)
@@ -275,18 +247,7 @@ class IngestorProcessProcessor(BaseProcessor):
 
         # Assign the modified variable back to the dataset
         data['id'] = id_var
-
-
-        # for each value in model coordinate create new variable with the model name
-        for var in data.variables:
-            if var.startswith('COUT'):
-                data[var].attrs['long_name'] = var
-
-        # data["COUT"].attrs['long_name'] = "Discharge"
-        print("DATA")
-        print(data.values)
-
-        print("***********************************")
+        
         s3 = s3fs.S3FileSystem(anon=True)
         if zarr_out:
             remote_url = zarr_out
@@ -301,6 +262,9 @@ class IngestorProcessProcessor(BaseProcessor):
         store= s3fs.S3Map(root=remote_url, s3=s3, check=False)
 
         data.attrs['long_name'] = "seasonal_forecast"
+        for var in data.variables:
+            data[var].attrs['long_name'] = var
+
         data.to_zarr(store=store,
                             consolidated=True,
                             mode='w')
@@ -318,11 +282,6 @@ class IngestorProcessProcessor(BaseProcessor):
         datetime_max = datetime.datetime.fromtimestamp(max_time.tolist()/1e9,tz=datetime.timezone.utc)
         datetime_min = datetime.datetime.fromtimestamp(min_time.tolist()/1e9,tz=datetime.timezone.utc)
 
-        print(f"min_x: {min_x} T {type(min_x)}, max_x: {max_x} T {type(max_x)}")
-        print(f"min_y: {min_y} T {type(min_y)}, max_y: {max_y} T {type(max_y)}")
-        print(f"min_time: {datetime_min} T {type(datetime_min)}, max_time: {datetime_max} T {type(datetime_max)}")
-
-
         with open('/pygeoapi/local.config.yml', 'r') as file:
             config = yaml.safe_load(file)
 
@@ -337,8 +296,8 @@ class IngestorProcessProcessor(BaseProcessor):
                     'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
                 },
                 'temporal': {
-                    'begin': datetime_min,         # datetime.datetime(2024, 4, 1, 0, 0),
-                    'end': datetime_max            # datetime.datetime(2024, 4, 30, 0, 0)       
+                    'begin': datetime_min,
+                    'end': datetime_max
                     }
                 },                      
             'providers': [
