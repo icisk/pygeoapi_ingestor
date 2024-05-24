@@ -1,11 +1,16 @@
 #!/bin/bash
 
 # parse yaml file and set crontab
-smhi_command="./invoke_ingestor.sh"
+smhi_command="python3 /invoke_ingestor.py"
+scheduler_file="/pygeoapi/scheduler.yaml"
+
+service cron start
+
 # save the result to a variable
-scheduler=$(cat scheduler.yaml | shyaml keys living_lab.scheduler)
+scheduler=$(cat $scheduler_file | shyaml keys living_lab.scheduler)
 echo $scheduler
 echo  "-----------"
+crontab -r
 # loop through the scheduler keys
 for key in $scheduler
     do
@@ -13,7 +18,7 @@ for key in $scheduler
         # extract the scheduler values
         echo "Extracting values"
         # parse frequency in crontab format
-        freq=$(cat scheduler.yaml | shyaml get-value living_lab.scheduler.$key.frequency)
+        freq=$(cat $scheduler_file | shyaml get-value living_lab.scheduler.$key.frequency)
         echo "FREQ: $freq"
         echo "-----------"
         
