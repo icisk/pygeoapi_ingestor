@@ -20,7 +20,7 @@ data='{
   }
 }'
 
-echo "Ingestor process: 'http://localhost:5000/processes/${ingestor_process}/execution'"
+echo "Ingestor process: 'http://localhost/processes/${ingestor_process}/execution'"
 echo "Data directory: $data_dir"
 echo "Current date: $issue_date"
 echo "Living lab: $living_lab"
@@ -29,7 +29,7 @@ echo "Data: $data"
 
 # curl command to invoke the ingestor
 curl -X 'POST' \
-  "http://localhost:5000/processes/${ingestor_process}/execution" \
+  "http://localhost/processes/${ingestor_process}/execution" \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d "${data}"

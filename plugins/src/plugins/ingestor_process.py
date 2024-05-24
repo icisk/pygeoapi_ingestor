@@ -189,6 +189,17 @@ class IngestorProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Cannot process without a data_dir')
         if living_lab is None:
             raise ProcessorExecuteError('Cannot process without a living_lab')
+        
+        s3 = s3fs.S3FileSystem(anon=True)
+        if zarr_out:
+            remote_url = zarr_out
+            # Check if the path already exists
+            if s3.exists(remote_url):
+                raise ProcessorExecuteError(f'Path {remote_url} already exists')
+        else:    
+            bucket_name = os.environ.get("DEFAULT_BUCKET")
+            remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
+            remote_url = f's3://{bucket_name}/{remote_path}dataset_smhi_{int(datetime.datetime.now().timestamp())}.zarr'
 
         data_array = []
 
@@ -248,16 +259,6 @@ class IngestorProcessProcessor(BaseProcessor):
         # Assign the modified variable back to the dataset
         data['id'] = id_var
         
-        s3 = s3fs.S3FileSystem(anon=True)
-        if zarr_out:
-            remote_url = zarr_out
-            # Check if the path already exists
-            if s3.exists(remote_url):
-                raise ProcessorExecuteError(f'Path {remote_url} already exists')
-        else:    
-            bucket_name = os.environ.get("DEFAULT_BUCKET")
-            remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
-            remote_url = f's3://{bucket_name}/{remote_path}dataset_smhi_{int(datetime.datetime.now().timestamp())}.zarr'
 
         store= s3fs.S3Map(root=remote_url, s3=s3, check=False)
 
