@@ -7,8 +7,8 @@ living_lab:
   - 45
   scheduler: 
     smhi:
-      frequency: 5 16 * * *
+      frequency: 46 * * * *
       
-    copernicus:
-      frequency: onetime
-      query: {}
+    # copernicus:
+    #   frequency: onetime
+    #   query: {}
