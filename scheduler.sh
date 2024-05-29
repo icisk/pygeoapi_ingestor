@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # parse yaml file and set crontab
-smhi_command="python3 /invoke_ingestor.py"
+# smhi_command="python3 /invoke_ingestor.py"
 scheduler_file="/pygeoapi/scheduler.yaml"
 
 service cron start
@@ -21,23 +21,31 @@ for key in $scheduler
         freq=$(cat $scheduler_file | shyaml get-value living_lab.scheduler.$key.frequency)
         echo "FREQ: $freq"
         echo "-----------"
-        
-        # Write the current crontab to a temporary file
-        crontab -l > mycron
 
-        # Add new cron jobs to the temporary file
-        echo "Creating new cron job $freq $smhi_command"
-        echo "$freq $smhi_command" >> mycron
-        
-        # Install the new cron file
-        crontab mycron
+        command="python3 /invoke_${key}_ingestor.py"
 
-        # Remove the temporary file
-        rm mycron
+        if [[ $freq == "onetime" ]]; then
+            # Run command
+            echo "Running command"
+            $command
+        else 
+            # Write the current crontab to a temporary file
+            crontab -l > mycron
 
-        # Output the parsed data and crontab set messages
-        echo "Frequency: $freq - Crontab set"
-        
+            # Add new cron jobs to the temporary file
+            echo "Creating new cron job $freq $command"
+            echo "$freq $command" >> mycron
+
+            # Install the new cron file
+            crontab mycron
+
+            # Remove the temporary file
+            rm mycron
+
+            # Output the parsed data and crontab set messages
+            echo "Frequency: $freq - Crontab set"
+        fi
+            
     done
 
 
