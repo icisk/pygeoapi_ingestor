@@ -1,0 +1,57 @@
+import requests
+import json
+from datetime import datetime
+import yaml
+
+# TODO: Implement the Planetary ingestor
+print("Hello Planetary")
+
+with open('./scheduler.yaml', 'r') as file:
+    config = yaml.safe_load(file)
+
+planetary_config = config['living_lab']['scheduler']['planetary']
+print(planetary_config)
+
+# ingestor id
+ingestor_process = 'ingestor-planetary-process'
+
+# # parameters for the ingestor
+# data_dir = "seasonal_forecast"
+# issue_date = datetime.now().strftime('%Y%m')
+# living_lab = "georgia"
+# zarr_out = f"s3://saferplaces.co/test/icisk/living_labs/test_ingestor/planetary/{issue_date}/{living_lab}_{data_dir}.zarr"
+
+
+
+# initialize body data
+data = {
+    "inputs": {
+        "dataset": planetary_config['dataset'],
+        "query": planetary_config['query'],
+        "file_out": planetary_config['file_out'],
+        # "zarr_out": zarr_out
+    }
+}
+
+print(data)
+print("----")
+# Print the details
+print(f"Ingestor process: 'http://localhost/processes/{ingestor_process}/execution'")
+# print(f"Data directory: {data_dir}")
+# print(f"Current date: {issue_date}")
+# print(f"Living lab: {living_lab}")
+# print(f"Zarr output: {zarr_out}")
+# print(f"Data: {json.dumps(data, indent=2)}")
+
+# curl command to invoke the ingestor using requests
+response = requests.post(
+    f"http://localhost/processes/{ingestor_process}/execution",
+    headers={
+        'accept': 'application/json',
+        'Content-Type': 'application/json'
+    },
+    data=json.dumps(data)
+)
+
+print(f"Response status code: {response.status_code}")
+print(f"Response body: {response.text}")
