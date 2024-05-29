@@ -99,7 +99,7 @@ case ${entry_cmd} in
 		
 		# Run scheduler
 		echo "Running scheduler"
-		/scheduler.sh
+		/scheduler.sh &
 
 		echo "Start gunicorn name=${CONTAINER_NAME} on ${CONTAINER_HOST}:${CONTAINER_PORT} with ${WSGI_WORKERS} workers and SCRIPT_NAME=${SCRIPT_NAME}"
 		exec gunicorn --workers ${WSGI_WORKERS} \
