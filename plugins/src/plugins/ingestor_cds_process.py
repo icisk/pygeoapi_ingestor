@@ -37,15 +37,16 @@ import fsspec
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 import os
 import s3fs
-import datetime
+from datetime import datetime, timedelta, timezone
 import xarray as xr
 import json
 import tempfile
 from dotenv import load_dotenv, find_dotenv
 import cdsapi
 import zipfile
-import cfgrib
-import ecmwflibs
+from concurrent.futures import ThreadPoolExecutor, as_completed
+# import cfgrib
+# import ecmwflibs
 
 
 LOGGER = logging.getLogger(__name__)
@@ -176,35 +177,44 @@ PROCESS_METADATA = {
 }
 
 
+def generate_days_list(data_inizio, data_fine):
+    data_corrente = data_inizio
+    while data_corrente <= data_fine:
+        yield data_corrente
+        data_corrente += timedelta(days=1)
 
-def download_files_from_ftp(ftp, folder):
-    # ftp.cwd(folder)
-    files = ftp.nlst()
-    nc_files = []
-    for file in files:
-        if file.endswith('.nc'):
-            local_filename = os.path.join(f"./seasonal_forecast/{folder}", file)
-            nc_files.append(local_filename)
-            if not os.path.exists(local_filename):
 
-                if not os.path.exists(f"./seasonal_forecast/{folder}"):
-                    os.makedirs(f"./seasonal_forecast/{folder}")
-                with open(local_filename, 'wb') as f:
-                    ftp.retrbinary('RETR ' + file, f.write)
-                # print(f"Downloaded: {local_filename}")
-            else:
-                # print(f"File already exists: {local_filename}")
-                pass
-    ftp.cwd("..")
-    return nc_files
+def fetch_dataset(dataset, query, file_out, date=None, engine='h5netcdf'):
+    URL = 'https://cds.climate.copernicus.eu/api/v2'
+    KEY = os.environ.get('CDSAPI_KEY')
+    c = cdsapi.Client(url=URL, key=KEY)
+    query_copy = query.copy()
+    if date:        
+        query_copy['year'] = date.year
+        query_copy['month'] = date.month
+        query_copy['day'] = date.day
+    # Hindcast data request
+    c.retrieve(
+        dataset,    # 'seasonal-monthly-single-levels',
+        query_copy,
+        file_out)
 
-# Function to read geometry and bbox from NetCDF file
-def read_netcdf(file_path):
-    nc_file = fsspec.open(file_path,anon=True)
-    nc = xr.open_dataset(nc_file.open())  # Dataset(file_path, 'r')
-    # Extract geometry and bbox from the NetCDF file
+    if file_out.endswith('.netcdf4.zip'):
+        # Unzip the file
 
-    return nc
+        with zipfile.ZipFile(file_out, 'r') as zip_ref:
+            local_file = f"{file_out.split('.netcdf4.zip')[0]}.nc"
+            zip_ref.extractall(local_file)
+
+        data = xr.open_dataset(f"{local_file}/data.nc", engine=engine)
+    # elif file_out.endswith('.grib'):
+    #     data = xr.open_dataset(file_out,engine="cfgrib")
+
+    for var in data.data_vars:
+        data[var] = data[var].expand_dims(dim='time')
+    data.attrs['long_name'] = dataset
+
+    return data
 
 
 class IngestorCDSProcessProcessor(BaseProcessor):
@@ -230,10 +240,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # get parameters from query params
         dataset = data.get('dataset')
         query = data.get('query')
-        file_out = data.get('file_out', os.path.join(f"{tempfile.gettempdir()}",f"copernicus_data_{str(int(datetime.datetime.now().timestamp()))}.nc"))
+        file_out = data.get('file_out', os.path.join(f"{tempfile.gettempdir()}",f"copernicus_data_{str(int(datetime.now().timestamp()))}.nc"))
         zarr_out = data.get('zarr_out')
         engine = data.get('engine', 'h5netcdf')
 
+        start_date = data.get('date_start', None)
+        end_date = data.get('date_end', None)
 
         if dataset is None:
             raise ProcessorExecuteError('Cannot process without a dataset')
@@ -249,60 +261,34 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         else:    
             bucket_name = os.environ.get("DEFAULT_BUCKET")
             remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
-            remote_url = f's3://{bucket_name}/{remote_path}dataset_cds_{int(datetime.datetime.now().timestamp())}.zarr'
+            remote_url = f's3://{bucket_name}/{remote_path}dataset_cds_{int(datetime.now().timestamp())}.zarr'
 
-        # print("Dataset", dataset)
-        # print("Query", query)
-        # print(f"Fileout: {file_out}")
-        # print("zarr_out",zarr_out)
-        # print("engine", engine)
+        if start_date and end_date:
+                
+            datetime_start = datetime.strptime(start_date, '%Y-%m-%d')
+            datetime_end = datetime.strptime(end_date, '%Y-%m-%d')
+            # get list of days between start_date and end_date
+            days = list(generate_days_list(datetime_start, datetime_end))
 
-        URL = 'https://cds.climate.copernicus.eu/api/v2'
-        KEY = os.environ.get('CDSAPI_KEY')
-        # DATADIR = './test_data/seasonal'
-        # {
-        #     'format': 'grib',
-        #     'originating_centre': 'ecmwf',
-        #     'system': '5',
-        #     'variable': varname,
-        #     'product_type': 'monthly_mean',
-        #     'year': years,
-        #     'month': month,
-        #     'leadtime_month': leadtime_month,
-        # }
-
-        c = cdsapi.Client(url=URL, key=KEY)
-
-        # Hindcast data request
-        c.retrieve(
-            dataset,    # 'seasonal-monthly-single-levels',
-            query,
-            file_out)
-
-        if file_out.endswith('.grib'):
-            data = xr.open_dataset(file_out,engine="cfgrib")
-
-        elif file_out.endswith('.netcdf4.zip'):
-            # Unzip the file
-
-            with zipfile.ZipFile(file_out, 'r') as zip_ref:
-                local_file = f"{file_out.split('.netcdf4.zip')[0]}.nc"
-                zip_ref.extractall(local_file)
-
-            data = xr.open_dataset(f"{local_file}/data.nc", engine=engine)
-        
-        for var in data.data_vars:
-            data[var] = data[var].expand_dims(dim='time')
-        data.attrs['long_name'] = dataset
+            datasets = []
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(fetch_dataset, dataset, query, f"{file_out.split('.netcdf4.zip')[0]}_{day.isoformat()}.netcdf4.zip", day): day for day in days}
+                for future in as_completed(futures):
+                    day = futures[future]
+                    try:
+                        out_data = future.result()
+                        datasets.append(out_data)
+                    except Exception as exc:
+                        print(f"{day} generated an exception: {exc}")
+            data = xr.concat(datasets,dim='time')
+        else:
+            data = fetch_dataset(dataset, query, file_out, engine=engine)
 
         store= s3fs.S3Map(root=remote_url, s3=s3, check=False)
 
         data.to_zarr(store=store,
-                            consolidated=True,
-                
+                    consolidated=True,
                     mode='w')
-        # print(data)
-
         # get min/max values for longitude, latitude and time
         min_x = float(data.coords['longitude'].min().values)
         max_x = float(data.coords['longitude'].max().values)
@@ -313,8 +299,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         max_time = data.coords['time'].max().values
         
         # convert np.datetime64 to datetime object 
-        datetime_max = datetime.datetime.fromtimestamp(max_time.tolist()/1e9,tz=datetime.timezone.utc)
-        datetime_min = datetime.datetime.fromtimestamp(min_time.tolist()/1e9,tz=datetime.timezone.utc)
+        datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
+        datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
 
         with open('/pygeoapi/local.config.yml', 'r') as file:
             config = yaml.safe_load(file)
@@ -352,7 +338,6 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
-
 
         outputs = {
             'id': 'ingestor-process',

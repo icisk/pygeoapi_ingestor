@@ -9,12 +9,13 @@ RUN apt-get update && \
     apt-get install -y curl
 
 COPY ./plugins/ ./plugins
-RUN pip install ./plugins netcdf4 h5netcdf shyaml python-dotenv cdsapi ecmwflibs cfgrib
+RUN pip install ./plugins netcdf4 h5netcdf shyaml python-dotenv cdsapi
 RUN rm -rf ./process
 
 COPY ./entrypoint.sh /entrypoint.sh
 COPY ./scheduler.sh /scheduler.sh
 COPY ./invoke_smhi_ingestor.py /invoke_smhi_ingestor.py
 COPY ./invoke_cds_ingestor.py /invoke_cds_ingestor.py
+COPY ./invoke_planetary_ingestor.py /invoke_planetary_ingestor.py
 
 ENTRYPOINT ["/entrypoint.sh"]

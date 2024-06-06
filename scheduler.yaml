@@ -12,6 +12,8 @@ living_lab:
     cds:
       frequency: onetime
       dataset: cems-glofas-forecast
+      date_start: 2024-04-02
+      date_end: 2024-04-03
       query: {
         'system_version': 'operational',
         'hydrological_model': 'lisflood',
@@ -19,7 +21,7 @@ living_lab:
         'variable': 'river_discharge_in_the_last_24_hours',
         'year': '2024',
         'month': '04',
-        'day': '28',
+        'day': '02',
         'leadtime_hour': [
             '24', '48', '72',
             '96', '120', '144',
@@ -39,3 +41,14 @@ living_lab:
         ],
       }
       file_out: /tmp/cds-glofas-forecast.netcdf4.zip
+
+    # planetary:
+    #   frequency: onetime
+    #   dataset: https://planetarycomputer.microsoft.com/api/stac/v1/
+    #   collections: [era5-pds]
+    #   varname: precipitation_amount_1hour_Accumulation
+    #   # models: [era5-pds]
+    #   date_start: 1995-01-01
+    #   date_end: 1995-02-01
+    #   query: {"era5:kind": {"eq": "fc"}}
+    #   zarr_out: s3://saferplaces.co/test/icisk/living_labs/test_ingestor/planetary/test_models_4.zarr
