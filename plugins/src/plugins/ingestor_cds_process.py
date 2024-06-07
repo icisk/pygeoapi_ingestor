@@ -282,6 +282,13 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         print(f"{day} generated an exception: {exc}")
             data = xr.concat(datasets,dim='time')
         else:
+            # check if year, month and day are in the query
+            if 'year' in query and 'month' in query and 'day' in query:
+                print('Fetching data for a specific date', query['year'], query['month'], query['day'])
+            else:
+                query['year'] = str(datetime.now().year)
+                query['month'] = str(datetime.now().month)
+                query['day'] = str(datetime.now().day)
             data = fetch_dataset(dataset, query, file_out, engine=engine)
 
         store= s3fs.S3Map(root=remote_url, s3=s3, check=False)

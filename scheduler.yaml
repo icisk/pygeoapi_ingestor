@@ -10,18 +10,18 @@ living_lab:
     #   frequency: 12 * * * *
       
     cds:
-      frequency: onetime
+      frequency: 12 * * * *
       dataset: cems-glofas-forecast
-      date_start: 2024-04-02
-      date_end: 2024-04-03
+      # date_start: 2024-04-02
+      # date_end: 2024-04-03
       query: {
         'system_version': 'operational',
         'hydrological_model': 'lisflood',
         'product_type': 'ensemble_perturbed_forecasts',
         'variable': 'river_discharge_in_the_last_24_hours',
-        'year': '2024',
-        'month': '04',
-        'day': '02',
+        # 'year': '2024',
+        # 'month': '04',
+        # 'day': '02',
         'leadtime_hour': [
             '24', '48', '72',
             '96', '120', '144',
