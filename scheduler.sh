@@ -28,7 +28,7 @@ for key in $scheduler
             # Run command
             echo "Running command"
             $command
-        else 
+        else
             # Write the current crontab to a temporary file
             crontab -l > mycron
 
@@ -45,7 +45,5 @@ for key in $scheduler
             # Output the parsed data and crontab set messages
             echo "Frequency: $freq - Crontab set"
         fi
-            
+
     done
-
-

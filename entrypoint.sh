@@ -93,10 +93,10 @@ case ${entry_cmd} in
 	run)
 		# SCRIPT_NAME should not have value '/'
 		[[ "${SCRIPT_NAME}" = '/' ]] && export SCRIPT_NAME="" && echo "make SCRIPT_NAME empty from /"
-		
+
 		# Start cron service
 		service cron start
-		
+
 		# Run scheduler
 		echo "Running scheduler"
 		/scheduler.sh &

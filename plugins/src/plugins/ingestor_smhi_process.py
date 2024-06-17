@@ -51,10 +51,10 @@ PROCESS_METADATA = {
     },
     'description': {
         'en': 'Ingestor Process is a process that fetches data from an FTP server and stores it in a Zarr file in an S3 bucket.'
-          'The process is used to ingest data from the SMHI FTP server and store it in an S3 bucket.' 
-          'The process requires the following inputs: issue_date, data_dir, living_lab, zarr_out.' 
-          'The process fetches the data from the FTP server, reads the NetCDF files, and stores the data in a Zarr file in an S3 bucket.' 
-          'The process returns the URL of the Zarr file in the S3 bucket.' 
+          'The process is used to ingest data from the SMHI FTP server and store it in an S3 bucket.'
+          'The process requires the following inputs: issue_date, data_dir, living_lab, zarr_out.'
+          'The process fetches the data from the FTP server, reads the NetCDF files, and stores the data in a Zarr file in an S3 bucket.'
+          'The process returns the URL of the Zarr file in the S3 bucket.'
           'The process also updates the pygeoapi configuration file to include the new dataset.'},
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'keywords': ['ingestor process'],
@@ -189,14 +189,14 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Cannot process without a data_dir')
         if living_lab is None:
             raise ProcessorExecuteError('Cannot process without a living_lab')
-        
+
         s3 = s3fs.S3FileSystem(anon=True)
         if zarr_out:
             remote_url = zarr_out
             # Check if the path already exists
             if s3.exists(remote_url):
                 raise ProcessorExecuteError(f'Path {remote_url} already exists')
-        else:    
+        else:
             bucket_name = os.environ.get("DEFAULT_BUCKET")
             remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
             remote_url = f's3://{bucket_name}/{remote_path}dataset_smhi_{int(datetime.datetime.now().timestamp())}.zarr'
@@ -213,13 +213,13 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
         with FTP(ftp_config['url']) as ftp:
             ftp.login(ftp_config['user'], ftp_config['passwd'])
             ftp.cwd(remote_folder)
-            
+
             files = download_files_from_ftp(ftp, remote_folder)
 
         for file_nc in files:
             file_nc_path = f"{local_folder}/{file_nc}"
             data = read_netcdf(file_nc)
-            
+
             # extract data variables key
             data_var = [var for var in data.data_vars if var not in ['geo_x', 'geo_y', 'geo_z']][0]
             model = file_nc_path.split(f'{data_var}_')[1].split('.')[0]
@@ -258,7 +258,7 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
 
         # Assign the modified variable back to the dataset
         data['id'] = id_var
-        
+
 
         store= s3fs.S3Map(root=remote_url, s3=s3, check=False)
 
@@ -269,7 +269,7 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
         data.to_zarr(store=store,
                             consolidated=True,
                             mode='w')
-        
+
         # get min/max values for geo_x, geo_y and time
         min_x = float(data['geo_x'].min().values)
         max_x = float(data['geo_x'].max().values)
@@ -278,8 +278,8 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
 
         min_time = data['time'].min().values
         max_time = data['time'].max().values
-        
-        # convert np.datetime64 to datetime object 
+
+        # convert np.datetime64 to datetime object
         datetime_max = datetime.datetime.fromtimestamp(max_time.tolist()/1e9,tz=datetime.timezone.utc)
         datetime_min = datetime.datetime.fromtimestamp(min_time.tolist()/1e9,tz=datetime.timezone.utc)
 
@@ -300,7 +300,7 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
                     'begin': datetime_min,
                     'end': datetime_max
                     }
-                },                      
+                },
             'providers': [
                 {
                     'type': 'edr',
@@ -333,4 +333,3 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
 
     def __repr__(self):
         return f'<IngestorSMHIProcessProcessor> {self.name}'
-
