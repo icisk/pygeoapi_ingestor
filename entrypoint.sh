@@ -52,12 +52,12 @@ entry_cmd=${1:-run}
 
 # Shorthand
 function error() {
-	echo "ERROR: $@"
-	exit -1
+	echo "ERROR: $*"
+	exit 1
 }
 
 # Workdir
-cd ${PYGEOAPI_HOME}
+cd ${PYGEOAPI_HOME} || exit 1
 
 echo "Trying to generate openapi.yml"
 pygeoapi openapi generate ${PYGEOAPI_CONFIG} --output-file ${PYGEOAPI_OPENAPI}
@@ -69,21 +69,23 @@ echo "openapi.yml generated continue to pygeoapi"
 case ${entry_cmd} in
 	# Run Unit tests
 	test)
-	  for test_py in $(ls tests/test_*.py)
+	  for test_py in tests/test_*.py
 	  do
+	  	# handle the case of no test files
+	  	[[ -e "$test_py" ]] || break
 	    # Skip tests requireing backend server or libs installed
 	    case ${test_py} in
 	        tests/test_elasticsearch__provider.py)
-	        ;&
+	        	;&
 	        tests/test_sensorthings_provider.py)
-	        ;&
+	        	;&
 	        tests/test_postgresql_provider.py)
 			    ;&
 	        tests/test_mongo_provider.py)
 	        	echo "Skipping: ${test_py}"
 	        ;;
 	        *)
-	        	python3 -m pytest ${test_py}
+	        	python3 -m pytest "${test_py}"
 	         ;;
 	    esac
 	  done
@@ -102,11 +104,11 @@ case ${entry_cmd} in
 		/scheduler.sh &
 
 		echo "Start gunicorn name=${CONTAINER_NAME} on ${CONTAINER_HOST}:${CONTAINER_PORT} with ${WSGI_WORKERS} workers and SCRIPT_NAME=${SCRIPT_NAME}"
-		exec gunicorn --workers ${WSGI_WORKERS} \
-				--worker-class=${WSGI_WORKER_CLASS} \
-				--timeout ${WSGI_WORKER_TIMEOUT} \
-				--name=${CONTAINER_NAME} \
-				--bind ${CONTAINER_HOST}:${CONTAINER_PORT} \
+		exec gunicorn --workers "${WSGI_WORKERS}" \
+				--worker-class="${WSGI_WORKER_CLASS}" \
+				--timeout "${WSGI_WORKER_TIMEOUT}" \
+				--name="${CONTAINER_NAME}" \
+				--bind "${CONTAINER_HOST}:${CONTAINER_PORT}" \
 				--reload \
     			--reload-extra-file ${PYGEOAPI_CONFIG} \
 				pygeoapi.flask_app:APP
