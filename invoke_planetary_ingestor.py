@@ -6,7 +6,7 @@ import yaml
 # TODO: Implement the Planetary ingestor
 print("Hello Planetary")
 
-with open('./scheduler.yaml', 'r') as file:
+with open('/scheduler.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
 planetary_config = config['living_lab']['scheduler']['planetary']
