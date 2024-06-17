@@ -2,15 +2,23 @@ import requests
 import json
 from datetime import datetime
 import yaml
+import logging
+import sys
+
+logging.basicConfig(
+    format="[%(levelname)s] %(asctime)s %(message)s",
+    level=logging.DEBUG,
+    stream=sys.stdout)
+logger = logging.getLogger(__name__)
 
 # TODO: Implement the Planetary ingestor
-print("Hello Planetary")
+logger.debug("Hello Planetary")
 
 with open('/scheduler.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
 planetary_config = config['living_lab']['scheduler']['planetary']
-print(planetary_config)
+logger.debug(planetary_config)
 
 # ingestor id
 ingestor_process = 'ingestor-planetary-process'
@@ -33,15 +41,15 @@ data = {
     }
 }
 
-print(data)
-print("----")
+logger.debug(data)
+logger.debug("----")
 # Print the details
-print(f"Ingestor process: 'http://localhost/processes/{ingestor_process}/execution'")
-# print(f"Data directory: {data_dir}")
-# print(f"Current date: {issue_date}")
-# print(f"Living lab: {living_lab}")
-# print(f"Zarr output: {zarr_out}")
-# print(f"Data: {json.dumps(data, indent=2)}")
+logger.debug(f"Ingestor process: 'http://localhost/processes/{ingestor_process}/execution'")
+# logger.debug(f"Data directory: {data_dir}")
+# logger.debug(f"Current date: {issue_date}")
+# logger.debug(f"Living lab: {living_lab}")
+# logger.debug(f"Zarr output: {zarr_out}")
+# logger.debug(f"Data: {json.dumps(data, indent=2)}")
 
 # curl command to invoke the ingestor using requests
 response = requests.post(
@@ -53,5 +61,5 @@ response = requests.post(
     data=json.dumps(data)
 )
 
-print(f"Response status code: {response.status_code}")
-print(f"Response body: {response.text}")
+logger.debug(f"Response status code: {response.status_code}")
+logger.debug(f"Response body: {response.text}")

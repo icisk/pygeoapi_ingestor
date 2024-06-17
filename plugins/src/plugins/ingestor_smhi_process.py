@@ -31,7 +31,7 @@
 # curl -X POST -H "Content-Type: application/json" -d "{\"inputs\":{\"name\":\"gdalinfo\"}}" http://localhost:5000/processes/k8s-process/execution
 
 from ftplib import FTP
-import logging, time
+import time
 import yaml
 import fsspec
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
@@ -39,8 +39,15 @@ import os
 import s3fs
 import datetime
 import xarray as xr
+import logging
+import sys
 
-LOGGER = logging.getLogger(__name__)
+logging.basicConfig(
+    format="[%(levelname)s] %(asctime)s %(message)s",
+    level=logging.DEBUG,
+    stream=sys.stdout)
+logger = logging.getLogger(__name__)
+
 
 #: Process metadata and description
 PROCESS_METADATA = {
@@ -136,9 +143,9 @@ def download_files_from_ftp(ftp, folder):
                     os.makedirs(f"./seasonal_forecast/{folder}")
                 with open(local_filename, 'wb') as f:
                     ftp.retrbinary('RETR ' + file, f.write)
-                # print(f"Downloaded: {local_filename}")
+                logger.debug(f"Downloaded: {local_filename}")
             else:
-                # print(f"File already exists: {local_filename}")
+                logger.debug(f"File already exists: {local_filename}")
                 pass
     ftp.cwd("..")
     return nc_files
@@ -317,9 +324,9 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
             ]
         }
 
-        print("***********************************")
-        print(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
-        print("***********************************")
+        logger.debug("***********************************")
+        logger.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
+        logger.debug("***********************************")
 
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)

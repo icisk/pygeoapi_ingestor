@@ -3,6 +3,14 @@ import json
 from datetime import datetime
 import yaml
 import time
+import logging
+import sys
+
+logging.basicConfig(
+    format="[%(levelname)s] %(asctime)s %(message)s",
+    level=logging.DEBUG,
+    stream=sys.stdout)
+logger = logging.getLogger(__name__)
 
 with open('/scheduler.yaml', 'r') as file:
     config = yaml.safe_load(file)
@@ -41,7 +49,7 @@ if 'date_start' in cds_config.keys() and 'date_end' in cds_config.keys():
     data['inputs']['date_start'] = date_start.strftime('%Y-%m-%d')
     data['inputs']['date_end'] = date_end.strftime('%Y-%m-%d')
 
-print(f"Ingestor process: 'http://localhost/processes/{ingestor_process}/execution'")
+logger.debug(f"Ingestor process: 'http://localhost/processes/{ingestor_process}/execution'")
 # curl command to invoke the ingestor using requests
 # try 5 times to invoke the ingestor if it fails wait 10 seconds before trying again
 
@@ -60,11 +68,11 @@ while not success and n_tries < 5:
         )
         success = True
     except Exception as e:
-        print(f"Try #{n_tries}. Failed to invoke the ingestor: {e}")
-        print("Retrying in 10 seconds...")
+        logger.error(f"Try #{n_tries}. Failed to invoke the ingestor: {e}")
+        logger.error("Retrying in 10 seconds...")
 
         time.sleep(10)
 
 
-print(f"Response status code: {response.status_code}")
-print(f"Response body: {response.text}")
+logger.debug(f"Response status code: {response.status_code}")
+logger.debug(f"Response body: {response.text}")
