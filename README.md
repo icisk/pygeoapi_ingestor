@@ -1,8 +1,11 @@
 # pygeoapi_ingestor_plugin
 
-A plugin to enable Pygeoapi data ingestion with scheduled processes
+A plugin to enable Pygeoapi data ingestion with scheduled processes.
+The diagram below shows the implemented workflow:
 
-<https://miro.com/app/board/uXjVKIAEdbo=/>
+![workflow diagram](./img/workflow-diagram.png)
+
+Source: <https://miro.com/app/board/uXjVKIAEdbo=/>
 
 ## Climate Data Ingestor
 
