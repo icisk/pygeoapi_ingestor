@@ -62,9 +62,9 @@ while not success and n_tries < 5:
     except Exception as e:
         print(f"Try #{n_tries}. Failed to invoke the ingestor: {e}")
         print("Retrying in 10 seconds...")
-        
+
         time.sleep(10)
-        
+
 
 print(f"Response status code: {response.status_code}")
 print(f"Response body: {response.text}")
