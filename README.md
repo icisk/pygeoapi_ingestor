@@ -9,11 +9,11 @@ Source: <https://miro.com/app/board/uXjVKIAEdbo=/>
 
 ## Climate Data Ingestor
 
-The Climate Ingestor Docker is a crucial component of the DIRECTED project’s cloud-based Climate Service (CS) platform.
+The Climate Data Ingestor is a crucial component of the DIRECTED project’s cloud-based Climate Service (CS) platform.
 Its primary function is to handle the ingestion of various types of climate data from multiple sources, ensuring that the data is accurately fetched, processed, and stored for further analysis and visualisation.
 
 The Climate Data Ingestor infrastructure is based on Pygeoapi, making the component consistent and OGC compliant.
-For each data source an ingestor process is defined as a Pygeoapi process, the processes can be executed through a REST API call or by editing a scheduler configuration file, containing specific information of the ingestor process (dataset,query,frequency,...).
+For each data source an ingestor process is defined as a Pygeoapi process, the processes can be executed through a REST API call or by editing a scheduler configuration file, containing specific information of the ingestor process (dataset, query, frequency, ...).
 The scheduler configuration is parsed at startup and can trigger the processes in two different ways based on *frequency* field:
 
 - **on-demand**: the process is executed at startup
