@@ -60,10 +60,10 @@ PROCESS_METADATA = {
     },
     'description': {
         'en': 'Ingestor Process is a process that fetches data from an FTP server and stores it in a Zarr file in an S3 bucket.'
-          'The process is used to ingest data from the SMHI FTP server and store it in an S3 bucket.' 
-          'The process requires the following inputs: issue_date, data_dir, living_lab, zarr_out.' 
-          'The process fetches the data from the FTP server, reads the NetCDF files, and stores the data in a Zarr file in an S3 bucket.' 
-          'The process returns the URL of the Zarr file in the S3 bucket.' 
+          'The process is used to ingest data from the SMHI FTP server and store it in an S3 bucket.'
+          'The process requires the following inputs: issue_date, data_dir, living_lab, zarr_out.'
+          'The process fetches the data from the FTP server, reads the NetCDF files, and stores the data in a Zarr file in an S3 bucket.'
+          'The process returns the URL of the Zarr file in the S3 bucket.'
           'The process also updates the pygeoapi configuration file to include the new dataset.'},
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'keywords': ['ingestor process'],
@@ -189,7 +189,7 @@ def fetch_dataset(dataset, query, file_out, date=None, engine='h5netcdf'):
     KEY = os.environ.get('CDSAPI_KEY')
     c = cdsapi.Client(url=URL, key=KEY)
     query_copy = query.copy()
-    if date:        
+    if date:
         query_copy['year'] = date.year
         query_copy['month'] = date.month
         query_copy['day'] = date.day
@@ -251,20 +251,20 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Cannot process without a dataset')
         if query is None:
             raise ProcessorExecuteError('Cannot process without a query')
-        
+
         s3 = s3fs.S3FileSystem(anon=True)
         if zarr_out:
             remote_url = zarr_out
             # Check if the path already exists
             if s3.exists(remote_url):
                 raise ProcessorExecuteError(f'Path {remote_url} already exists')
-        else:    
+        else:
             bucket_name = os.environ.get("DEFAULT_BUCKET")
             remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
             remote_url = f's3://{bucket_name}/{remote_path}dataset_cds_{int(datetime.now().timestamp())}.zarr'
 
         if start_date and end_date:
-                
+
             datetime_start = datetime.strptime(start_date, '%Y-%m-%d')
             datetime_end = datetime.strptime(end_date, '%Y-%m-%d')
             # get list of days between start_date and end_date
@@ -304,8 +304,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         min_time = data.coords['time'].min().values
         max_time = data.coords['time'].max().values
-        
-        # convert np.datetime64 to datetime object 
+
+        # convert np.datetime64 to datetime object
         datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
         datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
 
@@ -326,7 +326,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     'begin': datetime_min,
                     'end': datetime_max
                     }
-                },                      
+                },
             'providers': [
                 {
                     'type': 'edr',
@@ -354,4 +354,3 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
     def __repr__(self):
         return f'<IngestorCDSProcessProcessor> {self.name}'
-

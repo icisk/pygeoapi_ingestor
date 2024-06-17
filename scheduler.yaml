@@ -1,14 +1,14 @@
 living_lab:
   name: forli
-  bbox: 
+  bbox:
   - 12
   - 44
   - 13
   - 45
-  scheduler: 
+  scheduler:
     # smhi:
     #   frequency: 12 * * * *
-      
+
     cds:
       frequency: 12 * * * *
       dataset: cems-glofas-forecast

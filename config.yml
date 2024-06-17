@@ -134,14 +134,13 @@ resources:
         type: process
         processor:
             name: plugins.IngestorSMHIProcessProcessor
-    
+
     ingestor-cds-process:
         type: process
         processor:
             name: plugins.IngestorCDSProcessProcessor
-    
+
     # ingestor-planetary-process:
     #     type: process
     #     processor:
     #         name: plugins.IngestorPlanetaryProcessProcessor
-    
