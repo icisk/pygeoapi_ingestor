@@ -47,6 +47,14 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 # import cfgrib
 # import ecmwflibs
+import logging
+import sys
+
+logging.basicConfig(
+    format="[%(levelname)s] %(asctime)s %(message)s",
+    level=logging.DEBUG,
+    stream=sys.stdout)
+logger = logging.getLogger(__name__)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -279,12 +287,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         out_data = future.result()
                         datasets.append(out_data)
                     except Exception as exc:
-                        print(f"{day} generated an exception: {exc}")
+                        logger.error(f"{day} generated an exception: {exc}")
             data = xr.concat(datasets,dim='time')
         else:
             # check if year, month and day are in the query
             if 'year' in query and 'month' in query and 'day' in query:
-                print('Fetching data for a specific date', query['year'], query['month'], query['day'])
+                logger.debug('Fetching data for a specific date', query['year'], query['month'], query['day'])
             else:
                 query['year'] = str(datetime.now().year)
                 query['month'] = str(datetime.now().month)

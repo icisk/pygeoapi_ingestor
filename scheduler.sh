@@ -4,25 +4,26 @@
 # smhi_command="python3 /invoke_ingestor.py"
 scheduler_file="/scheduler.yaml"
 
+# cron is already started in entrypoint.sh
 service cron start
 
 # save the result to a variable
 scheduler=$(cat $scheduler_file | shyaml keys living_lab.scheduler)
-echo $scheduler
+echo "$scheduler"
 echo  "-----------"
 crontab -r
 # loop through the scheduler keys
 for key in $scheduler
     do
-        echo $key
+        echo "$key"
         # extract the scheduler values
         echo "Extracting values"
         # parse frequency in crontab format
-        freq=$(cat $scheduler_file | shyaml get-value living_lab.scheduler.$key.frequency)
+        freq=$(cat $scheduler_file | shyaml get-value "living_lab.scheduler.$key.frequency")
         echo "FREQ: $freq"
         echo "-----------"
 
-        command="python3 /invoke_${key}_ingestor.py"
+        command="python3 /invoke_${key}_ingestor.py > /proc/1/fd/1 2>&1"
 
         if [[ $freq == "onetime" ]]; then
             # Run command
@@ -47,3 +48,8 @@ for key in $scheduler
         fi
 
     done
+echo "Print current crontab"
+echo "---------------------"
+crontab -l
+echo "---------------------"
+echo "Finished processing '$scheduler_file'"
