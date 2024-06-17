@@ -2,7 +2,7 @@
 
 # parse yaml file and set crontab
 # smhi_command="python3 /invoke_ingestor.py"
-scheduler_file="/pygeoapi/scheduler.yaml"
+scheduler_file="/scheduler.yaml"
 
 service cron start
 
