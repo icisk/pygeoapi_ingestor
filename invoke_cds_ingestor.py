@@ -4,7 +4,7 @@ from datetime import datetime
 import yaml
 import time
 
-with open('./scheduler.yaml', 'r') as file:
+with open('/scheduler.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
 cds_config = config['living_lab']['scheduler']['cds']
