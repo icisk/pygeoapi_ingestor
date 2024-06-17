@@ -51,12 +51,25 @@ The data sources available to the ingestor are defined inside `plugins/src/plugi
 #### SMHI FTP process
 
 The SMHI process retrieve data from SMHI FTP server, the FTP credentials are located in `docker-compose.yml` file and stored as environment variables.
+The following variables are required:
+
+- `FTP_HOST`
+- `FTP_DIR`
+- `FTP_USER`
+- `FTP_PASS`
+- `DEFAULT_BUCKET`
+- `DEFAULT_REMOTE_DIR`
 
 In `invoke_smhi_ingestor.py` file the process is invoked with data from `scheduler.yaml` file.
 
 #### CDS API process
 
 The CDS process retrieve data from CDS, the API credentials are located in `docker-compose.yml` file and stored as environment variables.
+The following variables are required:
+
+- `CDSAPI_KEY`
+- `DEFAULT_BUCKET`
+- `DEFAULT_REMOTE_DIR`
 
 In `invoke_cds_ingestor.py` file the process is invoked with data from `scheduler.yaml` file.
 
