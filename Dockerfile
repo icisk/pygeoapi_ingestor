@@ -2,20 +2,32 @@ FROM geopython/pygeoapi:latest
 
 ENV PYGEOAPI_CONFIG=config.yml
 
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y git && \
-    apt-get install -y cron && \
-    apt-get install -y curl
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y \
+        cron \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY ./plugins/ ./plugins
-RUN pip install ./plugins netcdf4 h5netcdf shyaml python-dotenv cdsapi
-RUN rm -rf ./process
+
+RUN pip install \
+        ./plugins \
+        cdsapi \
+        h5netcdf \
+        netcdf4 \
+        python-dotenv \
+        shyaml \
+    && rm -rf ./process
 
 COPY ./entrypoint.sh /entrypoint.sh
 COPY ./scheduler.sh /scheduler.sh
 COPY ./invoke_smhi_ingestor.py /invoke_smhi_ingestor.py
 COPY ./invoke_cds_ingestor.py /invoke_cds_ingestor.py
 COPY ./invoke_planetary_ingestor.py /invoke_planetary_ingestor.py
+
+RUN chmod +x /entrypoint.sh \
+    && chmod +x /scheduler.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
