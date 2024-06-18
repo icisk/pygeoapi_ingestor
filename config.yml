@@ -140,6 +140,11 @@ resources:
         processor:
             name: plugins.IngestorCDSProcessProcessor
 
+    ingestor-cds-vector-process:
+        type: process
+        processor:
+            name: plugins.IngestorCDSVectorProcessProcessor
+
     # ingestor-planetary-process:
     #     type: process
     #     processor:
