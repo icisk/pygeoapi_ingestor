@@ -67,8 +67,12 @@ In `invoke_smhi_ingestor.py` file the process is invoked with data from `schedul
 The CDS process retrieve data from CDS, the API credentials are located in `docker-compose.yml` file and stored as environment variables.
 The following variables are required:
 
-- `CDSAPI_KEY`: checkout the Climate Data Store (CDS) Application Program Interface (API) documentation [for retrieving an API key](https://cds.climate.copernicus.eu/api-how-to).
-  The `CDSAPI_KEY` is created by concatenating your `UID + ':' API Key`, e.g. `123456:12345678-9101-1121-1314-151617181920`
+- `CDSAPI_KEY`:
+
+  Checkout the Climate Data Store (CDS) Application Program Interface (API) documentation [for retrieving an API key](https://cds.climate.copernicus.eu/api-how-to).
+  The `CDSAPI_KEY` is created by concatenating your `UID + ':' API Key`, e.g. `123456:12345678-9101-1121-1314-151617181920`.
+  One needs to [accept the terms of service](https://cds.climate.copernicus.eu/cdsapp/#!/terms/licence-to-use-copernicus-products), before using the API.
+  Do NOT surround the value with `'` or `"` when providing it.
 - `DEFAULT_BUCKET`
 - `DEFAULT_REMOTE_DIR`
 
