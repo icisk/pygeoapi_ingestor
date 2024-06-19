@@ -51,6 +51,7 @@ import logging
 import sys
 
 LOGGER = logging.getLogger(__name__)
+
 load_dotenv(find_dotenv())
 #: Process metadata and description
 PROCESS_METADATA = {
@@ -253,7 +254,14 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if query is None:
             raise ProcessorExecuteError('Cannot process without a query')
 
-        s3 = s3fs.S3FileSystem(anon=True)
+        s3_is_anon_access = os.environ.get(default='True', key='S3_ANON_ACCESS')
+        if 'True' == s3_is_anon_access:
+            s3_is_anon_access = True
+        else:
+            s3_is_anon_access = False
+        LOGGER.debug(f"Using anon S3 access? '{s3_is_anon_access}'")
+
+        s3 = s3fs.S3FileSystem(anon=s3_is_anon_access)
         if zarr_out:
             remote_url = zarr_out
             # Check if the path already exists
@@ -292,7 +300,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 query['day'] = str(datetime.now().day)
             data = fetch_dataset(dataset, query, file_out, engine=engine)
 
-        store= s3fs.S3Map(root=remote_url, s3=s3, check=False)
+        store = s3fs.S3Map(root=remote_url, s3=s3, check=False)
 
         data.to_zarr(store=store,
                     consolidated=True,
