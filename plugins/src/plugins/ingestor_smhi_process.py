@@ -42,11 +42,7 @@ import xarray as xr
 import logging
 import sys
 
-logging.basicConfig(
-    format="[%(levelname)s] %(asctime)s %(message)s",
-    level=logging.DEBUG,
-    stream=sys.stdout)
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 #: Process metadata and description
@@ -143,9 +139,9 @@ def download_files_from_ftp(ftp, folder):
                     os.makedirs(f"./seasonal_forecast/{folder}")
                 with open(local_filename, 'wb') as f:
                     ftp.retrbinary('RETR ' + file, f.write)
-                logger.debug(f"Downloaded: {local_filename}")
+                LOGGER.debug(f"Downloaded: {local_filename}")
             else:
-                logger.debug(f"File already exists: {local_filename}")
+                LOGGER.debug(f"File already exists: {local_filename}")
                 pass
     ftp.cwd("..")
     return nc_files
@@ -324,9 +320,9 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
             ]
         }
 
-        logger.debug("***********************************")
-        logger.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
-        logger.debug("***********************************")
+        LOGGER.debug("***********************************")
+        LOGGER.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
+        LOGGER.debug("***********************************")
 
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
