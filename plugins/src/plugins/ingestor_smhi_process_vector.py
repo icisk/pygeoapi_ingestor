@@ -309,8 +309,8 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         # Find the minimum and maximum datetime
         min_time = min(datetime_objects)
         max_time = max(datetime_objects)
-        datetime_min = str(min_time)
-        datetime_max = str(max_time)
+        datetime_min = min_time
+        datetime_max = max_time
 
         with open(file_out, 'w') as f:
             f.write(str(feature_collection))
@@ -318,11 +318,11 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         with open('/pygeoapi/local.config.yml', 'r') as file:
             config = yaml.safe_load(file)
 
-        config['resources'][f'georgia_seasonal_forecast_{issue_date}'] = {
+        config['resources'][f'{living_lab}_seasonal_forecast_{issue_date}'] = {
             'type': 'collection',
-            'title': f'georgia_seasonal_forecast_{issue_date}',
-            'description': 'SMHI Discharge data of Georgia',
-            'keywords': ['Georgia', 'country'],
+            'title': f'{living_lab}_seasonal_forecast_{issue_date}',
+            'description': f'SMHI Discharge data of {living_lab}',
+            'keywords': [living_lab, 'country'],
             'extents': {
                 'spatial': {
                     'bbox': [min_x, min_y, max_x, max_y],
@@ -347,7 +347,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         }
 
         if s3_save:
-            config['resources'][f'georgia_seasonal_forecast_{issue_date}']['providers'][0]['options'] = {
+            config['resources'][f'{living_lab}_seasonal_forecast_{issue_date}']['providers'][0]['options'] = {
                 's3': {'anon': True, 'requester_pays': False}
             }
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
