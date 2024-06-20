@@ -251,7 +251,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         file_out = data.get('file_out', os.path.join(f"{tempfile.gettempdir()}",f"copernicus_data_{str(int(datetime.now().timestamp()))}.nc"))
         zarr_out = data.get('zarr_out')
         engine = data.get('engine', 'h5netcdf')
-
+        s3_save = data.get('s3_save', False)
         start_date = data.get('date_start', None)
         end_date = data.get('date_end', None)
 
@@ -260,16 +260,20 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if query is None:
             raise ProcessorExecuteError('Cannot process without a query')
 
-        s3 = s3fs.S3FileSystem(anon=True)
-        if zarr_out:
-            remote_url = zarr_out
+        
+        if zarr_out and zarr_out.startswith('s3://'):
+            s3_save = True
+            s3 = s3fs.S3FileSystem(anon=True)
             # Check if the path already exists
-            if s3.exists(remote_url):
-                raise ProcessorExecuteError(f'Path {remote_url} already exists')
+            if s3.exists(zarr_out):
+                raise ProcessorExecuteError(f'Path {zarr_out} already exists')
         else:
-            bucket_name = os.environ.get("DEFAULT_BUCKET")
-            remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
-            remote_url = f's3://{bucket_name}/{remote_path}dataset_cds_{int(datetime.now().timestamp())}.zarr'
+            if s3_save:
+                bucket_name = os.environ.get("DEFAULT_BUCKET")
+                remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
+                zarr_out = f's3://{bucket_name}/{remote_path}{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
+            else:
+                zarr_out = f'/pygeoapi/{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
 
         if start_date and end_date:
 
@@ -299,7 +303,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 query['day'] = str(datetime.now().day)
             data = fetch_dataset(dataset, query, file_out, engine=engine)
 
-        store= s3fs.S3Map(root=remote_url, s3=s3, check=False)
+        if s3_save:
+            store = s3fs.S3Map(root=zarr_out, s3=s3, check=False)
+        else:
+            store = zarr_out
 
         data.to_zarr(store=store,
                     consolidated=True,
@@ -320,11 +327,11 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with open('/pygeoapi/local.config.yml', 'r') as file:
             config = yaml.safe_load(file)
 
-        config['resources'][dataset] = {
+        config['resources'][f"{dataset}_{datetime_min}_{datetime_max}"] = {
             'type': 'collection',
-            'title': dataset,
-            'description': 'CDS Discharge data of Georgia',
-            'keywords': ['Georgia', 'country'],
+            'title': f"{dataset}_{datetime_min}_{datetime_max}",
+            'description': f'CDS {dataset} data from {datetime_min} to {datetime_max}',
+            'keywords': ['country'],
             'extents': {
                 'spatial': {
                     'bbox': [min_x, min_y, max_x, max_y],
@@ -339,24 +346,29 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 {
                     'type': 'edr',
                     'name': 'xarray-edr',
-                    'data': remote_url,
+                    'data': zarr_out,
                     'x_field': 'longitude',
                     'y_field': 'latitude',
                     'time_field': 'time',
                     'format': {'name': 'zarr', 'mimetype': 'application/zip'},
-                    'options': {
-                        's3': {'anon': True, 'requester_pays': False}
-                    }
+                    # 'options': {
+                    #     's3': {'anon': True, 'requester_pays': False}
+                    # }
                 }
             ]
         }
+
+        if s3_save:
+            config['resources'][dataset]['providers'][0]['options'] = {
+                's3': {'anon': True, 'requester_pays': False}
+            }
 
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
 
         outputs = {
             'id': 'ingestor-process',
-            'value': remote_url
+            'value': zarr_out
         }
         return mimetype, outputs
 
