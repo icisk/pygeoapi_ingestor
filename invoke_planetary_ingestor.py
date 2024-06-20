@@ -6,7 +6,7 @@ import logging
 import sys
 
 logging.basicConfig(
-    format="[%(levelname)s] %(asctime)s %(message)s",
+    format="[%(asctime)s] [%(levelname)s] %(message)s",
     level=logging.DEBUG,
     stream=sys.stdout)
 logger = logging.getLogger(__name__)

@@ -7,7 +7,7 @@ import logging
 import sys
 
 logging.basicConfig(
-    format="[%(levelname)s] %(asctime)s %(message)s",
+    format="[%(asctime)s] [%(levelname)s] %(message)s",
     level=logging.DEBUG,
     stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -49,17 +49,20 @@ if 'date_start' in cds_config.keys() and 'date_end' in cds_config.keys():
     data['inputs']['date_start'] = date_start.strftime('%Y-%m-%d')
     data['inputs']['date_end'] = date_end.strftime('%Y-%m-%d')
 
-logger.debug(f"Ingestor process: 'http://localhost/processes/{ingestor_process}/execution'")
+execute_url = f"http://localhost/processes/{ingestor_process}/execution"
+
+logger.debug(f"Ingestor process: '{execute_url}'")
 # curl command to invoke the ingestor using requests
 # try 5 times to invoke the ingestor if it fails wait 10 seconds before trying again
 
 success = False
 n_tries = 0
-while not success and n_tries < 5:
+max_tries = 5
+while not success and n_tries < max_tries:
     n_tries += 1
+    logger.debug(f"[{n_tries}/{max_tries}]: Send POST to '{execute_url}")
     try:
-        response = requests.post(
-            f"http://localhost/processes/{ingestor_process}/execution",
+        response = requests.post(execute_url,
             headers={
                 'accept': 'application/json',
                 'Content-Type': 'application/json'
@@ -72,7 +75,6 @@ while not success and n_tries < 5:
         logger.error("Retrying in 10 seconds...")
 
         time.sleep(10)
-
 
 logger.debug(f"Response status code: {response.status_code}")
 logger.debug(f"Response body: {response.text}")

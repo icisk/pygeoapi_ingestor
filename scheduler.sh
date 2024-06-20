@@ -5,7 +5,7 @@
 scheduler_file="/scheduler.yaml"
 
 # cron is already started in entrypoint.sh
-service cron start
+#service cron start
 
 # save the result to a variable
 scheduler=$(cat $scheduler_file | shyaml keys living_lab.scheduler)
