@@ -35,9 +35,15 @@ ingestor_process = 'ingestor-planetary-process'
 data = {
     "inputs": {
         "dataset": planetary_config['dataset'],
+        "collections": planetary_config['collections'],
+        "varname": planetary_config['varname'],
+        # "models": planetary_config['models'],
+        "bbox": bbox,
+        "date_start": str(planetary_config['date_start']),
+        "date_end": str(planetary_config['date_end']),
         "query": planetary_config['query'],
-        "file_out": planetary_config['file_out'],
-        # "zarr_out": zarr_out
+        # "file_out": planetary_config['file_out'],
+        "zarr_out": planetary_config['zarr_out'],
     }
 }
 
