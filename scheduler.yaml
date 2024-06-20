@@ -9,6 +9,9 @@ living_lab:
     # smhi:
     #   frequency: 12 * * * *
 
+    smhi_vector:
+      frequency: 16 * * * *
+
     cds:
       frequency: 12 * * * *
       dataset: cems-glofas-forecast
