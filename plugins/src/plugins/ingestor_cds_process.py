@@ -50,14 +50,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import sys
 
-logging.basicConfig(
-    format="[%(levelname)s] %(asctime)s %(message)s",
-    level=logging.DEBUG,
-    stream=sys.stdout)
-logger = logging.getLogger(__name__)
-
-
 LOGGER = logging.getLogger(__name__)
+
 load_dotenv(find_dotenv())
 #: Process metadata and description
 PROCESS_METADATA = {
@@ -260,10 +254,17 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if query is None:
             raise ProcessorExecuteError('Cannot process without a query')
 
+        s3_is_anon_access = os.environ.get(default='True', key='S3_ANON_ACCESS')
+        if 'True' == s3_is_anon_access:
+            s3_is_anon_access = True
+        else:
+            s3_is_anon_access = False
+        LOGGER.debug(f"Using anon S3 access? '{s3_is_anon_access}'")
+
         
         if zarr_out and zarr_out.startswith('s3://'):
             s3_save = True
-            s3 = s3fs.S3FileSystem(anon=True)
+            s3 = s3fs.S3FileSystem(anon=s3_is_anon_access)
             # Check if the path already exists
             if s3.exists(zarr_out):
                 raise ProcessorExecuteError(f'Path {zarr_out} already exists')
@@ -291,12 +292,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         out_data = future.result()
                         datasets.append(out_data)
                     except Exception as exc:
-                        logger.error(f"{day} generated an exception: {exc}")
+                        LOGGER.error(f"{day} generated an exception: {exc}")
             data = xr.concat(datasets,dim='time')
         else:
             # check if year, month and day are in the query
             if 'year' in query and 'month' in query and 'day' in query:
-                logger.debug('Fetching data for a specific date', query['year'], query['month'], query['day'])
+                LOGGER.debug('Fetching data for a specific date', query['year'], query['month'], query['day'])
             else:
                 query['year'] = str(datetime.now().year)
                 query['month'] = str(datetime.now().month)

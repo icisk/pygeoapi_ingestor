@@ -57,9 +57,9 @@ server:
       output_dir: /tmp/  # temporary file area for storing job results (files)
 
 logging:
-    level: ERROR
-    #logfile: /tmp/pygeoapi.log
 
+  level: DEBUG
+  logfile: /dev/stdout
 metadata:
     identification:
         title: pygeoapi icisk
@@ -143,7 +143,7 @@ resources:
     ingestor-cds-vector-process:
         type: process
         processor:
-            name: plugins.IngestorCDSVectorProcessProcessor
+            name: plugins.IngestorSMHIVectorProcessProcessor
 
     # ingestor-planetary-process:
     #     type: process
