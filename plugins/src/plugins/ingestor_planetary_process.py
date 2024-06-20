@@ -180,15 +180,21 @@ class IngestorPlanetaryProcessProcessor(BaseProcessor):
         super().__init__(processor_def, PROCESS_METADATA)
 
     def execute(self, data):
-        # TODO: implement the process
         mimetype = 'application/json'
 
-        # # get parameters from query params
-        # dataset = data.get('dataset')
-        # query = data.get('query')
+        # get parameters from query params
+        repository = data.get('dataset')
+        collections = data.get('collections')
+        varname = data.get('varname')
+        models = data.get('models')
+        factor = data.get('factor', 1.0)
+        bbox = data.get('bbox')
+        date_start = data.get('date_start')
+        date_end = data.get('date_end')
+        query = data.get('query')
         # file_out = data.get('file_out', os.path.join(f"{tempfile.gettempdir()}",f"copernicus_data_{str(int(datetime.datetime.now().timestamp()))}.nc"))
         zarr_out = data.get('zarr_out')
-        # engine = data.get('engine', 'h5netcdf')
+        engine = data.get('engine', 'h5netcdf')
 
 
         # if dataset is None:
@@ -212,7 +218,41 @@ class IngestorPlanetaryProcessProcessor(BaseProcessor):
 
         # data = xr.open_dataset(f'{file_out}', engine=engine)
 
-        # data.attrs['long_name'] = dataset
+        # data = fetch_data_from_planetary(varname, models, factor, bbox, date_start, date_end, repository, collections, query)
+        catalog = pystac_client.Client.open(
+            repository,
+            modifier=planetary_computer.sign_inplace,
+        )
+        search_results = catalog.search(
+            collections=collections, datetime=[date_start, date_end], query=query
+        )
+        items = search_results.items()
+        output_ds = None
+        ds_list = []
+        print("STARTING SEARCH")
+        for item in items:
+            print("ITEM")
+            print(item)
+            signed_item = planetary_computer.sign(item)
+            asset = signed_item.assets.get(varname)
+            if asset:
+                dataset = xr.open_dataset(asset.href, **asset.extra_fields["xarray:open_kwargs"])
+                ds = dataset[varname]
+                if bbox:
+                    ds = ds.sel(lat=slice(bbox[3],bbox[1]), lon=slice(bbox[0],bbox[2])) * factor
+                output_ds = ds
+                ds_list.append(output_ds)
+        try:
+            data = xr.concat(ds_list, dim="time")
+        except Exception as e:
+            print("Exception")
+            print(e)
+
+
+        print("DATA")
+        print(data)
+        print("****************************************")
+        # data.attrs['long_name'] = repository
 
         # store= s3fs.S3Map(root=remote_url, s3=s3, check=False)
 
@@ -277,10 +317,10 @@ class IngestorPlanetaryProcessProcessor(BaseProcessor):
         # with  open('/pygeoapi/local.config.yml', 'w') as outfile:
         #     yaml.dump(config, outfile, default_flow_style=False)
 
-
+ 
         outputs = {
             'id': 'ingestor-process',
-            'value': remote_url
+            'value': "remote_url"
         }
         return mimetype, outputs
 
