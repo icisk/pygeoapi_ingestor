@@ -274,7 +274,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
                 zarr_out = f's3://{bucket_name}/{remote_path}{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
             else:
-                zarr_out = f'/pygeoapi/{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
+                if not zarr_out:
+                    zarr_out = f'/pygeoapi/cds_data/{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
 
         if start_date and end_date:
 
