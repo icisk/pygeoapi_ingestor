@@ -206,8 +206,9 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                 remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
                 file_out = f's3://{bucket_name}/{remote_path}dataset_smhi_{issue_date}.geojson'
             else:
-                file_out = f'/pygeoapi/dataset_smhi_{issue_date}.geojson'
-        data_array = []
+                if not file_out:
+                    file_out = f'/pygeoapi/smhi_vector_data/dataset_smhi_{issue_date}.geojson'
+
         features = []
 
         # Connect to FTP server
