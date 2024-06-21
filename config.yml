@@ -140,7 +140,7 @@ resources:
         processor:
             name: plugins.IngestorCDSProcessProcessor
 
-    ingestor-cds-vector-process:
+    ingestor-smhi-vector-process:
         type: process
         processor:
             name: plugins.IngestorSMHIVectorProcessProcessor
