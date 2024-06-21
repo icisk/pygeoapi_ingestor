@@ -8,7 +8,8 @@ from datetime import datetime
 import xarray as xr
 from geojson import Feature, Point, FeatureCollection
 import geopandas as gpd
-
+from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
+import xarray as xr
 # =================================================================
 #
 # Authors: Valerio Luzzi <valluzzi@gmail.com>
@@ -41,15 +42,6 @@ import geopandas as gpd
 # curl -X POST -H "Content-Type: application/json" -d "{\"inputs\":{\"name\":\"valerio\"}}" http://localhost:5000/processes/ingestor-process/execution
 # curl -X POST -H "Content-Type: application/json" -d "{\"inputs\":{\"name\":\"gdalinfo\"}}" http://localhost:5000/processes/k8s-process/execution
 
-from ftplib import FTP
-import logging, time
-import yaml
-import fsspec
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
-import os
-import s3fs
-import datetime
-import xarray as xr
 
 LOGGER = logging.getLogger(__name__)
 
@@ -212,9 +204,9 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             if s3_save:
                 bucket_name = os.environ.get("DEFAULT_BUCKET")
                 remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
-                file_out = f's3://{bucket_name}/{remote_path}dataset_smhi_{int(datetime.datetime.now().timestamp())}.geojson'
+                file_out = f's3://{bucket_name}/{remote_path}dataset_smhi_{issue_date}.geojson'
             else:
-                file_out = f'/pygeoapi/dataset_smhi_{int(datetime.datetime.now().timestamp())}.geojson'
+                file_out = f'/pygeoapi/dataset_smhi_{issue_date}.geojson'
         data_array = []
         features = []
 
@@ -305,7 +297,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         max_y = float(max([f['geometry']['coordinates'][1] for f in features]))
 
         # get datetime min and max values
-        datetime_objects = [datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S") for f in features for date_str in f['properties']['time']]
+        datetime_objects = [datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S") for f in features for date_str in f['properties']['time']]
         # Find the minimum and maximum datetime
         min_time = min(datetime_objects)
         max_time = max(datetime_objects)
