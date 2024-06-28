@@ -133,19 +133,19 @@ resources:
     ingestor-smhi-process:
         type: process
         processor:
-            name: plugins.IngestorSMHIProcessProcessor
+            name: pygeoapi_ingestor_plugin.IngestorSMHIProcessProcessor
 
     ingestor-cds-process:
         type: process
         processor:
-            name: plugins.IngestorCDSProcessProcessor
+            name: pygeoapi_ingestor_plugin.IngestorCDSProcessProcessor
 
     ingestor-smhi-vector-process:
         type: process
         processor:
-            name: plugins.IngestorSMHIVectorProcessProcessor
+            name: pygeoapi_ingestor_plugin.IngestorSMHIVectorProcessProcessor
 
     # ingestor-planetary-process:
     #     type: process
     #     processor:
-    #         name: plugins.IngestorPlanetaryProcessProcessor
+    #         name: pygeoapi_ingestor_plugin.IngestorPlanetaryProcessProcessor
