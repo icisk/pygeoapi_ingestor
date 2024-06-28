@@ -1,7 +1,7 @@
 import setuptools
 
 VERSION = "0.1.0"
-PACKAGE_NAME = "plugins"
+PACKAGE_NAME = "pygeoapi_ingestor_plugin"
 AUTHOR = "Valerio Luzzi, Marco Renzi"
 EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com"
 GITHUB = "https://github.com/SaferPlaces2023/pygeoapi_ingestor_plugin"

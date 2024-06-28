@@ -10,10 +10,10 @@ RUN apt-get update \
         git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ./plugins/ ./plugins
+COPY . .
 
 RUN pip install \
-        ./plugins \
+        . \
         cdsapi \
         h5netcdf \
         netcdf4 \
