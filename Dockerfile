@@ -12,16 +12,15 @@ RUN apt-get update \
 
 COPY . .
 
-RUN pip install \
-        . \
-        cdsapi \
-        h5netcdf \
-        netcdf4 \
-        python-dotenv \
-        shyaml \
-        geojson \
-        geopandas \
-        numpy==1.26.4 \
+RUN pip install . \
+        # cdsapi \
+        # h5netcdf \
+        # netcdf4 \
+        # python-dotenv \
+        # shyaml \
+        # geojson \
+        # geopandas \
+        # numpy==1.26.4 \
     && rm -rf ./process
 
 COPY ./entrypoint.sh /entrypoint.sh
