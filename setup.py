@@ -23,5 +23,14 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=["pygeoapi"]
+    install_requires=[
+        "pygeoapi",
+        "cdsapi",
+        "h5netcdf",
+        "netcdf4",
+        "python-dotenv",
+        "shyaml",
+        "geojson",
+        "geopandas",
+        "numpy==1.26.4"]
 )
