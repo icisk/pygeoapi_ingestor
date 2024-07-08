@@ -11,7 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ingestor id
-ingestor_process = 'ingestor-cds-vector-process'
+ingestor_process = 'ingestor-smhi-vector-process'
 
 # parameters for the ingestor
 data_dir = "seasonal_forecast"

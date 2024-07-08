@@ -209,11 +209,16 @@ def fetch_dataset(dataset, query, file_out, date=None, engine='h5netcdf'):
             zip_ref.extractall(local_file)
 
         data = xr.open_dataset(f"{local_file}/data.nc", engine=engine)
+    elif file_out.endswith('.nc'):
+        LOGGER.debug(f"---> OPENING {file_out}")
+        data = xr.open_dataset(file_out)
     # elif file_out.endswith('.grib'):
     #     data = xr.open_dataset(file_out,engine="cfgrib")
 
-    for var in data.data_vars:
-        data[var] = data[var].expand_dims(dim='time')
+    if dataset == 'cems-glofas-forecast':
+        for var in data.data_vars:
+            data[var] = data[var].expand_dims(dim='time')
+    
     data.attrs['long_name'] = dataset
 
     return data
@@ -298,7 +303,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         else:
             # check if year, month and day are in the query
             if 'year' in query and 'month' in query and 'day' in query:
-                LOGGER.debug('Fetching data for a specific date', query['year'], query['month'], query['day'])
+                LOGGER.debug(f"Fetching data for a specific date {query['year']}, {query['month']}, {query['day']}")
             else:
                 query['year'] = str(datetime.now().year)
                 query['month'] = str(datetime.now().month)
