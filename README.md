@@ -60,18 +60,18 @@ Common environment variables used by all processes:
 
 - `S3_ANON_ACCESS`:
 
-  Set it to `False` and provide the next to variables, if the S3 bucket requires credentials.
+  Set it to `False` and provide the next two variables, if the S3 bucket requires credentials.
   Defaults to `True`.
-
-- `FSSPEC_S3_ENDPOINT_URL`:
-
-  In the case of the Open Telekom Cloud: `https://obs.eu-de.otc.t-systems.com`
 
 - `FSSPEC_S3_KEY`, `FSSPEC_S3_SECRET`
 
   Use these two variables to provide the access key and its according secret in the case of using the Open Telekom Cloud as S3 provider.
 
   See documentation about [s3 credentials](https://s3fs.readthedocs.io/en/latest/#credentials) or [s3 compatible storage](https://s3fs.readthedocs.io/en/latest/index.html#s3-compatible-storage) for ways to provide the credentials for uploading data to the S3 bucket.
+
+- `FSSPEC_S3_ENDPOINT_URL`:
+
+  In the case of the Open Telekom Cloud: `https://obs.eu-de.otc.t-systems.com`
 
 ### Available processes
 
@@ -98,6 +98,7 @@ The following variables are required:
   The `CDSAPI_KEY` is created by concatenating your `UID + ':' API Key`, e.g. `123456:12345678-9101-1121-1314-151617181920`.
   One needs to [accept the terms of service](https://cds.climate.copernicus.eu/cdsapp/#!/terms/licence-to-use-copernicus-products), before using the API.
   Do NOT surround the value with `'` or `"` when providing it.
+  Take a look at the [cdsapi documentation on pypi](https://pypi.org/project/cdsapi/#configure), if any problems occur.
 
 In `invoke_cds_ingestor.py` file the process is invoked with data from `scheduler.yaml` file.
 
