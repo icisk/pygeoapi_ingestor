@@ -32,5 +32,9 @@ setuptools.setup(
         "shyaml",
         "geojson",
         "geopandas",
-        "numpy==1.26.4"]
+        "numpy==1.24.0",
+        "xarray==2024.1.0",
+        "tifffile",
+        "s3fs",
+        "zarr"]
 )
