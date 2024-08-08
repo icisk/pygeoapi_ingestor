@@ -69,7 +69,7 @@ PROCESS_METADATA = {
     'example': {
         "inputs": {
             "data_path": "/data/creaf/precip_forecast",
-            "zarr_out": "irgendwas"
+            "zarr_out": "s3://example/target/bucket.zarr"
         }
     }
 }
@@ -97,18 +97,18 @@ def tifs_to_da(path):
     #xarray creation
     arrays = [tiff.imread(file) for file in files]
     stacked = np.stack(arrays, axis=0)
-    da = xr.DataArray(stacked, 
-                      dims=['time', 'latitude', 'longitude'], 
-                      coords={'time': time, 'latitude': y, 'longitude': x}, 
+    da = xr.DataArray(stacked,
+                      dims=['time', 'latitude', 'longitude'],
+                      coords={'time': time, 'latitude': y, 'longitude': x},
                       attrs={'info': info,
-                             'long_name': 'geh mir nich aufn sack',
-                             'units': 'deine mudder'}, 
+                             'long_name': 'long name info',
+                             'units': 'units info'},
                       name='data')
 
     return da
 
 def update_config(da, zarr_out):
-    #FIXME hier zarr aus der cloud holen/ lesen um metadaten zu basteln
+    #FIXME get this metadata from zarr file
     min_x = float(da.longitude.values.min())
     max_x = float(da.longitude.values.max())
     min_y = float(da.latitude.values.min())
@@ -141,13 +141,13 @@ def update_config(da, zarr_out):
                 'y_field': 'latitude',
                 'time_field': 'time',
                 'format': {'name': 'zarr', 'mimetype': 'application/zip'},
-                #FIXME: anon checken: sollte true sein; s3 vs http api 
+                #FIXME: check s3->anon: True should be working; maybe s3 vs http api
                 'options': {
                     's3': {
-                            'anon': False, 
-                            'requester_pays': False, 
-                            "alternate_root": alternate_root, 
-                            "endpoint_url": endpoint_url
+                            'anon': False,
+                            'alternate_root': alternate_root,
+                            'endpoint_url': endpoint_url,
+                            'requester_pays': False
                         }
                 }
             }
