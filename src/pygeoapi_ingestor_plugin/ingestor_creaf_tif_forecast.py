@@ -115,8 +115,8 @@ def update_config(da, zarr_out):
     max_y = float(da.latitude.values.max())
     endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
     alternate_root = zarr_out.split("s3://")[1]
-    
-    #FIXME env PYGEOAPI_CONFIG verweden
+
+    #FIXME use env PYGEOAPI_CONFIG
     with open('/pygeoapi/local.config.yml','r' ) as file:
             config = yaml.safe_load(file)
 
@@ -154,10 +154,12 @@ def update_config(da, zarr_out):
         ]
     }
 
-
+    #FIXME use env PYGEOAPI_CONFIG
     with  open('/pygeoapi/local.config.yml', 'w') as outfile:
         yaml.dump(config, outfile, default_flow_style=False)
-    LOGGER.debug("updated cofig")
+    LOGGER.debug("updated config")
+
+
 class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
     """
     Ingestor Processor example
@@ -186,17 +188,17 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Cannot process without a data path')
         if zarr_out is None or not zarr_out.startswith('s3://') :
             raise ProcessorExecuteError('Cannot process without a zarr path')
-        
+
         if zarr_out and zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             if s3.exists(zarr_out):
                 #FIXME collection in config neu erstellen
                 raise ProcessorExecuteError(f'Path {zarr_out} already exists')
-        
+
         store = s3fs.S3Map(root=zarr_out, s3=s3, check=False)
         tiff_da = tifs_to_da(creaf_forecast_tif_path)
         tiff_da.to_zarr(store=store, consolidated=True, mode='w')
-        
+
         update_config(tiff_da, zarr_out)
 
         outputs = {

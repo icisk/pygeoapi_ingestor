@@ -193,7 +193,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Cannot process without a data_dir')
         if living_lab is None:
             raise ProcessorExecuteError('Cannot process without a living_lab')
-        
+
         if file_out and file_out.startswith('s3://'):
             s3_save = True
             s3 = s3fs.S3FileSystem(anon=True)
@@ -207,6 +207,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                 file_out = f's3://{bucket_name}/{remote_path}dataset_smhi_{issue_date}.geojson'
             else:
                 if not file_out:
+                    #FIXME use env PYGEOAPI_HOME
                     file_out = f'/pygeoapi/smhi_vector_data/dataset_smhi_{issue_date}.geojson'
 
         features = []
@@ -226,11 +227,11 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         for file_nc in files:
             file_nc_path = f"{file_nc}"
             data = read_netcdf(file_nc_path)
-            
+
             # extract data variables key
             data_var = [var for var in data.data_vars if var not in ['geo_x', 'geo_y', 'geo_z']][0]
             model = file_nc_path.split(f'{data_var}_')[1].split('.')[0]
-            
+
             if data_var in data:
                 data[f"{data_var}_{model}"] = data[data_var]
                 data[f"{data_var}_{model}"].attrs['long_name'] = f"{data_var}_{model}"
@@ -241,12 +242,12 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             geopandas_df = gpd.GeoDataFrame(dataframe, geometry=gpd.points_from_xy(dataframe.geo_x, dataframe.geo_y))
             geopandas_df['time'] = geopandas_df['time'].dt.strftime('%Y-%m-%d %H:%M:%S')
             # Convert columns to float64 if necessary
-            geopandas_df = geopandas_df.astype({'geo_x': 'float64', 
-                                                'geo_y': 'float64', 
-                                                'geo_z': 'float64', 
-                                                f"{data_var}_{model}": 'float64', 
+            geopandas_df = geopandas_df.astype({'geo_x': 'float64',
+                                                'geo_y': 'float64',
+                                                'geo_z': 'float64',
+                                                f"{data_var}_{model}": 'float64',
                                                 'id': 'str'})
-            
+
             # create a feature for each id
             # fore each unique id in the dataframe
             for id in geopandas_df.id.unique():
@@ -278,11 +279,11 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                             found = True
                             sel_feature = f
                             break
-                        
+
                     if found:
                         sel_feature["properties"][f"{data_var}_{model}"] = var_serie
                     else:
-                            
+
                         new_feature = Feature(geometry=Point((df.geo_x.iloc[0], df.geo_y.iloc[0])),
                                             properties={"id": id,
                                                         "time": time_serie,
@@ -290,7 +291,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                         features.append(new_feature)
 
         feature_collection = FeatureCollection(features)
-        
+
         # get min and max values for bbox from features
         min_x = float(min([f['geometry']['coordinates'][0] for f in features]))
         min_y = float(min([f['geometry']['coordinates'][1] for f in features]))
@@ -308,6 +309,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         with open(file_out, 'w') as f:
             f.write(str(feature_collection))
 
+        #FIXME use env PYGEOAPI_CONFIG
         with open('/pygeoapi/local.config.yml', 'r') as file:
             config = yaml.safe_load(file)
 
@@ -343,6 +345,8 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             config['resources'][f'{living_lab}_seasonal_forecast_{issue_date}']['providers'][0]['options'] = {
                 's3': {'anon': True, 'requester_pays': False}
             }
+
+        #FIXME use env PYGEOAPI_CONFIG
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
 

@@ -286,6 +286,7 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
         datetime_max = datetime.datetime.fromtimestamp(max_time.tolist()/1e9,tz=datetime.timezone.utc)
         datetime_min = datetime.datetime.fromtimestamp(min_time.tolist()/1e9,tz=datetime.timezone.utc)
 
+        #FIXME use env PYGEOAPI_CONFIG
         with open('/pygeoapi/local.config.yml', 'r') as file:
             config = yaml.safe_load(file)
 
@@ -324,6 +325,7 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
         LOGGER.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
         LOGGER.debug("***********************************")
 
+        #FIXME use env PYGEOAPI_CONFIG
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
 
