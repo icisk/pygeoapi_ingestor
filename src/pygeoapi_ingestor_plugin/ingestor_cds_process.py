@@ -218,7 +218,7 @@ def fetch_dataset(dataset, query, file_out, date=None, engine='h5netcdf'):
     if dataset == 'cems-glofas-forecast':
         for var in data.data_vars:
             data[var] = data[var].expand_dims(dim='time')
-    
+
     data.attrs['long_name'] = dataset
 
     return data
@@ -266,13 +266,9 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             s3_is_anon_access = False
         LOGGER.debug(f"Using anon S3 access? '{s3_is_anon_access}'")
 
-        
+
         if zarr_out and zarr_out.startswith('s3://'):
             s3_save = True
-            s3 = s3fs.S3FileSystem(anon=s3_is_anon_access)
-            # Check if the path already exists
-            if s3.exists(zarr_out):
-                raise ProcessorExecuteError(f'Path {zarr_out} already exists')
         else:
             if s3_save:
                 bucket_name = os.environ.get("DEFAULT_BUCKET")
@@ -281,6 +277,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             else:
                 if not zarr_out:
                     zarr_out = f'/pygeoapi/cds_data/{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
+
+        # if s3, Check if the path already exists
+        if zarr_out.startswith('s3://'):
+            s3 = s3fs.S3FileSystem(anon=s3_is_anon_access)
+            if s3.exists(zarr_out):
+                raise ProcessorExecuteError(f'Path {zarr_out} already exists')
 
         if start_date and end_date:
 
@@ -334,9 +336,11 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with open('/pygeoapi/local.config.yml', 'r') as file:
             config = yaml.safe_load(file)
 
-        config['resources'][f"{dataset}_{datetime_min}_{datetime_max}"] = {
+        dataset_pygeoapi_identifier = f"{dataset}_{datetime_min}_{datetime_max}"
+
+        config['resources'][dataset_pygeoapi_identifier] = {
             'type': 'collection',
-            'title': f"{dataset}_{datetime_min}_{datetime_max}",
+            'title': dataset_pygeoapi_identifier,
             'description': f'CDS {dataset} data from {datetime_min} to {datetime_max}',
             'keywords': ['country'],
             'extents': {
@@ -357,17 +361,22 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     'x_field': 'longitude',
                     'y_field': 'latitude',
                     'time_field': 'time',
-                    'format': {'name': 'zarr', 'mimetype': 'application/zip'},
-                    # 'options': {
-                    #     's3': {'anon': True, 'requester_pays': False}
-                    # }
+                    'format': {'name': 'zarr', 'mimetype': 'application/zip'}
                 }
             ]
         }
 
         if s3_save:
-            config['resources'][dataset]['providers'][0]['options'] = {
-                's3': {'anon': True, 'requester_pays': False}
+            endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
+            alternate_root = zarr_out.split("s3://")[1]
+            #FIXME: check s3->anon: True should be working; maybe s3 vs http api
+            config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                's3': {
+                    'anon': False,
+                    'alternate_root': alternate_root,
+                    'endpoint_url': endpoint_url,
+                    'requester_pays': False
+                }
             }
 
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
