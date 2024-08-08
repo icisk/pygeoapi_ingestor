@@ -333,6 +333,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
         datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
 
+        #FIXME use env PYGEOAPI_CONFIG
         with open('/pygeoapi/local.config.yml', 'r') as file:
             config = yaml.safe_load(file)
 
@@ -379,6 +380,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 }
             }
 
+        #FIXME use env PYGEOAPI_CONFIG
         with  open('/pygeoapi/local.config.yml', 'w') as outfile:
             yaml.dump(config, outfile, default_flow_style=False)
 
