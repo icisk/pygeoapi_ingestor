@@ -41,6 +41,7 @@ data = {
         "dataset": cds_config['dataset'],
         "query": cds_config['query'],
         "file_out": cds_config['file_out'],
+        "s3_save": cds_config['s3_save'],
         # "zarr_out": zarr_out
     }
 }
