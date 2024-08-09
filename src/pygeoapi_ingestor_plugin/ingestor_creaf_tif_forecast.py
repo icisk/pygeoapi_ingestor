@@ -1,5 +1,6 @@
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
+from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError 
 
+import fsspec
 import os
 import s3fs
 import yaml
@@ -21,7 +22,7 @@ PROCESS_METADATA = {
     'version': '0.2.0',
     'id': 'creaf_forecast_ingestor',
     'title': {
-        'en': 'Ingestor Process',
+        'en': 'creaf_forecast',
     },
     'description': {
         'en': 'joins tiff-data and saves it to zarr format and uploads it to s3 bucket'},
@@ -107,57 +108,6 @@ def tifs_to_da(path):
 
     return da
 
-def update_config(da, zarr_out):
-    #FIXME get this metadata from zarr file
-    min_x = float(da.longitude.values.min())
-    max_x = float(da.longitude.values.max())
-    min_y = float(da.latitude.values.min())
-    max_y = float(da.latitude.values.max())
-    endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
-    alternate_root = zarr_out.split("s3://")[1]
-
-    #FIXME use env PYGEOAPI_CONFIG
-    with open('/pygeoapi/local.config.yml','r' ) as file:
-            config = yaml.safe_load(file)
-
-    config['resources'][f"creaf_forecast"] = {
-        'type': 'collection',
-        'title': f"creaf_forecast",
-        'description': f'creaf_forecast',
-        'keywords': ['country'],
-        'extents': {
-            'spatial': {
-                'bbox': [min_x, min_y, max_x, max_y],
-                'crs': 'http://www.opengis.net/def/crs/EPSG/0/25830'
-            },
-
-            },
-        'providers': [
-            {
-                'type': 'edr',
-                'name': 'xarray-edr',
-                'data': zarr_out,
-                'x_field': 'longitude',
-                'y_field': 'latitude',
-                'time_field': 'time',
-                'format': {'name': 'zarr', 'mimetype': 'application/zip'},
-                #FIXME: check s3->anon: True should be working; maybe s3 vs http api
-                'options': {
-                    's3': {
-                            'anon': False,
-                            'alternate_root': alternate_root,
-                            'endpoint_url': endpoint_url,
-                            'requester_pays': False
-                        }
-                }
-            }
-        ]
-    }
-
-    #FIXME use env PYGEOAPI_CONFIG
-    with  open('/pygeoapi/local.config.yml', 'w') as outfile:
-        yaml.dump(config, outfile, default_flow_style=False)
-    LOGGER.debug("updated config")
 
 
 class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
@@ -175,35 +125,119 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
+        self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG_FILE')
+        self.title = 'creaf_forecast'
+        self.otc_key = os.environ.get(key='FSSPEC_S3_KEY')
+        self.otc_secret = os.environ.get(key='FSSPEC_S3_SECRET')
+        self.otc_endpoint = os.environ.get(key='FSSPEC_S3_ENDPOINT_URL')
+        self.alternate_root = None
+        self.creaf_forecast_path = None
+        self.zarr_out = None
 
+    def read_config(self):
+        with open(self.config_file, 'r') as file:
+            LOGGER.debug("read config")
+            return(yaml.safe_load(file))
+        
+
+    def write_config(self, new_config):
+        with  open(self.config_file, 'w') as outfile:
+            yaml.dump(new_config, outfile, default_flow_style=False)
+        LOGGER.debug("updated config")
+
+    def get_data_from_cloud(self):
+        mapper = fsspec.get_mapper(self.zarr_out,
+                       alternate_root=self.alternate_root,
+                       endpoint_url = self.otc_endpoint,
+                       key=self.otc_key,
+                       secret=self.otc_secret,
+                       )
+        return xr.open_zarr(mapper)
+
+
+    def update_config(self):
+        da = self.get_data_from_cloud()
+        min_x = float(da.longitude.values.min())
+        max_x = float(da.longitude.values.max())
+        min_y = float(da.latitude.values.min())
+        max_y = float(da.latitude.values.max())
+      
+
+        #FIXME use env PYGEOAPI_CONFIG
+        config= self.read_config()
+
+        config['resources'][self.title] = {
+            'type': 'collection',
+            'title': self.title,
+            'description': f'creaf_forecast of precipitation',
+            'keywords': ['country'],
+            'extents': {
+                'spatial': {
+                    'bbox': [min_x, min_y, max_x, max_y],
+                    'crs': 'http://www.opengis.net/def/crs/EPSG/0/25830'
+                },
+
+                },
+            'providers': [
+                {
+                    'type': 'edr',
+                    'name': 'xarray-edr',
+                    'data': self.zarr_out,
+                    'x_field': 'longitude',
+                    'y_field': 'latitude',
+                    'time_field': 'time',
+                    'format': {'name': 'zarr', 'mimetype': 'application/zip'},
+                    #FIXME: check s3->anon: True should be working; maybe s3 vs http api
+                    'options': {
+                        's3': {
+                                'anon': False,
+                                'alternate_root': self.alternate_root,
+                                'endpoint_url': self.otc_endpoint,
+                                'requester_pays': False
+                            }
+                    }
+                }
+            ]
+        }
+
+        self.write_config(config)
+
+    def check_config_if_ds_is_collection(self):
+        config = self.read_config()
+        return self.title in config['ressources']
+    
     def execute(self, data):
         mimetype = 'application/json'
         #FIXME: hier token aus data lesen --> invoke nicht vergessen wa
         #process_token = data.get("precess_token")
         #
-        creaf_forecast_tif_path = data.get('data_path')
-        zarr_out = data.get('zarr_out')
+        self.creaf_forecast_path = data.get('data_path')
+        self.zarr_out = data.get('zarr_out')
+        self.alternate_root = self.zarr_out.split("s3://")[1]
 
-        if creaf_forecast_tif_path is None:
+        if self.creaf_forecast_path is None:
             raise ProcessorExecuteError('Cannot process without a data path')
-        if zarr_out is None or not zarr_out.startswith('s3://') :
+        if self.zarr_out is None or not self.zarr_out.startswith('s3://') :
             raise ProcessorExecuteError('Cannot process without a zarr path')
 
-        if zarr_out and zarr_out.startswith('s3://'):
+        if self.zarr_out and self.zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
-            if s3.exists(zarr_out):
-                #FIXME collection in config neu erstellen
-                raise ProcessorExecuteError(f'Path {zarr_out} already exists')
+            if s3.exists(self.zarr_out):
+                if self.title in self.read_config()['resources']:
+                    raise ProcessorExecuteError(f"Path '{self.zarr_out}' already exists; '{self.title}' in ressources")
+                else:
+                    self.update_config()
+                    raise ProcessorExecuteError(f"Path {self.zarr_out} already exists updates config at '{self.config_file}'")
 
-        store = s3fs.S3Map(root=zarr_out, s3=s3, check=False)
-        tiff_da = tifs_to_da(creaf_forecast_tif_path)
+        store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
+        tiff_da = tifs_to_da(self.creaf_forecast_path)
         tiff_da.to_zarr(store=store, consolidated=True, mode='w')
 
-        update_config(tiff_da, zarr_out)
+        self.update_config()
 
         outputs = {
             'id': 'creaf_forecast_ingestor',
-            'value': zarr_out
+            'value': self.zarr_out
         }
 
         return mimetype, outputs
