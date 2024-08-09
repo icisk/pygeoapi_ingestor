@@ -82,9 +82,44 @@ def get_pixel_centroids(file_path):
     x_size, y_size = ds.RasterXSize, ds.RasterYSize
 
     x_centroids = [gt[0] + gt[1] * (x + 0.5) for x in range(x_size)]
-    y_centroids = [gt[3] + gt[2] * (y + 0.5) for y in range(y_size)]
+    y_centroids = [gt[3] + gt[5] * (y + 0.5) for y in range(y_size)]
 
     return x_centroids, y_centroids
+
+def tifs_to_ds(path):
+    files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith('.tif') or f.endswith('.tiff')]
+    #naming and metadata
+    file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
+    variables = sorted(set([name.split("_")[3] for name in file_names]))
+    files_per_var = [[f for f in files if os.path.basename(f).split("_")[3] == var] for var in variables]
+    time = sorted(set([np.datetime64(f'{parts[1]}-{int(parts[0]):02}-01') for fn in file_names for parts in [fn.split("_")[1:4]]]))
+    x, y = get_pixel_centroids(files[0])
+    # xarray creation
+    da_list = []
+    for i, group in enumerate(files_per_var):
+            arrays = [tiff.imread(file) for file in group]
+            stacked = np.stack(arrays, axis=0)
+            da = xr.DataArray(stacked,
+                            dims=['time', 'latitude', 'longitude'],
+                            name=variables[i])
+            da_list.append(da)
+            
+    ds = xr.Dataset({variables[i]: (['time', 'latitude', 'longitude'], da_list[i].data) for i in range(len(da_list))},
+                    coords={'time': time, 
+                            'latitude': y, 
+                            'longitude': x},
+                    attrs={'long_name': 'precip',
+                            'units': 'mm'})
+
+
+    for var in variables:
+        if var == 'UNCERTAINTY':
+            ds[var].attrs = {'long_name': 'quality of data',
+                             'units': 'categorical'}
+        else:
+            ds[var].attrs = ds.attrs
+    
+    return ds
 
 
 def tifs_to_da(path):
@@ -162,10 +197,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         min_y = float(da.latitude.values.min())
         max_y = float(da.latitude.values.max())
       
-
-        #FIXME use env PYGEOAPI_CONFIG
         config= self.read_config()
-
         config['resources'][self.title] = {
             'type': 'collection',
             'title': self.title,
@@ -230,7 +262,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
                     raise ProcessorExecuteError(f"Path {self.zarr_out} already exists updates config at '{self.config_file}'")
 
         store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
-        tiff_da = tifs_to_da(self.creaf_forecast_path)
+        tiff_da = tifs_to_ds(self.creaf_forecast_path)
         tiff_da.to_zarr(store=store, consolidated=True, mode='w')
 
         self.update_config()
