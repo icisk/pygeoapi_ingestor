@@ -1,0 +1,100 @@
+name: "build push images of data center"
+concurrency:
+  group: "data-center"
+  cancel-in-progress: true
+
+on:
+    workflow_dispatch:
+      inputs:
+        tags:
+          description: "Please provide a git tag value, e.g. data-center-v1.0-manually-triggered.1"
+          required: true
+          type: string
+          default: "data-center-v1.0-manually-triggered.1"
+    push:
+      tags: ["data-center-v*"]
+
+jobs:
+    push_to_docker_hub:
+
+      name: "data-center: build, publish and scan container image"
+      runs-on: ubuntu-latest
+
+      steps:
+        -
+          name: Checkout Repository
+          uses: actions/checkout@v3
+        -
+          name: Set up Docker Buildkit env
+          uses: docker/setup-buildx-action@v2
+        -
+          name: Extract metadata (tags, labels) for tagging Docker Image
+          id: meta
+          uses: docker/metadata-action@v4
+          with:
+            images: "52north/i-cisk-data-center"
+            labels: |
+              "org.opencontainers.image.authors=https://52North.org/"
+              "org.opencontainers.image.vendor=52°North GmbH"
+              "org.opencontainers.image.description=52°North I-Cisk Data Center"
+              "org.opencontainers.image.title=52°North I-Cisk Data Center"
+              "org.opencontainers.image.licenses=Gplv2"
+            tags: |
+              type=match,pattern=data-center-v(.*),group=1,value=${{ github.event.inputs.tags }}
+        -
+          name: Log in to Docker Hub
+          if: github.event_name != 'pull_request'
+          uses: docker/login-action@v2
+          with:
+            username: ${{ secrets.DOCKER_USERNAME }}
+            password: ${{ secrets.DOCKER_TOKEN }}
+        -
+          name: Build and push Docker image
+          uses: docker/build-push-action@v3
+          with:
+            context: .
+            push: ${{ github.event_name != 'pull_request' }}
+            tags: ${{ steps.meta.outputs.tags }}
+            labels: ${{ steps.meta.outputs.labels }}
+            cache-from: type=gha
+            cache-to: type=gha
+        -
+          name: Run Trivy vulnerability scanner
+          uses: aquasecurity/trivy-action@master
+          with:
+            image-ref: "52north/i-cisk-data-center"
+            format: 'table'
+            output: 'trivy-results.txt'
+            exit-code: '0'
+            ignore-unfixed: true
+            vuln-type: 'os,library'
+            severity: 'CRITICAL,HIGH'
+        -
+          name: remove empty results
+          run: |
+            ls -lhA trivy-results.txt; \
+            find trivy-results.txt -type f -empty -delete -print
+        -
+          if: ${{ hashFiles('trivy-results.txt') != '' }}
+          name: Upload to slack step
+          uses: MeilCli/slack-upload-file@v4
+          with:
+            slack_token: ${{ secrets.SLACK_TOKEN }}
+            file_path: trivy-results.txt
+            file_type: text/plain
+            title: trivy scan results of ${{ github.repository }}
+            channel_id: C05MUAV3T3L
+            initial_comment: "Trivy Results for '${{ github.repository }}' uploaded. Please review: https://github.com/${{ github.repository }}/actions"
+        -
+          name: Trigger redeployment
+          uses: actions/github-script@v6
+          with:
+            github-token: ${{ secrets.GHA_WORKFLOW_TRIGGER }}
+            script: |
+                const result = await github.rest.actions.createWorkflowDispatch({
+                  owner: '52North',
+                  repo: 'otc-cce-k8s-ns-dev-i-cisk',
+                  workflow_id: 'update_deployment_data-center.yaml',
+                  ref: 'main'
+                })
+                console.log(result)
