@@ -38,7 +38,7 @@ server:
     bind:
         host: 0.0.0.0
         port: 80
-    url: https://i-cisk.dev.52north.org/data
+    url: https://i-cisk.dev.52north.org/data/
     mimetype: application/json; charset=UTF-8
     encoding: utf-8
     gzip: false
@@ -66,11 +66,16 @@ metadata:
             - geospatial
             - data
             - api
+            - living-labs
+            - i-cisk
+            - 52north
+            - gecko
         keywords_type: theme
-        terms_of_service: https://creativecommons.org/licenses/by/4.0/
-        url: https://i-cisk.dev.52north.org/
+        terms_of_service: 'FIXME: https://icisk.eu/about-icisk/'
+        # might be useful to match server.url above!
+        url: https://i-cisk.dev.52north.org/data/
     license:
-        name: CC-BY 4.0 license
+        name: 'FIXME: TBD, maybe CC-BY 4.0 license'
         url: https://creativecommons.org/licenses/by/4.0/
     provider:
         name: 52°North I-Cisk Team
