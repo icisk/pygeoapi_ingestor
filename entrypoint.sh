@@ -63,14 +63,15 @@ function error() {
 }
 
 # Workdir
-cd ${PYGEOAPI_HOME} || exit 1
+cd "${PYGEOAPI_HOME}" || exit 1
 
-echo "Trying to generate openapi.yml"
-pygeoapi openapi generate ${PYGEOAPI_CONFIG} --output-file ${PYGEOAPI_OPENAPI}
+echo "Trying to generate ${PYGEOAPI_OPENAPI}"
+pygeoapi openapi generate "${PYGEOAPI_CONFIG}" --output-file "${PYGEOAPI_OPENAPI}"
 
-[[ $? -ne 0 ]] && error "openapi.yml could not be generated ERROR"
+# shellcheck disable=SC2181
+[[ $? -ne 0 ]] && error "${PYGEOAPI_OPENAPI} could not be generated ERROR"
 
-echo "openapi.yml generated continue to pygeoapi"
+echo "${PYGEOAPI_OPENAPI} generated continue to pygeoapi"
 
 case ${entry_cmd} in
 	# Run Unit tests
@@ -106,7 +107,7 @@ case ${entry_cmd} in
 		service cron start
 
 		# Run scheduler
-		echo "Running scheduler"
+		echo "Running /scheduler.sh"
 		/scheduler.sh &
 
 		echo "Start gunicorn name=${CONTAINER_NAME} on ${CONTAINER_HOST}:${CONTAINER_PORT} with ${WSGI_WORKERS} workers and SCRIPT_NAME=${SCRIPT_NAME}"
@@ -116,7 +117,7 @@ case ${entry_cmd} in
 				--name="${CONTAINER_NAME}" \
 				--bind "${CONTAINER_HOST}:${CONTAINER_PORT}" \
 				--reload \
-    			--reload-extra-file ${PYGEOAPI_CONFIG} \
+    			--reload-extra-file "${PYGEOAPI_CONFIG}" \
 				pygeoapi.flask_app:APP
 	  ;;
 	*)
