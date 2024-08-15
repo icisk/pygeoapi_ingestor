@@ -1,0 +1,5 @@
+from .ingestor_smhi_process import IngestorSMHIProcessProcessor
+from .ingestor_cds_process import IngestorCDSProcessProcessor
+from .ingestor_smhi_process_vector import IngestorSMHIVectorProcessProcessor
+# from .ingestor_planetary_process import IngestorPlanetaryProcessProcessor
+from .ingestor_creaf_tif_forecast import IngestorCREAFFORECASTProcessProcessor

@@ -1,0 +1,62 @@
+living_lab:
+  name: forli
+  bbox:
+    - 12
+    - 44
+    - 13
+    - 45
+  scheduler:
+    # smhi:
+    #   frequency: 12 * * * *
+
+    # smhi_vector:
+    #   frequency: 16 * * * *
+
+    # cds:
+    #   frequency: 12 * * * *
+    #   dataset: cems-glofas-forecast
+    #   # date_start: 2024-04-02
+    #   # date_end: 2024-04-03
+    #   query: {
+    #     'system_version': 'operational',
+    #     'hydrological_model': 'lisflood',
+    #     'product_type': 'ensemble_perturbed_forecasts',
+    #     'variable': 'river_discharge_in_the_last_24_hours',
+    #     # 'year': '2024',
+    #     # 'month': '04',
+    #     # 'day': '02',
+    #     'leadtime_hour': [
+    #         '24', '48', '72',
+    #         '96', '120', '144',
+    #         '168', '192', '216',
+    #         '240', '264', '288',
+    #         '312', '336', '360',
+    #         '384', '408', '432',
+    #         '456', '480', '504',
+    #         '528', '552', '576',
+    #         '600', '624', '648',
+    #         '672', '696', '720',
+    #     ],
+    #     'format': 'netcdf4.zip',
+    #     'area': [
+    #         44.8, 10, 43.8,
+    #         12,
+    #     ],
+    #   }
+    #   file_out: /tmp/cds-glofas-forecast.netcdf4.zip
+
+    creafforecast:
+      frequency: onetime
+      data_path: /data/spain/creaf/forecast
+      zarr_out: s3://52n-i-cisk/data-ingestor/creaf_forecast_auto_test.zarr
+
+    # planetary:
+    #   frequency: onetime
+    #   dataset: https://planetarycomputer.microsoft.com/api/stac/v1/
+    #   collections: [era5-pds]
+    #   varname: precipitation_amount_1hour_Accumulation
+    #   # models: [era5-pds]
+    #   date_start: 1995-01-01
+    #   date_end: 1995-02-01
+    #   query: {"era5:kind": {"eq": "fc"}}
+    #   zarr_out: s3://saferplaces.co/test/icisk/living_labs/test_ingestor/planetary/test_models_4.zarr
