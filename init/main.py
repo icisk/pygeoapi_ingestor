@@ -16,7 +16,7 @@ class InitialContainerCheck():
                                     key = self.s3OTC['FSSPEC_S3_KEY'],
                                     secret = self.s3OTC['FSSPEC_S3_SECRET'],
                                     anon=False,
-                                    client_kwargs={'config': None})
+                                  )
 
         self.config_out = self.create_new_config()
 
@@ -39,8 +39,9 @@ class InitialContainerCheck():
 
 
     def create_new_config(self):
+        # s3 = s3fs.S3FileSystem()
         new_config = self.config.copy()
-        for dataset, data in self.config.items():
+        for dataset, data in self.resources.items():
             if not self.s3.exists(data):
                 new_config.pop(dataset)
         return new_config
@@ -48,17 +49,18 @@ class InitialContainerCheck():
 
 
 if __name__ == '__main__':
-    c = './config.yaml'
+    c = './config.yml'
 
-    # s3 = {'FSSPEC_S3_ENDPOINT_URL': 'https://obs.eu-de.otc.t-systems.com',
-    #       'FSSPEC_S3_KEY': '',
-    #       'FSSPEC_S3_SECRET': ''}
+    s3 = {'FSSPEC_S3_ENDPOINT_URL': 'https://obs.eu-de.otc.t-systems.com',
+          'FSSPEC_S3_KEY': '',
+          'FSSPEC_S3_SECRET': ''}
 
-    s3 = {'FSSPEC_S3_ENDPOINT_URL': os.environ.get(key='FSSPEC_S3_ENDPOINT_URL'),
-          'FSSPEC_S3_KEY': os.environ.get(key='FSSPEC_S3_KEY'),
-          'FSSPEC_S3_SECRET': os.environ.get(key='FSSPEC_S3_SECRET')}
+    # s3 = {'FSSPEC_S3_ENDPOINT_URL': os.environ.get(key='FSSPEC_S3_ENDPOINT_URL'),
+    #       'FSSPEC_S3_KEY': os.environ.get(key='FSSPEC_S3_KEY'),
+    #       'FSSPEC_S3_SECRET': os.environ.get(key='FSSPEC_S3_SECRET')}
 
     checker = InitialContainerCheck(c, s3)
+    print(checker.s3OTC)
     config = checker.config
     print(checker.config_out)
 
