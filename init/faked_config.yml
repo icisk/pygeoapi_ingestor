@@ -77,7 +77,7 @@ resources:
     keywords:
       - country
     providers:
-      - data: s3://52n-i-cisk/data-ingestor/creaf_forecast_aubbhbto_test.zarr
+      - data: s3://52n-i-cisk/data-ingestor/creaf_forecast_auto_2222test.zarr
         format:
           mimetype: application/zip
           name: zarr
