@@ -35,4 +35,6 @@ COPY ./invoke_creafforecast_ingestor.py /invoke_creafforecast_ingestor.py
 RUN chmod +x /entrypoint.sh \
     && chmod +x /scheduler.sh
 
+RUN mkdir -p /pygeoapi/config
+
 ENTRYPOINT ["/entrypoint.sh"]
