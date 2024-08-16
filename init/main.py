@@ -1,6 +1,14 @@
 import os
 import s3fs
 import yaml
+import logging
+
+logger = logging.getLogger('init config check')
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(ch)
 
 
 class InitialContainerCheck():
@@ -21,48 +29,61 @@ class InitialContainerCheck():
         self.config_out = self.create_new_config()
 
     def read_config(self):
+        logger.debug(f"reading config from '{self.config_path}")
         with open(self.config_path, 'r') as file:
             data = yaml.safe_load(file)
         return data
 
     def write_config(self):
+        logger.debug(f"writing config to '{self.config_path}'")
         with open(self.config_path, 'w') as outfile:
             yaml.dump(self.config_out, outfile, default_flow_style=False)
 
     def extract_data_source(self):
+        logger.debug(f"looking for data resources")
         res = {}
         for resource in self.config['resources']:
             if 'providers' in self.config['resources'][resource]:
                 if 'data' in self.config['resources'][resource]['providers'][0]:
                     res[resource] = self.config['resources'][resource]['providers'][0]['data']
+        logger.debug(f"found {len(res)} data resources")
         return(res)
 
 
     def create_new_config(self):
         # s3 = s3fs.S3FileSystem()
+        logger.debug(f"checking dataset availability")
+        poped_ds = []
         new_config = self.config.copy()
         for dataset, data in self.resources.items():
             if not self.s3.exists(data):
-                new_config.pop(dataset)
+                logger.debug(f"dataset '{dataset}' NOT available at '{data}")
+                new_config['resources'].pop(dataset)
+                logger.debug(f"removed '{dataset}'")
+                poped_ds.append(dataset)
+            else:
+                logger.debug(f"dataset '{dataset}' available at '{data}")
+        logger.debug(f"found {len(poped_ds)} dataset to be unavailable: {', '.join(poped_ds)}")
         return new_config
 
 
 
 if __name__ == '__main__':
-    c = './config.yml'
+    config = os.environ.get('PYGEOAPI_CONFIG', default= './config.yml', )
 
-    s3 = {'FSSPEC_S3_ENDPOINT_URL': 'https://obs.eu-de.otc.t-systems.com',
-          'FSSPEC_S3_KEY': '',
-          'FSSPEC_S3_SECRET': ''}
+    # s3 = {'FSSPEC_S3_ENDPOINT_URL': 'https://obs.eu-de.otc.t-systems.com',
+    #       'FSSPEC_S3_KEY': '',
+    #       'FSSPEC_S3_SECRET': ''}
 
-    # s3 = {'FSSPEC_S3_ENDPOINT_URL': os.environ.get(key='FSSPEC_S3_ENDPOINT_URL'),
-    #       'FSSPEC_S3_KEY': os.environ.get(key='FSSPEC_S3_KEY'),
-    #       'FSSPEC_S3_SECRET': os.environ.get(key='FSSPEC_S3_SECRET')}
+    s3 = {'FSSPEC_S3_ENDPOINT_URL': os.environ.get(key='FSSPEC_S3_ENDPOINT_URL'),
+          'FSSPEC_S3_KEY': os.environ.get(key='FSSPEC_S3_KEY'),
+          'FSSPEC_S3_SECRET': os.environ.get(key='FSSPEC_S3_SECRET')}
 
-    checker = InitialContainerCheck(c, s3)
-    print(checker.s3OTC)
-    config = checker.config
-    print(checker.config_out)
+    logger.debug(f"config: '{config}'")
+
+    checker = InitialContainerCheck(config, s3)
+    checker.write_config()
+
 
 
 
