@@ -1,0 +1,62 @@
+@startuml icisk/ ingestor
+
+entity "k8" <<(S, SkyBlue)>> {
+  + cron job
+  + schedules ingestor pygapi
+}
+entity "manager" <<(S, SkyBlue)>> {
+  + triggers cronjobs
+  + triggers restart of data serving pygapi
+}
+
+rectangle "ingestor pygapi for each data source" as ingestor {
+    entity "CDS" <<(I, DarkRed)>> {
+        + transforms data to ZARR/ database
+    }
+    entity "SMHI" <<(I, DarkRed)>> {
+        + transforms data to ZARR/ database
+    }
+    entity "custom FTP" <<(I, DarkRed)>> {
+        + transforms data to ZARR/ database
+    }
+    entity "others..." <<(I, DarkRed)>> {
+        + transforms data to ZARR/ database
+    }
+}
+
+entity "S3" <<(S, LightGoldenRodYellow)>> { 
+  + cloud based data 
+}
+
+entity "CONFIG" <<(C, Yellow)>> { 
+  + contains all datasources, processes etc 
+}
+
+rectangle "data serving pygapi" as dataserv {
+    entity "CDS" <<(D, IndianRed)>> {
+        + transforms data to ZARR/ database
+    }
+}
+
+rectangle "clients" as clients {
+    entity "LL Spain app" <<(C, SpringGreen)>> {
+        + requests for app
+    }
+    entity "LL Georgia app" <<(C, SpringGreen)>> {
+        + requests for app
+    }
+    entity "others..." <<(C, SpringGreen)>> {
+        + also providing data from other LLs
+    }
+}
+
+manager --> dataserv : restart pod
+manager -l-> k8 
+k8 --> ingestor : starts each container depending on schedule
+ingestor --> CONFIG : each ingestor updates CONFIG
+ingestor -d-> S3 : uploads
+CONFIG --> dataserv : use CONFIG to serve data
+S3 -> dataserv : provides data 
+dataserv --> clients : dataflow up on requests
+
+@enduml
