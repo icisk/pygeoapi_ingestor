@@ -76,7 +76,7 @@ jobs:
             find trivy-results.txt -type f -empty -delete -print
         -
           if: ${{ hashFiles('trivy-results.txt') != '' }}
-          name: Upload to slack step
+          name: Upload to 52N slack
           uses: MeilCli/slack-upload-file@v4
           with:
             slack_token: ${{ secrets.SLACK_TOKEN }}
@@ -84,6 +84,17 @@ jobs:
             file_type: text/plain
             title: trivy scan results of ${{ github.repository }}
             channel_id: C05MUAV3T3L
+            initial_comment: "Trivy Results for '${{ github.repository }}' uploaded. Please review: https://github.com/${{ github.repository }}/actions"
+        -
+          if: ${{ hashFiles('trivy-results.txt') != '' }}
+          name: Upload to I-CISK slack
+          uses: MeilCli/slack-upload-file@v4
+          with:
+            slack_token: ${{ secrets.SLACK_TOKEN_I_CISK }}
+            file_path: trivy-results.txt
+            file_type: text/plain
+            title: trivy scan results of ${{ github.repository }}
+            channel_id: C07LKPC4064
             initial_comment: "Trivy Results for '${{ github.repository }}' uploaded. Please review: https://github.com/${{ github.repository }}/actions"
         -
           name: Trigger redeployment
