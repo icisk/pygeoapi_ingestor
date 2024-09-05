@@ -107,7 +107,7 @@ case ${entry_cmd} in
 		service cron start
 
 		# Run scheduler
-		echo "Running /scheduler.sh"
+		echo "Running /scheduler.sh in background"
 		/scheduler.sh &
 
 		echo "Start gunicorn name=${CONTAINER_NAME} on ${CONTAINER_HOST}:${CONTAINER_PORT} with ${WSGI_WORKERS} workers and SCRIPT_NAME=${SCRIPT_NAME}"
