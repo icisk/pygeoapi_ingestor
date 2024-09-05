@@ -4,6 +4,7 @@ from datetime import datetime
 import yaml
 import time
 import logging
+import os
 import sys
 
 logging.basicConfig(
@@ -26,7 +27,9 @@ data = {
   }
 }
 
-execute_url = f"http://localhost/processes/{ingestor_process}/execution"
+api_root = os.getenv("API_ROOT", "http://localhost/")
+
+execute_url = f"{api_root}processes/{ingestor_process}/execution"
 
 logger.debug(f"Ingestor process: '{execute_url}'")
 logger.error(json.dumps(data))
