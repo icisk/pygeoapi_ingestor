@@ -53,10 +53,13 @@ while not success and n_tries < max_tries:
 
         if response.status_code >= 200 and response.status_code < 300:
             success = True
-        else:
-            logger.info("Retrying in 10 seconds...")
 
+        elif n_tries < max_tries:
+            logger.info("Retrying in 10 seconds...")
             time.sleep(10)
+
+        else:
+            logger.error(f"Failed to ingest creaf data. Stopped after {max_tries} retries")
 
     except Exception as e:
         logger.error(f"Try #{n_tries}. Failed to invoke the ingestor: {e}")
