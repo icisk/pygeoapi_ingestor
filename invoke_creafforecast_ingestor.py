@@ -45,12 +45,18 @@ while not success and n_tries < max_tries:
             },
             data=json.dumps(data)
         )
-        success = True
+        logger.debug(f"Response status code: {response.status_code}")
+        logger.debug(f"Response body       : {response.text}")
+
+        if response.status_code >= 200 and response.status_code < 300:
+            success = True
+        else:
+            logger.info("Retrying in 10 seconds...")
+
+            time.sleep(10)
+
     except Exception as e:
         logger.error(f"Try #{n_tries}. Failed to invoke the ingestor: {e}")
         logger.error("Retrying in 10 seconds...")
 
         time.sleep(10)
-
-logger.debug(f"Response status code: {response.status_code}")
-logger.debug(f"Response body: {response.text}")
