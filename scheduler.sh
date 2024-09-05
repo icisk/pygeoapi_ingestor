@@ -27,7 +27,7 @@ for key in $scheduler
 
         if [[ $freq == "onetime" ]]; then
             # Run command
-            echo "Running command"
+            echo "Running command '$command'"
             $command
         else
             # Write the current crontab to a temporary file
