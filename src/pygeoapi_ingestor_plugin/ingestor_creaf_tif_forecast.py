@@ -160,7 +160,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
-        self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG_FILE')
+        self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG')
         self.title = 'creaf_forecast'
         self.otc_key = os.environ.get(key='FSSPEC_S3_KEY')
         self.otc_secret = os.environ.get(key='FSSPEC_S3_SECRET')
