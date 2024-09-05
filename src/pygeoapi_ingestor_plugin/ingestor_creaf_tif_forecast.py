@@ -1,4 +1,4 @@
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError 
+from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 import fsspec
 import os
@@ -103,10 +103,10 @@ def tifs_to_ds(path):
                             dims=['time', 'latitude', 'longitude'],
                             name=variables[i])
             da_list.append(da)
-            
+
     ds = xr.Dataset({variables[i]: (['time', 'latitude', 'longitude'], da_list[i].data) for i in range(len(da_list))},
-                    coords={'time': time, 
-                            'latitude': y, 
+                    coords={'time': time,
+                            'latitude': y,
                             'longitude': x},
                     attrs={'long_name': 'precip',
                             'units': 'mm'})
@@ -118,7 +118,7 @@ def tifs_to_ds(path):
                              'units': 'categorical'}
         else:
             ds[var].attrs = ds.attrs
-    
+
     return ds
 
 
@@ -173,7 +173,6 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         with open(self.config_file, 'r') as file:
             LOGGER.debug("read config")
             return(yaml.safe_load(file))
-        
 
     def write_config(self, new_config):
         with  open(self.config_file, 'w') as outfile:
@@ -196,7 +195,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         max_x = float(da.longitude.values.max())
         min_y = float(da.latitude.values.min())
         max_y = float(da.latitude.values.max())
-      
+
         config= self.read_config()
         config['resources'][self.title] = {
             'type': 'collection',
@@ -208,8 +207,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
                     'bbox': [min_x, min_y, max_x, max_y],
                     'crs': 'http://www.opengis.net/def/crs/EPSG/0/25830'
                 },
-
-                },
+            },
             'providers': [
                 {
                     'type': 'edr',
@@ -237,7 +235,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
     def check_config_if_ds_is_collection(self):
         config = self.read_config()
         return self.title in config['ressources']
-    
+
     def execute(self, data):
         mimetype = 'application/json'
         #FIXME: hier token aus data lesen --> invoke nicht vergessen wa
