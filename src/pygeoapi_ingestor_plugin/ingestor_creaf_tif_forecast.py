@@ -234,7 +234,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
     def check_config_if_ds_is_collection(self):
         config = self.read_config()
-        return self.title in config['ressources']
+        return self.title in config['resources']
 
     def execute(self, data):
         mimetype = 'application/json'
@@ -254,7 +254,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
             s3 = s3fs.S3FileSystem()
             if s3.exists(self.zarr_out):
                 if self.title in self.read_config()['resources']:
-                    raise ProcessorExecuteError(f"Path '{self.zarr_out}' already exists; '{self.title}' in ressources")
+                    raise ProcessorExecuteError(f"Path '{self.zarr_out}' already exists; '{self.title}' in resources")
                 else:
                     self.update_config()
                     raise ProcessorExecuteError(f"Path {self.zarr_out} already exists updates config at '{self.config_file}'")
