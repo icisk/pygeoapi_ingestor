@@ -6,8 +6,11 @@ import time
 import logging
 import sys
 
+logging.basicConfig(
+    format="[%(asctime)s] [%(levelname)s] %(message)s",
+    level=logging.DEBUG,
+    stream=sys.stdout)
 logger = logging.getLogger(__name__)
-
 
 with open('/scheduler.yaml', 'r') as file:
     config = yaml.safe_load(file)
