@@ -36,5 +36,6 @@ setuptools.setup(
         "xarray==2024.1.0",
         "tifffile",
         "s3fs",
+        "Flask-Cors==5.0.0",
         "zarr"]
 )
