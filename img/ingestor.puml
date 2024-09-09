@@ -1,11 +1,11 @@
 @startuml icisk/ ingestor
 
-entity "k8" <<(S, SkyBlue)>> {
+entity "k8s" <<(S, SkyBlue)>> {
   + cron job
   + schedules ingestor pygapi
+  + done by k8s build-in controller
 }
 entity "manager" <<(S, SkyBlue)>> {
-  + triggers cronjobs
   + triggers restart of data serving pygapi
 }
 
@@ -51,8 +51,8 @@ rectangle "clients" as clients {
 }
 
 manager --> dataserv : restart pod
-manager -l-> k8 
-k8 --> ingestor : starts each container depending on schedule
+k8s -l-> manager
+k8s --> ingestor : starts each container depending on schedule
 ingestor --> CONFIG : each ingestor updates CONFIG
 ingestor -d-> S3 : uploads
 CONFIG --> dataserv : use CONFIG to serve data
