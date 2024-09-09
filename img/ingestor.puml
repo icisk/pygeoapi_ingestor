@@ -5,18 +5,23 @@ entity "k8s" <<(S, SkyBlue)>> {
   + schedules ingestor pygapi
   + done by k8s build-in controller
 }
-entity "manager" <<(S, SkyBlue)>> {
+entity " ? manager ? " <<(S, SkyBlue)>> {
+  - stilll needed?
   + triggers restart of data serving pygapi
 }
 
-rectangle "ingestor pygapi for each data source" as ingestor {
-    entity "CDS" <<(I, DarkRed)>> {
+entity "INGESTOR-CONFIG" as ingestorconfig <<(C, Yellow)>> { 
+  + contains only processes
+}
+
+rectangle "ingestor pygapi" as ingestor {
+    entity "CDS- process" <<(I, DarkRed)>> {
         + transforms data to ZARR/ database
     }
-    entity "SMHI" <<(I, DarkRed)>> {
+    entity "SMHI- process" <<(I, DarkRed)>> {
         + transforms data to ZARR/ database
     }
-    entity "custom FTP" <<(I, DarkRed)>> {
+    entity "custom FTP- process" <<(I, DarkRed)>> {
         + transforms data to ZARR/ database
     }
     entity "others..." <<(I, DarkRed)>> {
@@ -24,12 +29,13 @@ rectangle "ingestor pygapi for each data source" as ingestor {
     }
 }
 
+
 entity "S3" <<(S, LightGoldenRodYellow)>> { 
   + cloud based data 
 }
 
-entity "CONFIG" <<(C, Yellow)>> { 
-  + contains all datasources, processes etc 
+entity "DATA-CONFIG" as dataconfig <<(C, Yellow)>> { 
+  + contains only datasources
 }
 
 rectangle "data serving pygapi" as dataserv {
@@ -50,13 +56,23 @@ rectangle "clients" as clients {
     }
 }
 
-manager --> dataserv : restart pod
-k8s -l-> manager
-k8s --> ingestor : starts each container depending on schedule
-ingestor --> CONFIG : each ingestor updates CONFIG
+note left of k8s: how does k8s cronjob know about ingestionstatus?
+note "can we split the config into 2?" as N1
+N1 .. ingestorconfig
+N1 .. dataconfig
+note left of dataserv: should update resources everytime DATA-CONFIG changes
+
+
+
+'manager --> dataserv : restart pod
+'k8s -l-> manager
+k8s --> ingestor : starts process based on scheduler
+ingestorconfig --> ingestor : provides processes information
+ingestor --> dataconfig : ingestor updates DATACONFIG
 ingestor -d-> S3 : uploads
-CONFIG --> dataserv : use CONFIG to serve data
+dataconfig --> dataserv : use CONFIG to serve data
 S3 -> dataserv : provides data 
 dataserv --> clients : dataflow up on requests
+S3 -> clients : clients fetch some data directly from S3 
 
 @enduml
