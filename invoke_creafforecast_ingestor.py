@@ -4,10 +4,14 @@ from datetime import datetime
 import yaml
 import time
 import logging
+import os
 import sys
 
+logging.basicConfig(
+    format="[%(asctime)s] [%(levelname)s] %(message)s",
+    level=logging.DEBUG,
+    stream=sys.stdout)
 logger = logging.getLogger(__name__)
-
 
 with open('/scheduler.yaml', 'r') as file:
     config = yaml.safe_load(file)
@@ -23,7 +27,9 @@ data = {
   }
 }
 
-execute_url = f"http://localhost/processes/{ingestor_process}/execution"
+api_root = os.getenv("API_ROOT", "http://localhost/")
+
+execute_url = f"{api_root}processes/{ingestor_process}/execution"
 
 logger.debug(f"Ingestor process: '{execute_url}'")
 logger.error(json.dumps(data))
@@ -42,12 +48,21 @@ while not success and n_tries < max_tries:
             },
             data=json.dumps(data)
         )
-        success = True
+        logger.debug(f"Response status code: {response.status_code}")
+        logger.debug(f"Response body       : {response.text}")
+
+        if response.status_code >= 200 and response.status_code < 300:
+            success = True
+
+        elif n_tries < max_tries:
+            logger.info("Retrying in 10 seconds...")
+            time.sleep(10)
+
+        else:
+            logger.error(f"Failed to ingest creaf data. Stopped after {max_tries} retries")
+
     except Exception as e:
         logger.error(f"Try #{n_tries}. Failed to invoke the ingestor: {e}")
         logger.error("Retrying in 10 seconds...")
 
         time.sleep(10)
-
-logger.debug(f"Response status code: {response.status_code}")
-logger.debug(f"Response body: {response.text}")

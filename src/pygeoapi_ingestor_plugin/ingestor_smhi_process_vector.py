@@ -10,6 +10,8 @@ from geojson import Feature, Point, FeatureCollection
 import geopandas as gpd
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 import xarray as xr
+from .utils import read_config, write_config
+
 # =================================================================
 #
 # Authors: Valerio Luzzi <valluzzi@gmail.com>
@@ -48,19 +50,14 @@ LOGGER = logging.getLogger(__name__)
 #: Process metadata and description
 PROCESS_METADATA = {
     'version': '0.2.0',
-    'id': 'ingestor-process',
+    'id': 'smhi-ingestor-process',
     'title': {
-        'en': 'Ingestor Process',
+        'en': 'SMHI Ingestor Process',
     },
     'description': {
-        'en': 'Ingestor Process is a process that fetches data from an FTP server and stores it in a geojson file in an S3 bucket or locally.'
-          'The process is used to ingest data from the SMHI FTP server and store it in an S3 bucket.'
-          'The process requires the following inputs: issue_date, data_dir, living_lab, file_out.'
-          'The process fetches the data from the FTP server, reads the NetCDF files, and stores the data in a geojson file in an S3 bucket.'
-          'The process returns the URL of the geojson file in the S3 bucket.'
-          'The process also updates the pygeoapi configuration file to include the new dataset.'},
+        'en': 'Ingestor process for fetching SMHI data from FTP server and creating a GeoJSON file'},
     'jobControlOptions': ['sync-execute', 'async-execute'],
-    'keywords': ['ingestor process'],
+    'keywords': ['ingestor process', 'smhi', 'ftp', 'geojson'],
     'links': [{
         'type': 'text/html',
         'rel': 'about',
@@ -170,6 +167,8 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
+        self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG_FILE')
+
 
     def execute(self, data):
 
@@ -309,9 +308,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         with open(file_out, 'w') as f:
             f.write(str(feature_collection))
 
-        #FIXME use env PYGEOAPI_CONFIG
-        with open('/pygeoapi/local.config.yml', 'r') as file:
-            config = yaml.safe_load(file)
+        config = read_config(self.config_file)
 
         config['resources'][f'{living_lab}_seasonal_forecast_{issue_date}'] = {
             'type': 'collection',
@@ -346,12 +343,10 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                 's3': {'anon': True, 'requester_pays': False}
             }
 
-        #FIXME use env PYGEOAPI_CONFIG
-        with  open('/pygeoapi/local.config.yml', 'w') as outfile:
-            yaml.dump(config, outfile, default_flow_style=False)
-
+        write_config(self.config_file, config)
+        
         outputs = {
-            'id': 'ingestor-process',
+            'id': 'smhi-ingestor-process',
             'value': file_out
         }
         return mimetype, outputs

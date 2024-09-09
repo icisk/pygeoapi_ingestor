@@ -2,6 +2,7 @@ import os
 import s3fs
 import yaml
 import logging
+import fcntl
 
 logger = logging.getLogger('init config check')
 logger.setLevel(logging.DEBUG)
@@ -37,10 +38,18 @@ class InitialContainerCheck():
     def write_config(self):
         logger.debug(f"writing config to '{self.config_path}'")
         with open(self.config_path, 'w') as outfile:
-            yaml.dump(self.config_out, outfile, default_flow_style=False)
+            logger.debug(f"locking file '{self.config_path}'")
+            fcntl.flock(outfile, fcntl.LOCK_EX)
+            try:
+                logger.debug(f"writing data to '{self.config_path}'")
+                yaml.dump(self.config_out, outfile, default_flow_style=False)
+            finally:
+                logger.debug(f"unlocking file '{self.config_path}'")
+                fcntl.flock(outfile, fcntl.LOCK_UN)
+
 
     def extract_data_source(self):
-        logger.debug(f"looking for data resources")
+        logger.debug("looking for data resources")
         res = {}
         for resource in self.config['resources']:
             if 'providers' in self.config['resources'][resource]:
@@ -83,12 +92,3 @@ if __name__ == '__main__':
 
     checker = InitialContainerCheck(config, s3)
     checker.write_config()
-
-
-
-
-
-
-
-
-        
