@@ -41,6 +41,7 @@ import datetime
 import xarray as xr
 import logging
 import sys
+from .utils import read_config, write_config
 
 LOGGER = logging.getLogger(__name__)
 
@@ -48,19 +49,14 @@ LOGGER = logging.getLogger(__name__)
 #: Process metadata and description
 PROCESS_METADATA = {
     'version': '0.2.0',
-    'id': 'ingestor-process',
+    'id': 'smhi-zarr-ingestor-process',
     'title': {
-        'en': 'Ingestor Process',
+        'en': 'SMHI Zarr Ingestor Process',
     },
     'description': {
-        'en': 'Ingestor Process is a process that fetches data from an FTP server and stores it in a Zarr file in an S3 bucket.'
-          'The process is used to ingest data from the SMHI FTP server and store it in an S3 bucket.'
-          'The process requires the following inputs: issue_date, data_dir, living_lab, zarr_out.'
-          'The process fetches the data from the FTP server, reads the NetCDF files, and stores the data in a Zarr file in an S3 bucket.'
-          'The process returns the URL of the Zarr file in the S3 bucket.'
-          'The process also updates the pygeoapi configuration file to include the new dataset.'},
+        'en': 'Ingestor process to fetch SMHI data from FTP server and store it in Zarr format in S3 bucket'},
     'jobControlOptions': ['sync-execute', 'async-execute'],
-    'keywords': ['ingestor process'],
+    'keywords': ['ingestor process','smhi','zarr','s3'],
     'links': [{
         'type': 'text/html',
         'rel': 'about',
@@ -170,6 +166,7 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
+        self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG_FILE')
 
     def execute(self, data):
 
@@ -286,9 +283,7 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
         datetime_max = datetime.datetime.fromtimestamp(max_time.tolist()/1e9,tz=datetime.timezone.utc)
         datetime_min = datetime.datetime.fromtimestamp(min_time.tolist()/1e9,tz=datetime.timezone.utc)
 
-        #FIXME use env PYGEOAPI_CONFIG
-        with open('/pygeoapi/local.config.yml', 'r') as file:
-            config = yaml.safe_load(file)
+        config = read_config(self.config_file)
 
         config['resources'][f'georgia_seasonal_forecast_{issue_date}'] = {
             'type': 'collection',
@@ -325,13 +320,10 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
         LOGGER.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
         LOGGER.debug("***********************************")
 
-        #FIXME use env PYGEOAPI_CONFIG
-        with  open('/pygeoapi/local.config.yml', 'w') as outfile:
-            yaml.dump(config, outfile, default_flow_style=False)
-
+        write_config(self.config_file, config)
 
         outputs = {
-            'id': 'ingestor-process',
+            'id': 'smhi-zarr-ingestor-process',
             'value': remote_url
         }
         return mimetype, outputs

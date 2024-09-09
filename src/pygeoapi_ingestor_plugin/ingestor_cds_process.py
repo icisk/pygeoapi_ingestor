@@ -49,6 +49,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # import ecmwflibs
 import logging
 import sys
+from pygeoapi_ingestor_plugin.utils import write_config, read_config
 
 LOGGER = logging.getLogger(__name__)
 
@@ -56,19 +57,14 @@ load_dotenv(find_dotenv())
 #: Process metadata and description
 PROCESS_METADATA = {
     'version': '0.2.0',
-    'id': 'ingestor-process',
+    'id': 'cds-ingestor-process',
     'title': {
-        'en': 'Ingestor Process',
+        'en': 'CDS Ingestor Process',
     },
     'description': {
-        'en': 'Ingestor Process is a process that fetches data from an FTP server and stores it in a Zarr file in an S3 bucket.'
-          'The process is used to ingest data from the SMHI FTP server and store it in an S3 bucket.'
-          'The process requires the following inputs: issue_date, data_dir, living_lab, zarr_out.'
-          'The process fetches the data from the FTP server, reads the NetCDF files, and stores the data in a Zarr file in an S3 bucket.'
-          'The process returns the URL of the Zarr file in the S3 bucket.'
-          'The process also updates the pygeoapi configuration file to include the new dataset.'},
+        'en': 'Ingestor process for Copernicus Climate Data Store (CDS) data',},
     'jobControlOptions': ['sync-execute', 'async-execute'],
-    'keywords': ['ingestor process'],
+    'keywords': ['ingestor process','cds'],
     'links': [{
         'type': 'text/html',
         'rel': 'about',
@@ -239,6 +235,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
+        self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG_FILE')
 
     def execute(self, data):
 
@@ -333,9 +330,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
         datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
 
-        #FIXME use env PYGEOAPI_CONFIG
-        with open('/pygeoapi/local.config.yml', 'r') as file:
-            config = yaml.safe_load(file)
+        config = read_config(self.config_file)
 
         dataset_pygeoapi_identifier = f"{dataset}_{datetime_min}_{datetime_max}"
 
@@ -380,12 +375,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 }
             }
 
-        #FIXME use env PYGEOAPI_CONFIG
-        with  open('/pygeoapi/local.config.yml', 'w') as outfile:
-            yaml.dump(config, outfile, default_flow_style=False)
+        write_config(config_path=self.config_file, config_out=config)
 
         outputs = {
-            'id': 'ingestor-process',
+            'id': 'cds-ingestor-process',
             'value': zarr_out
         }
         return mimetype, outputs
