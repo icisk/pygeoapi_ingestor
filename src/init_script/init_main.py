@@ -78,7 +78,7 @@ class InitialContainerCheck():
 
 
 if __name__ == '__main__':
-    config = os.environ.get('PYGEOAPI_CONFIG', default= './config.yml', )
+    config = os.environ.get('PYGEOAPI_CONFIG', default= '/pygeoapi/local.config.yml', )
 
     # s3 = {'FSSPEC_S3_ENDPOINT_URL': 'https://obs.eu-de.otc.t-systems.com',
     #       'FSSPEC_S3_KEY': '',
