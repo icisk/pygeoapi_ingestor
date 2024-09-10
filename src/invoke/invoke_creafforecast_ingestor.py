@@ -1,3 +1,4 @@
+import argparse
 import requests
 import json
 from datetime import datetime
@@ -7,6 +8,7 @@ import logging
 import os
 import sys
 from utils import invoke_ingestor_process
+
 
 logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] %(message)s",
