@@ -49,6 +49,13 @@ PROCESS_METADATA = {
             'schema': {
                 'type': 'string'
             }
+        },
+        'token': {
+            'title': 'secret token',
+            'description': 'identify yourself',
+            'schema': {
+                'type': 'string'
+            }
         }
     },
     'outputs': {
@@ -70,7 +77,8 @@ PROCESS_METADATA = {
     'example': {
         "inputs": {
             "data_path": "/data/creaf/precip_forecast",
-            "zarr_out": "s3://example/target/bucket.zarr"
+            "zarr_out": "s3://example/target/bucket.zarr",
+            "token": "ABC123XYZ666"
         }
     }
 }
@@ -243,12 +251,19 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         #
         self.creaf_forecast_path = data.get('data_path')
         self.zarr_out = data.get('zarr_out')
+        self.token = data.get('token')
         self.alternate_root = self.zarr_out.split("s3://")[1]
 
         if self.creaf_forecast_path is None:
             raise ProcessorExecuteError('Cannot process without a data path')
         if self.zarr_out is None or not self.zarr_out.startswith('s3://') :
             raise ProcessorExecuteError('Cannot process without a zarr path')
+        if self.token is None:
+            raise ProcessorExecuteError('Identify yourself with valid token!')
+        
+        if self.token is not os.getenv("INT_API_TOKEN", "token"):
+            LOGGER.error("WRONG INTERNAL API TOKEN")
+            raise ProcessorExecuteError('ACCES DENIED wrong token')
 
         if self.zarr_out and self.zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
