@@ -12,7 +12,8 @@ from utils import invoke_ingestor_process
 #  "payload":{
 #    "inputs":{
 #      "data_path": "/data/creafforecast/",
-#      "zarr_out": "s3://52n-i-cisk/data-ingestor/creaf_forecast.zarr"
+#      "zarr_out": "s3://52n-i-cisk/data-ingestor/creaf_forecast.zarr",
+#      "token": "ABC123XYZ666"
 #    }
 #  } }
 
