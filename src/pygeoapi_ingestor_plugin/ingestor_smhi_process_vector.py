@@ -93,6 +93,13 @@ PROCESS_METADATA = {
             'schema': {
                 'type': 'string'
             }
+        },
+        'token': {
+            'title': 'secret token',
+            'description': 'identify yourself',
+            'schema': {
+                'type': 'string'
+            }
         }
     },
     'outputs': {
@@ -115,7 +122,8 @@ PROCESS_METADATA = {
         "inputs": {
             "issue_date": "202404",
             "data_dir": "seasonal_forecast",
-            "living_lab": "georgia"
+            "living_lab": "georgia",
+            "token": "ABC123XYZ666"
         }
     }
 }
@@ -185,6 +193,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             "user": os.environ.get("FTP_USER"),
             "passwd": os.environ.get("FTP_PASS")
         }
+        self.token = data.get('token')
 
         if issue_date is None:
             raise ProcessorExecuteError('Cannot process without a issue_date')
@@ -192,6 +201,12 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Cannot process without a data_dir')
         if living_lab is None:
             raise ProcessorExecuteError('Cannot process without a living_lab')
+        if self.token is None:
+            raise ProcessorExecuteError('Identify yourself with valid token!')
+        
+        if self.token is not os.getenv("INT_API_TOKEN", "token"):
+            LOGGER.error("WRONG INTERNAL API TOKEN")
+            raise ProcessorExecuteError('ACCES DENIED wrong token')
 
         if file_out and file_out.startswith('s3://'):
             s3_save = True
