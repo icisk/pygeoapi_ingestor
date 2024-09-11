@@ -1,6 +1,6 @@
-import os
 import json
 import requests
+import sys
 import time
 
 def invoke_ingestor_process(execute_url, data, logger):
@@ -23,6 +23,7 @@ def invoke_ingestor_process(execute_url, data, logger):
 
             if response.status_code >= 200 and response.status_code < 300:
                 success = True
+                sys.exit(0)
 
             elif n_tries < max_tries:
                 logger.info("Retrying in 10 seconds...")
@@ -30,6 +31,7 @@ def invoke_ingestor_process(execute_url, data, logger):
 
             else:
                 logger.error(f"Failed to ingest creaf data. Stopped after {max_tries} retries")
+                sys.exit(52)
 
         except Exception as e:
             logger.error(f"Try #{n_tries}. Failed to invoke the ingestor: {e}")
