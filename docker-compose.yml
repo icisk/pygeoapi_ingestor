@@ -14,3 +14,5 @@ services:
       - FSSPEC_S3_ENDPOINT_URL=https://obs.eu-de.otc.t-systems.com
       - FSSPEC_S3_KEY=
       - FSSPEC_S3_SECRET=
+      - INT_API_TOKEN=token
+      - PYGEOAPI_CONFIG=
