@@ -100,6 +100,13 @@ PROCESS_METADATA = {
             'schema': {
                 'type': 'string'
             }
+        },
+        'token': {
+            'title': 'secret token',
+            'description': 'identify yourself',
+            'schema': {
+                'type': 'string'
+            }
         }
     },
     'outputs': {
@@ -169,7 +176,8 @@ PROCESS_METADATA = {
                     12
                 ]
             },
-            "file_out": "/tmp/cds-glofas-forecast.netcdf4.zip"
+            "file_out": "/tmp/cds-glofas-forecast.netcdf4.zip",
+            "token": "ABC123XYZ666"
         }
     }
 }
@@ -250,11 +258,18 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         s3_save = data.get('s3_save', False)
         start_date = data.get('date_start', None)
         end_date = data.get('date_end', None)
+        self.token = data.get('token')
 
         if dataset is None:
             raise ProcessorExecuteError('Cannot process without a dataset')
         if query is None:
             raise ProcessorExecuteError('Cannot process without a query')
+        if self.token is None:
+            raise ProcessorExecuteError('Identify yourself with valid token!')
+        
+        if self.token is not os.getenv("INT_API_TOKEN", "token"):
+            LOGGER.error("WRONG INTERNAL API TOKEN")
+            raise ProcessorExecuteError('ACCES DENIED wrong token')
 
         s3_is_anon_access = os.environ.get(default='True', key='S3_ANON_ACCESS')
         if 'True' == s3_is_anon_access:
