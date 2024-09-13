@@ -22,6 +22,7 @@ def invoke_ingestor_process(execute_url, data, logger):
             logger.debug(f"Response body       : {response.text}")
 
             if response.status_code >= 200 and response.status_code < 300:
+                #DOTO hier evtl mit jobid checks machen
                 success = True
                 sys.exit(0)
 
@@ -38,3 +39,5 @@ def invoke_ingestor_process(execute_url, data, logger):
             logger.error("Retrying in 10 seconds...")
 
             time.sleep(10)
+
+    #FIXME hier unten 52er

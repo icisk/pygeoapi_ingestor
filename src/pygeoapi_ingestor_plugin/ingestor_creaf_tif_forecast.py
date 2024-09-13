@@ -261,7 +261,8 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         if self.token is None:
             raise ProcessorExecuteError('Identify yourself with valid token!')
         
-        if self.token is not os.getenv("INT_API_TOKEN", "token"):
+        if self.token != os.getenv("INT_API_TOKEN", "token"):
+            #FIXME passender error?
             LOGGER.error("WRONG INTERNAL API TOKEN")
             raise ProcessorExecuteError('ACCES DENIED wrong token')
 
@@ -269,10 +270,17 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
             s3 = s3fs.S3FileSystem()
             if s3.exists(self.zarr_out):
                 if self.title in self.read_config()['resources']:
-                    raise ProcessorExecuteError(f"Path '{self.zarr_out}' already exists; '{self.title}' in resources")
+                    #raise ProcessorExecuteError(f"Path '{self.zarr_out}' already exists; '{self.title}' in resources")                    
+                    msg = f"Path {self.zarr_out} already exists in bucket and config"
+                    #return
                 else:
+                    #FIXME gescheiten exit finden
                     self.update_config()
-                    raise ProcessorExecuteError(f"Path {self.zarr_out} already exists updates config at '{self.config_file}'")
+                    msg = f"Path {self.zarr_out} already exists updates config at '{self.config_file}'"
+                    
+                LOGGER.info(msg)
+                return mimetype, {'id': 'creaf_forecast_ingestor', 'value': msg}
+                    
 
         store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
         tiff_da = tifs_to_ds(self.creaf_forecast_path)
