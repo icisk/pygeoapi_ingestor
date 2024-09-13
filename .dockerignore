@@ -1,3 +1,7 @@
+.github
+img/*
 venv
 build
 *.egg-info
+
+docker-compose*

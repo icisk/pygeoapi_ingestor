@@ -5,10 +5,11 @@ ENV PYGEOAPI_CONFIG=config.yml
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y \
-        cron \
         curl \
         git \
     && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /pygeoapi
 
 COPY . .
 
@@ -23,18 +24,10 @@ RUN pip install . \
         # numpy==1.26.4 \
     && rm -rf ./process
 
-COPY ./entrypoint.sh /entrypoint.sh
-COPY ./scheduler.sh /scheduler.sh
-COPY ./invoke_smhi_ingestor.py /invoke_smhi_ingestor.py
-COPY ./invoke_smhi_vector_ingestor.py /invoke_smhi_vector_ingestor.py
-COPY ./invoke_cds_ingestor.py /invoke_cds_ingestor.py
-COPY ./invoke_planetary_ingestor.py /invoke_planetary_ingestor.py
-COPY ./invoke_creafforecast_ingestor.py /invoke_creafforecast_ingestor.py
 
 # entrypoint.sh and scheduler.sh EOL must be UNIX-style (LF). If not you can occur in the following error: exec /entrypoint.sh: no such file or directory
-RUN chmod +x /entrypoint.sh \
-    && chmod +x /scheduler.sh
+RUN chmod +x /pygeoapi/entrypoint.sh 
 
 RUN mkdir -p /pygeoapi/config
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/pygeoapi/entrypoint.sh", "run"]
