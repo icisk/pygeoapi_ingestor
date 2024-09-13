@@ -2,9 +2,9 @@ import setuptools
 
 VERSION = "0.1.0"
 PACKAGE_NAME = "pygeoapi_ingestor_plugin"
-AUTHOR = "Valerio Luzzi, Marco Renzi"
+AUTHOR = "Valerio Luzzi, Marco Renzi, EHJ, JSL"
 EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com"
-GITHUB = "https://github.com/SaferPlaces2023/pygeoapi_ingestor_plugin"
+GITHUB = "https://github.com/icisk/pygeoapi_ingestor"
 DESCRIPTION = "An utils functions package"
 
 setuptools.setup(
@@ -37,5 +37,6 @@ setuptools.setup(
         "shyaml",
         "tifffile",        
         "xarray==2024.1.0",
-        "zarr"]
+        "zarr"
+    ]
 )

@@ -24,19 +24,27 @@ args = parser.parse_args()
 
 logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] %(message)s",
-    level=logging.DEBUG,
-    stream=sys.stdout)
+    level=logging.NOTSET,
+    stream=sys.stdout,
+    force=True)
 logger = logging.getLogger(__name__)
 
 
-ingestor_process = args.data['process']
-payload = args.data['payload']
+data = json.loads(args.data)
+
+ingestor_process = data['process']
+payload = data['payload']
 
 api_root = os.getenv("API_ROOT", "http://localhost/")
 execute_url = f"{api_root}processes/{ingestor_process}/execution"
 
 logger.info(f"Ingestor process: '{execute_url}' ")
 logger.info(f"Payload: '{json.dumps(payload)}' ")
+
+token = os.getenv("INT_API_TOKEN", "token")
+payload['inputs']['token'] = token
+
+logger.info(f"added secret token to payload!")
 
 
 invoke_ingestor_process(execute_url=execute_url, data=payload, logger=logger)
