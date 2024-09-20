@@ -2,9 +2,9 @@ import setuptools
 
 VERSION = "0.1.0"
 PACKAGE_NAME = "pygeoapi_ingestor_plugin"
-AUTHOR = "Valerio Luzzi, Marco Renzi"
+AUTHOR = "Valerio Luzzi, Marco Renzi, EHJ, JSL"
 EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com"
-GITHUB = "https://github.com/SaferPlaces2023/pygeoapi_ingestor_plugin"
+GITHUB = "https://github.com/icisk/pygeoapi_ingestor"
 DESCRIPTION = "An utils functions package"
 
 setuptools.setup(
@@ -24,18 +24,23 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
+        #
+        #   sync with requirements.txt
+        #
         "cdsapi",
+        "filelock",
         "Flask-Cors==5.0.0",
         "geojson",
         "geopandas",
-        "h5netcdf",       
+        "h5netcdf",
         "netcdf4",
         "numpy==1.24.0",
         "pygeoapi",
         "python-dotenv",
         "s3fs",
         "shyaml",
-        "tifffile",        
+        "tifffile",
         "xarray==2024.1.0",
-        "zarr"]
+        "zarr"
+    ]
 )
