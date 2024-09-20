@@ -7,14 +7,18 @@ import sys
 from utils import invoke_ingestor_process
 
 
-# EXAMPLE ARG
-# {"process": "ingestor-creafforecast-process",
-#  "payload":{
-#    "inputs":{
-#      "data_source": "file:///data/creafforecast/",
-#      "zarr_out": "s3://52n-i-cisk/data-ingestor/creaf_forecast.zarr"
-#    }
-#  } }
+# EXAMPLE input-file.json
+# ---
+# {
+#   "process": "ingestor-creafforecast-process",
+#   "payload": {
+#     "inputs": {
+#       "data_source": "file:///data/creafforecast/",
+#       "zarr_out": "s3://52n-i-cisk/data-ingestor/creaf_forecast.zarr"
+#     }
+#   }
+# }
+# ---
 
 parser = argparse.ArgumentParser(description="reads .json file that contains ingestor process name 'process' and process inputs 'payload' ")
 parser.add_argument("json_path")
