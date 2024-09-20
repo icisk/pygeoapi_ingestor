@@ -1,6 +1,6 @@
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-from filelock import Timeout, FileLock
+from filelock import FileLock
 
 import fsspec
 import os
@@ -16,7 +16,7 @@ from osgeo import gdal
 import logging
 from dotenv import load_dotenv, find_dotenv
 
-from .utils import download_source
+from .utils import download_source, cleanup_data_temp
 
 LOGGER = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ def get_pixel_centroids(file_path):
 
 def tifs_to_ds(path):
     files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith('.tif') or f.endswith('.tiff')]
-    #naming and metadata
+    # naming and metadata
     file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
     variables = sorted(set([name.split("_")[3] for name in file_names]))
     files_per_var = [[f for f in files if os.path.basename(f).split("_")[3] == var] for var in variables]
@@ -135,14 +135,14 @@ def tifs_to_ds(path):
 
 
 def tifs_to_da(path):
-    #file paths
+    # file paths
     files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith('.tif') or f.endswith('.tiff')]
-    #naming and metadata
+    # naming and metadata
     file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
     info = [f"{int(parts[0]):02}_{parts[1]}_{parts[2]}" for fn in file_names for parts in [fn.split("_")[1:4]]]
     time = [np.datetime64(f'{parts[1]}-{parts[0]}-01T00:{i:02}') for i, date in enumerate(info) for parts in [date.split("_")]]
     x, y = get_pixel_centroids(files[0])
-    #xarray creation
+    # xarray creation
     arrays = [tiff.imread(file) for file in files]
     stacked = np.stack(arrays, axis=0)
     da = xr.DataArray(stacked,
@@ -256,8 +256,6 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
     def execute(self, data):
         mimetype = 'application/json'
-        #FIXME: hier token aus data lesen --> invoke nicht vergessen wa
-        #process_token = data.get("precess_token")
         #
         self.data_source = data.get('data_source')
         self.zarr_out = data.get('zarr_out')
@@ -272,19 +270,16 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Identify yourself with valid token!')
 
         if self.token != os.getenv("INT_API_TOKEN", "token"):
-            #FIXME passender error?
-            LOGGER.error("WRONG INTERNAL API TOKEN")
+            #TODO Is this the correct error to return? Does this result in a BadRequest error?
+            LOGGER.info("wrong internal API token received")
             raise ProcessorExecuteError('ACCESS DENIED wrong token')
 
         if self.zarr_out and self.zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             if s3.exists(self.zarr_out):
                 if self.title in self.read_config()['resources']:
-                    #raise ProcessorExecuteError(f"Path '{self.zarr_out}' already exists; '{self.title}' in resources")
                     msg = f"Path {self.zarr_out} already exists in bucket and config"
-                    #return
                 else:
-                    #FIXME gescheiten exit finden
                     self.update_config()
                     msg = f"Path {self.zarr_out} already exists updates config at '{self.config_file}'"
 
@@ -292,20 +287,22 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
                 return mimetype, {'id': 'creaf_forecast_ingestor', 'value': msg}
 
 
-        store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
-        # TODO: @JSL: Implement downloading of tifs from self.data_source (support at least https)
-        data_path = download_source(self.data_source)
-        tiff_da = tifs_to_ds(data_path)
-        tiff_da.to_zarr(store=store, consolidated=True, mode='w')
+            else:
+                store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
+                data_path = download_source(self.data_source)
+                tiff_da = tifs_to_ds(data_path)
+                tiff_da.to_zarr(store=store, consolidated=True, mode='w')
 
-        self.update_config()
+                self.update_config()
 
-        outputs = {
-            'id': 'creaf_forecast_ingestor',
-            'value': self.zarr_out
-        }
+                cleanup_data_temp()
 
-        return mimetype, outputs
+                outputs = {
+                    'id': 'creaf_forecast_ingestor',
+                    'value': self.zarr_out
+                }
+
+                return mimetype, outputs
 
     def __repr__(self):
         return f'<IngestorCDSProcessProcessor> {self.name}'

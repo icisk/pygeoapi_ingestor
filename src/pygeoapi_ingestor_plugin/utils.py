@@ -1,10 +1,11 @@
 import fcntl
-import yaml
-import logging
-import requests
-import zipfile
 import io
+import logging
 import os
+import requests
+import shutil
+import yaml
+import zipfile
 
 
 logger = logging.getLogger('init config check')
@@ -19,7 +20,7 @@ def read_config(config_path):
         with open(config_path, 'r') as file:
             logger.debug(f"reading config from '{config_path}")
             return(yaml.safe_load(file))
-        
+
 
 def write_config(config_path, config_out):
     with open(config_path, 'w') as outfile:
@@ -32,8 +33,12 @@ def write_config(config_path, config_out):
             logger.debug(f"unlocking file '{config_path}'")
             fcntl.flock(outfile, fcntl.LOCK_UN)
 
+def cleanup_data_temp():
+    base_path = os.getenv("DATA_TEMP", '/tmp/data')
+    shutil.rmtree(base_path)
+
 def download_source(source):
-    base_path = '/data'
+    base_path = os.getenv("DATA_TEMP", '/tmp/data')
 
     if source.startswith('https'):
         res = requests.get(source)
