@@ -11,13 +11,12 @@ from utils import invoke_ingestor_process
 # {"process": "ingestor-creafforecast-process",
 #  "payload":{
 #    "inputs":{
-#      "data_path": "/data/creafforecast/",
-#      "zarr_out": "s3://52n-i-cisk/data-ingestor/creaf_forecast.zarr",
-#      "token": "ABC123XYZ666"
+#      "data_source": "file:///data/creafforecast/",
+#      "zarr_out": "s3://52n-i-cisk/data-ingestor/creaf_forecast.zarr"
 #    }
 #  } }
 
-parser = argparse.ArgumentParser(description="reads .json file that contains ingestor process name 'process' and process inputs 'payload' ") 
+parser = argparse.ArgumentParser(description="reads .json file that contains ingestor process name 'process' and process inputs 'payload' ")
 parser.add_argument("json_path")
 args = parser.parse_args()
 
@@ -31,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 with open(args.json_path, 'r') as f:
-    data = json.load(f)    
+    data = json.load(f)
 
 ingestor_process = data['process']
 payload = data['payload']

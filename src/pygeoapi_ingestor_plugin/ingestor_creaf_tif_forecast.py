@@ -16,7 +16,7 @@ from osgeo import gdal
 import logging
 from dotenv import load_dotenv, find_dotenv
 
-from utils import download_source
+from .utils import download_source
 
 LOGGER = logging.getLogger(__name__)
 
