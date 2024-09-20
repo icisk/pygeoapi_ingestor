@@ -86,6 +86,15 @@ jobs:
         find trivy-results.txt -type f -empty -delete -print
     -
       if: ${{ hashFiles('trivy-results.txt') != '' }}
+      name: remove "no HIGH or CRITICAL CVEs found" results
+      run: |
+        if [[ -s trivy-results.txt ]] \
+          && [[ $(wc -l trivy-results.txt| awk '{print $1}') -eq 5 ]] \
+          && [[ $(grep -rc "Total: 0 (HIGH: 0, CRITICAL: 0)" trivy-results.txt) -eq 1 ]]; then \
+            rm -v trivy-results.txt; \
+        fi
+    -
+      if: ${{ hashFiles('trivy-results.txt') != '' }}
       name: Upload to 52N slack
       uses: MeilCli/slack-upload-file@v4
       with:
