@@ -1,6 +1,10 @@
 import fcntl
 import yaml
 import logging
+import requests
+import zipfile
+import io
+import os
 
 
 logger = logging.getLogger('init config check')
@@ -27,3 +31,18 @@ def write_config(config_path, config_out):
         finally:
             logger.debug(f"unlocking file '{config_path}'")
             fcntl.flock(outfile, fcntl.LOCK_UN)
+
+def download_source(source):
+    base_path = '/data'
+
+    if source.startswith('https'):
+        res = requests.get(source)
+        if source.endswith('.zip'):
+            source_dir = os.path.basename(source).split(".")[0]
+            out_dir = os.path.join(base_path, source_dir)
+            os.makedirs(out_dir, exist_ok=True)
+            with zipfile.ZipFile(io.BytesIO(res.content)) as zip:
+                zip.extractall(out_dir)
+
+    return(out_dir)
+
