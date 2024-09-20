@@ -25,17 +25,18 @@ setuptools.setup(
     ],
     install_requires=[
         "cdsapi",
+        "filelock",
         "Flask-Cors==5.0.0",
         "geojson",
         "geopandas",
-        "h5netcdf",       
+        "h5netcdf",
         "netcdf4",
         "numpy==1.24.0",
         "pygeoapi",
         "python-dotenv",
         "s3fs",
         "shyaml",
-        "tifffile",        
+        "tifffile",
         "xarray==2024.1.0",
         "zarr"
     ]
