@@ -1,5 +1,7 @@
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
+from filelock import Timeout, FileLock
+
 import fsspec
 import os
 import s3fs
@@ -36,9 +38,9 @@ PROCESS_METADATA = {
         'hreflang': 'en-US'
     }],
     'inputs': {
-        'data_path': {
-            'title': 'data_path',
-            'description': 'path to the data locally',
+        'data_source': {
+            'title': 'data_source',
+            'description': 'URI to the data, e.g. https://example.com/my-data.zip',
             'schema': {
                 'type': 'string'
             }
@@ -76,7 +78,7 @@ PROCESS_METADATA = {
     },
     'example': {
         "inputs": {
-            "data_path": "/data/creaf/precip_forecast",
+            "data_source": "file:///data/creaf/precip_forecast",
             "zarr_out": "s3://example/target/bucket.zarr",
             "token": "ABC123XYZ666"
         }
@@ -152,6 +154,9 @@ def tifs_to_da(path):
     return da
 
 
+def download_data(uri):
+    raise NotImplementedError
+
 
 class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
     """
@@ -168,13 +173,13 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
-        self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG')
+        self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
         self.title = 'creaf_forecast'
         self.otc_key = os.environ.get(key='FSSPEC_S3_KEY')
         self.otc_secret = os.environ.get(key='FSSPEC_S3_SECRET')
         self.otc_endpoint = os.environ.get(key='FSSPEC_S3_ENDPOINT_URL')
         self.alternate_root = None
-        self.creaf_forecast_path = None
+        self.data_path = None
         self.zarr_out = None
 
     def read_config(self):
@@ -204,41 +209,47 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         min_y = float(da.latitude.values.min())
         max_y = float(da.latitude.values.max())
 
-        config= self.read_config()
-        config['resources'][self.title] = {
-            'type': 'collection',
-            'title': self.title,
-            'description': f'creaf_forecast of precipitation',
-            'keywords': ['country'],
-            'extents': {
-                'spatial': {
-                    'bbox': [min_x, min_y, max_x, max_y],
-                    'crs': 'http://www.opengis.net/def/crs/EPSG/0/25830'
-                },
-            },
-            'providers': [
-                {
-                    'type': 'edr',
-                    'name': 'xarray-edr',
-                    'data': self.zarr_out,
-                    'x_field': 'longitude',
-                    'y_field': 'latitude',
-                    'time_field': 'time',
-                    'format': {'name': 'zarr', 'mimetype': 'application/zip'},
-                    #FIXME: check s3->anon: True should be working; maybe s3 vs http api
-                    'options': {
-                        's3': {
-                                'anon': False,
-                                'alternate_root': self.alternate_root,
-                                'endpoint_url': self.otc_endpoint,
-                                'requester_pays': False
-                            }
-                    }
-                }
-            ]
-        }
+        # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
+        lock = FileLock(f"{self.config_file}.lock")
 
-        self.write_config(config)
+        with lock:
+
+            config= self.read_config()
+            config['resources'][self.title] = {
+                'type': 'collection',
+                'title': self.title,
+                'description': f'creaf_forecast of precipitation',
+                'keywords': ['country'],
+                'extents': {
+                    'spatial': {
+                        'bbox': [min_x, min_y, max_x, max_y],
+                        'crs': 'http://www.opengis.net/def/crs/EPSG/0/25830'
+                    },
+                },
+                'providers': [
+                    {
+                        'type': 'edr',
+                        'name': 'xarray-edr',
+                        'data': self.zarr_out,
+                        'x_field': 'longitude',
+                        'y_field': 'latitude',
+                        'time_field': 'time',
+                        'format': {'name': 'zarr', 'mimetype': 'application/zip'},
+                        #FIXME: check s3->anon: True should be working; maybe s3 vs http api
+                        'options': {
+                            's3': {
+                                    'anon': False,
+                                    'alternate_root': self.alternate_root,
+                                    'endpoint_url': self.otc_endpoint,
+                                    'requester_pays': False
+                                }
+                        }
+                    }
+                ]
+            }
+
+            self.write_config(config)
+
 
     def check_config_if_ds_is_collection(self):
         config = self.read_config()
@@ -249,41 +260,43 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         #FIXME: hier token aus data lesen --> invoke nicht vergessen wa
         #process_token = data.get("precess_token")
         #
-        self.creaf_forecast_path = data.get('data_path')
+        self.data_source = data.get('data_source')
         self.zarr_out = data.get('zarr_out')
         self.token = data.get('token')
         self.alternate_root = self.zarr_out.split("s3://")[1]
 
-        if self.creaf_forecast_path is None:
+        if self.data_source is None:
             raise ProcessorExecuteError('Cannot process without a data path')
         if self.zarr_out is None or not self.zarr_out.startswith('s3://') :
             raise ProcessorExecuteError('Cannot process without a zarr path')
         if self.token is None:
             raise ProcessorExecuteError('Identify yourself with valid token!')
-        
+
         if self.token != os.getenv("INT_API_TOKEN", "token"):
             #FIXME passender error?
             LOGGER.error("WRONG INTERNAL API TOKEN")
-            raise ProcessorExecuteError('ACCES DENIED wrong token')
+            raise ProcessorExecuteError('ACCESS DENIED wrong token')
 
         if self.zarr_out and self.zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             if s3.exists(self.zarr_out):
                 if self.title in self.read_config()['resources']:
-                    #raise ProcessorExecuteError(f"Path '{self.zarr_out}' already exists; '{self.title}' in resources")                    
+                    #raise ProcessorExecuteError(f"Path '{self.zarr_out}' already exists; '{self.title}' in resources")
                     msg = f"Path {self.zarr_out} already exists in bucket and config"
                     #return
                 else:
                     #FIXME gescheiten exit finden
                     self.update_config()
                     msg = f"Path {self.zarr_out} already exists updates config at '{self.config_file}'"
-                    
+
                 LOGGER.info(msg)
                 return mimetype, {'id': 'creaf_forecast_ingestor', 'value': msg}
-                    
+
 
         store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
-        tiff_da = tifs_to_ds(self.creaf_forecast_path)
+        # TODO: @JSL: Implement downloading of tifs from self.data_source (support at least https)
+        data_path = download_data(self.data_source)
+        tiff_da = tifs_to_ds(data_path)
         tiff_da.to_zarr(store=store, consolidated=True, mode='w')
 
         self.update_config()

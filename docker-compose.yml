@@ -14,16 +14,18 @@ services:
       - FSSPEC_S3_KEY=
       - FSSPEC_S3_SECRET=
       - INT_API_TOKEN=token
-      - PYGEOAPI_CONFIG=
-  ingestion_test:
+      - PYGEOAPI_CONFIG=/pygeoapi/local.config.yml
+      - PYGEOAPI_SERV_CONFIG=/pygeoapi/local.config.yml
+  trigger_test:
     build:
       context: .
       dockerfile: Dockerfile
     entrypoint:
       - "/bin/bash"
     command: |
-      -c 'python3 /pygeoapi/src/invoke/invoke_ingestor.py " \
-      {\"process\":\"ingestor-creafforecast-process\",\"payload\":{\"inputs\":{\"data_path\":\"/data/creafforecast/\",\"zarr_out\":\"s3://52n-i-cisk/data-ingestor/creaf_forecast.zarr\"}}} "'
+      -c 'python3 /pygeoapi/src/invoke/invoke_ingestor.py /invoke-input.json'
     environment:
       - API_ROOT=http://pygeoapi/
       - INT_API_TOKEN=token
+    volumes:
+    - ./creaf-ingest-input.json:/invoke-input.json
