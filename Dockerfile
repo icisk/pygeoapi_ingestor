@@ -11,6 +11,9 @@ RUN apt-get update \
 
 WORKDIR /pygeoapi
 
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
 COPY . .
 
 RUN pip install . \
@@ -26,7 +29,7 @@ RUN pip install . \
 
 
 # entrypoint.sh and scheduler.sh EOL must be UNIX-style (LF). If not you can occur in the following error: exec /entrypoint.sh: no such file or directory
-RUN chmod +x /pygeoapi/entrypoint.sh 
+RUN chmod +x /pygeoapi/entrypoint.sh
 
 RUN mkdir -p /pygeoapi/config
 

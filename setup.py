@@ -24,6 +24,9 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
+        #
+        #   sync with requirements.txt
+        #
         "cdsapi",
         "filelock",
         "Flask-Cors==5.0.0",
