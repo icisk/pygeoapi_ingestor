@@ -1,0 +1,9 @@
+{
+    "process": "ingestor-creafforecast-process",
+    "payload": {
+        "inputs": {
+            "data_source": "https://52n-i-cisk.obs.eu-de.otc.t-systems.com/tif/LL_Spain/precip_forecast/precip_forecast.zip",
+            "zarr_out": "s3://52n-i-cisk/data-ingestor/creaf_forecast.zarr"
+        }
+    }
+}

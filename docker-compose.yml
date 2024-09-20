@@ -5,14 +5,27 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./config.yml:/pygeoapi/local.config.yml
-      - ./scheduler.yaml:/scheduler.yaml
     ports:
       - "5000:80"
     environment:
-      - DEFAULT_BUCKET=52n-i-cisk
-      - DEFAULT_REMOTE_DIR=data-ingestor/
-      - FSSPEC_S3_ENDPOINT_URL=https://obs.eu-de.otc.t-systems.com
+      - DEFAULT_BUCKET=
+      - DEFAULT_REMOTE_DIR=
+      - FSSPEC_S3_ENDPOINT_URL=
       - FSSPEC_S3_KEY=
       - FSSPEC_S3_SECRET=
       - INT_API_TOKEN=token
-      - PYGEOAPI_CONFIG=
+      - PYGEOAPI_CONFIG=/pygeoapi/local.config.yml
+      - PYGEOAPI_SERV_CONFIG=/pygeoapi/local.config.yml
+  trigger_test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint:
+      - "/bin/bash"
+    command: |
+      -c 'python3 /pygeoapi/src/invoke/invoke_ingestor.py /invoke-input.json'
+    environment:
+      - API_ROOT=http://pygeoapi/
+      - INT_API_TOKEN=token
+    volumes:
+    - ./creaf-ingest-input.json:/invoke-input.json
