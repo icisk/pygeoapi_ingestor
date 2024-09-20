@@ -42,7 +42,7 @@ PROCESS_METADATA = {
     'inputs': {
         'data_source': {
             'title': 'data_source',
-            'description': 'URI to the data, e.g. https://example.com/my-data.zip',
+            'description': 'URL to the data, e.g. https://example.com/my-data.zip',
             'schema': {
                 'type': 'string'
             }
