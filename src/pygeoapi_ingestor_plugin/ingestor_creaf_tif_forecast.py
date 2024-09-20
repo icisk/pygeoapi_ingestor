@@ -16,6 +16,8 @@ from osgeo import gdal
 import logging
 from dotenv import load_dotenv, find_dotenv
 
+from utils import download_source
+
 LOGGER = logging.getLogger(__name__)
 
 load_dotenv(find_dotenv())
@@ -153,9 +155,6 @@ def tifs_to_da(path):
 
     return da
 
-
-def download_data(uri):
-    raise NotImplementedError
 
 
 class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
@@ -295,7 +294,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
         store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
         # TODO: @JSL: Implement downloading of tifs from self.data_source (support at least https)
-        data_path = download_data(self.data_source)
+        data_path = download_source(self.data_source)
         tiff_da = tifs_to_ds(data_path)
         tiff_da.to_zarr(store=store, consolidated=True, mode='w')
 
