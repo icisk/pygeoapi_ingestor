@@ -17,8 +17,8 @@ from utils import invoke_ingestor_process
 #    }
 #  } }
 
-parser = argparse.ArgumentParser(description="accepts dict of ingestor process name 'process' and process inputs 'payload' ")
-parser.add_argument("data")
+parser = argparse.ArgumentParser(description="reads .json file that contains ingestor process name 'process' and process inputs 'payload' ") 
+parser.add_argument("json_path")
 args = parser.parse_args()
 
 
@@ -30,7 +30,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-data = json.loads(args.data)
+with open(args.json_path, 'r') as f:
+    data = json.load(f)    
 
 ingestor_process = data['process']
 payload = data['payload']
