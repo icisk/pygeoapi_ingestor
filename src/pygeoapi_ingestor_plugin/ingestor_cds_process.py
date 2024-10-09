@@ -267,8 +267,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if self.token is None:
             raise ProcessorExecuteError('Identify yourself with valid token!')
         
-        if self.token is not os.getenv("INT_API_TOKEN", "token"):
-            LOGGER.error("WRONG INTERNAL API TOKEN")
+        if self.token != os.getenv("INT_API_TOKEN", "token"):
+            LOGGER.error(f"WRONG INTERNAL API TOKEN {self.token} ({type(self.token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
             raise ProcessorExecuteError('ACCES DENIED wrong token')
 
         s3_is_anon_access = os.environ.get(default='True', key='S3_ANON_ACCESS')
@@ -292,7 +292,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         # if s3, Check if the path already exists
         if zarr_out.startswith('s3://'):
-            s3 = s3fs.S3FileSystem(anon=s3_is_anon_access)
+            s3 = s3fs.S3FileSystem()
             if s3.exists(zarr_out):
                 raise ProcessorExecuteError(f'Path {zarr_out} already exists')
 
