@@ -203,14 +203,14 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Cannot process without a living_lab')
         if self.token is None:
             raise ProcessorExecuteError('Identify yourself with valid token!')
-        
-        if self.token is not os.getenv("INT_API_TOKEN", "token"):
-            LOGGER.error("WRONG INTERNAL API TOKEN")
+
+        if self.token != os.getenv("INT_API_TOKEN", "token"):
+            LOGGER.error(f"WRONG INTERNAL API TOKEN {self.token} ({type(self.token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
             raise ProcessorExecuteError('ACCES DENIED wrong token')
 
         if file_out and file_out.startswith('s3://'):
             s3_save = True
-            s3 = s3fs.S3FileSystem(anon=True)
+            s3 = s3fs.S3FileSystem()
             # Check if the path already exists
             if s3.exists(file_out):
                 raise ProcessorExecuteError(f'Path {file_out} already exists')
@@ -320,8 +320,13 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         datetime_min = min_time
         datetime_max = max_time
 
-        with open(file_out, 'w') as f:
-            f.write(str(feature_collection))
+        if file_out.startswith('s3://'):
+            s3 = s3fs.S3FileSystem()
+            with s3.open(file_out, 'w') as f:
+                f.write(str(feature_collection))
+        else:
+            with open(file_out, 'w') as f:
+                f.write(str(feature_collection))
 
         config = read_config(self.config_file)
 
