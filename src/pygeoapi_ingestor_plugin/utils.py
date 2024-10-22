@@ -6,7 +6,7 @@ import requests
 import shutil
 import yaml
 import zipfile
-
+import time
 
 logger = logging.getLogger('init config check')
 logger.setLevel(logging.DEBUG)
@@ -37,6 +37,7 @@ def cleanup_data_temp():
     base_path = os.getenv("DATA_TEMP", '/tmp/data')
     shutil.rmtree(base_path)
 
+
 def download_source(source):
     base_path = os.getenv("DATA_TEMP", '/tmp/data')
 
@@ -51,3 +52,47 @@ def download_source(source):
 
     return(out_dir)
 
+
+def check_running_jobs(retry=1,total_retries=1, time_out=10):
+    """
+    Check if there are running jobs outside the one that have called the function
+    Parameters
+    ----------
+    retry : int
+        Number of retries
+    total_retries : int
+        Total number of retries
+    time_out : int
+        Time out in seconds
+    Returns
+    -------
+    bool
+        True if there are running jobs outside the one that have called the function, False otherwise
+    """
+    running_job_status_list = ["accepted", "running"]
+    api_root = "http://localhost/"
+    request_url = f"{api_root}jobs"
+    try:
+        res = requests.get(request_url)
+        res.raise_for_status()
+        job_list = res.json().get('jobs', [])
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch jobs: {e}")
+        return False
+
+    running_job_count = 0
+    running_job = False
+    for job in job_list:
+        if job['status'] in running_job_status_list:
+            running_job_count += 1
+            if running_job_count > 1:
+                running_job = True
+                break
+    
+    if running_job and retry < total_retries:
+        time.sleep(time_out)
+        if not check_running_jobs(retry=retry+1, total_retries=total_retries, time_out=time_out):
+            return False
+
+
+    return running_job
