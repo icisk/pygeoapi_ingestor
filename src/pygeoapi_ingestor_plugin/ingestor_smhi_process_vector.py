@@ -10,7 +10,7 @@ from geojson import Feature, Point, FeatureCollection
 import geopandas as gpd
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 import xarray as xr
-from .utils import read_config, write_config
+from .utils import check_running_jobs, read_config, write_config
 
 # =================================================================
 #
@@ -120,10 +120,11 @@ PROCESS_METADATA = {
     },
     'example': {
         "inputs": {
-            "issue_date": "202404",
+            "issue_date": "202409",
             "data_dir": "seasonal_forecast",
             "living_lab": "georgia",
-            "token": "ABC123XYZ666"
+            "token": "ABC123XYZ666",
+            "file_out": "s3://saferplaces.co/test/icisk/test_sf_georgia_202409.geojson"
         }
     }
 }
@@ -176,7 +177,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
 
         super().__init__(processor_def, PROCESS_METADATA)
         self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG_FILE')
-
+        self.id = 'smhi-ingestor-process'
 
     def execute(self, data):
 
@@ -208,6 +209,9 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             LOGGER.error(f"WRONG INTERNAL API TOKEN {self.token} ({type(self.token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
             raise ProcessorExecuteError('ACCES DENIED wrong token')
 
+        if check_running_jobs(total_retries=10, time_out=30):
+            return mimetype, {'message': 'There are running jobs, please try again later'}
+        
         if file_out and file_out.startswith('s3://'):
             s3_save = True
             s3 = s3fs.S3FileSystem()
@@ -366,10 +370,11 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         write_config(self.config_file, config)
         
         outputs = {
-            'id': 'smhi-ingestor-process',
+            'id': self.id,
             'value': file_out
         }
         return mimetype, outputs
 
     def __repr__(self):
         return f'<IngestorSMHIVectorProcessProcessor> {self.name}'
+# TODO: check for running jobs and wait for them to finish
