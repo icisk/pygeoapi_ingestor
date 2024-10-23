@@ -7,6 +7,7 @@ import shutil
 import yaml
 import zipfile
 import time
+import numpy as np
 
 logger = logging.getLogger('init config check')
 logger.setLevel(logging.DEBUG)
@@ -16,6 +17,11 @@ ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(me
 logger.addHandler(ch)
 
 
+# Create a representer for NumPy arrays
+def numpy_array_representer(dumper, data):
+    # Convert NumPy array to list and add a tag for NumPy array
+    return dumper.represent_sequence('!numpy_array', data.tolist())
+
 def read_config(config_path):
         with open(config_path, 'r') as file:
             logger.debug(f"reading config from '{config_path}")
@@ -23,12 +29,15 @@ def read_config(config_path):
 
 
 def write_config(config_path, config_out):
+    
+    # Register the custom representer with PyYAML
+    yaml.add_representer(np.ndarray, numpy_array_representer)
     with open(config_path, 'w') as outfile:
         logger.debug(f"locking file '{config_path}'")
         fcntl.flock(outfile, fcntl.LOCK_EX)
         try:
             logger.debug(f"writing data to '{config_path}'")
-            yaml.dump(config_out, outfile, default_flow_style=False)
+            yaml.dump(config_out, outfile, default_flow_style=False, sort_keys=False)
         finally:
             logger.debug(f"unlocking file '{config_path}'")
             fcntl.flock(outfile, fcntl.LOCK_UN)
