@@ -171,56 +171,11 @@ PROCESS_METADATA = {
                 "area": [45, 10, 44, 11]
             },
             "file_out": "/tmp/cds-glofas-forecast.netcdf4.zip",
-            "zarr_out": "s3://saferplaces.co/test/icisk/cds_rdis_test.zarr",
-            "token": "token"
+            "zarr_out": "s3://mybucket/test/icisk/cds_rdis_test.zarr",
+            "token": "ABC123XYZ666"
         }
     }
 }
-
-# {
-#     "system_version": ["operational"],
-#     "hydrological_model": ["lisflood"],
-#     "product_type": ["ensemble_perturbed_forecasts"],
-#     "variable": "river_discharge_in_the_last_24_hours",
-#     "year": ["2024"],
-#     "month": ["10"],
-#     "day": ["01", "02"],
-#     "leadtime_hour": [
-#         "24",
-#         "48",
-#         "72",
-#         "96",
-#         "120",
-#         "144",
-#         "168",
-#         "192",
-#         "216",
-#         "240",
-#         "264",
-#         "288",
-#         "312",
-#         "336",
-#         "360",
-#         "384",
-#         "408",
-#         "432",
-#         "456",
-#         "480",
-#         "504",
-#         "528",
-#         "552",
-#         "576",
-#         "600",
-#         "624",
-#         "648",
-#         "672",
-#         "696",
-#         "720"
-#     ],
-#     "data_format": "netcdf",
-#     "download_format": "zip",
-#     "area": [45, 10, 44, 11]
-# }
 
 
 def generate_days_list(data_inizio, data_fine):
@@ -306,10 +261,10 @@ def update_config(data, dataset, zarr_out, config_file, s3_is_anon_access):
                     'bbox': [min_x, min_y, max_x, max_y],
                     'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
                 },
-                # 'temporal': {
-                #     'begin': datetime_min,
-                #     'end': datetime_max
-                # }
+                'temporal': {
+                    'begin': datetime_min,
+                    'end': datetime_max
+                }
             },
             'providers': [
                 {

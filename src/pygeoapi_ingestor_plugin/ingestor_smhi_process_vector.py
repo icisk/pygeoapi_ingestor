@@ -189,8 +189,6 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                         os.makedirs(f"./seasonal_forecast/{folder}")
                     with open(local_filename, 'wb') as f:
                         ftp.retrbinary('RETR ' + file, f.write)
-                else:
-                    pass
         ftp.cwd("..")
         return nc_files
 
