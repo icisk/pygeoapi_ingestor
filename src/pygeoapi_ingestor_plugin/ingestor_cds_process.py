@@ -316,6 +316,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         """
         super().__init__(processor_def, PROCESS_METADATA)
         self.config_file = os.environ.get('PYGEOAPI_CONFIG_FILE', '/pygeoapi/local.config.yml')
+        self.id = 'cds-ingestor-process'
 
     def execute(self, data):
         mimetype = 'application/json'
@@ -351,7 +352,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         # Return outputs
         outputs = {
-            'id': 'cds-ingestor-process',
+            'id': self.id,
             'value': zarr_out
         }
         return mimetype, outputs
