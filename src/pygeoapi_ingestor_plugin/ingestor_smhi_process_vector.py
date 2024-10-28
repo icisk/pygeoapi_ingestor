@@ -141,7 +141,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
 
         super().__init__(processor_def, PROCESS_METADATA)
         self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG_FILE')
-        self.id = 'smhi-ingestor-process'
+        self.id = 'smhi-ingestor-vector-process'
 
     def execute(self, data):
         mimetype = 'application/json'
