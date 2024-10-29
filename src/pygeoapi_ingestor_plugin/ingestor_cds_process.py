@@ -51,6 +51,10 @@ from pygeoapi_ingestor_plugin.utils import check_running_jobs, write_config, rea
 
 LOGGER = logging.getLogger(__name__)
 
+# Define constants for all days and all months
+ALL_DAYS = [f"{day:02}" for day in range(1, 32)]
+ALL_MONTHS = [f"{month:02}" for month in range(1, 13)]
+
 load_dotenv(find_dotenv())
 #: Process metadata and description
 PROCESS_METADATA = {
@@ -125,54 +129,25 @@ PROCESS_METADATA = {
     },
     'example': {
         "inputs": {
-            "dataset": "cems-glofas-forecast",
+            "date_start": "2023-01-01",
+            "date_end": "2024-01-01",
+            "dataset": "cems-glofas-historical",
+            "file_out": "/tmp/cds-glofas-historical.netcdf4.zip",
             "query": {
-                "system_version": ["operational"],
+                "system_version": ["version_4_0"],
                 "hydrological_model": ["lisflood"],
-                "product_type": ["ensemble_perturbed_forecasts"],
-                "variable": "river_discharge_in_the_last_24_hours",
-                "year": ["2024"],
-                "month": ["10"],
-                "day": ["22"],
-                "leadtime_hour": [
-                    "24",
-                    "48",
-                    "72",
-                    "96",
-                    "120",
-                    "144",
-                    "168",
-                    "192",
-                    "216",
-                    "240",
-                    "264",
-                    "288",
-                    "312",
-                    "336",
-                    "360",
-                    "384",
-                    "408",
-                    "432",
-                    "456",
-                    "480",
-                    "504",
-                    "528",
-                    "552",
-                    "576",
-                    "600",
-                    "624",
-                    "648",
-                    "672",
-                    "696",
-                    "720"
-                ],
+                "product_type": ["consolidated"],
+                "variable": ["river_discharge_in_the_last_24_hours"],
+                "hyear": ["2024"],
+                "hmonth": ["01"],
+                "hday": ["01"],
                 "data_format": "netcdf",
                 "download_format": "zip",
                 "area": [45, 10, 44, 11]
             },
-            "file_out": "/tmp/cds-glofas-forecast.netcdf4.zip",
+            "interval": "month",
             "zarr_out": "s3://mybucket/test/icisk/cds_rdis_test.zarr",
-            "token": "ABC123XYZ666"
+            "token": "ABC123XYZ666" 
         }
     }
 }
@@ -185,33 +160,40 @@ def generate_days_list(data_inizio, data_fine):
         data_corrente += timedelta(days=1)
 
 
-def fetch_dataset(dataset, query, file_out, date=None, engine='h5netcdf'):
-    LOGGER.debug(f"Fetching dataset {dataset} with query {query} to {file_out}")
+def fetch_dataset(dataset, query, file_out, date=None, interval=None,engine='h5netcdf'):
     URL_CDS = 'https://cds.climate.copernicus.eu/api'
     URL_EWDS = 'https://ewds.climate.copernicus.eu/api'
     KEY = 'd08c3547-5017-4630-820f-57bb784f4973'
     client = cdsapi.Client(url=URL_CDS, key=KEY)
 
     query_copy = query.copy()
-    # if date:
-    #     query_copy['year'] = date.year
-    #     query_copy['month'] = date.month
-    #     query_copy['day'] = date.day
-    # Hindcast data request
+    
+    # Adjust query based on the specified interval
+    if interval == 'day':
+        query_copy['hyear'] = [date.strftime('%Y')]
+        query_copy['hmonth'] = [date.strftime('%m')]
+        query_copy['hday'] = [date.strftime('%d')]
+    elif interval == 'month':
+        query_copy['hyear'] = [date.strftime('%Y')]
+        query_copy['hmonth'] = [date.strftime('%m')]
+        query_copy['hday'] = ALL_DAYS  # Include all days for the month
+    elif interval == 'year':
+        query_copy['hyear'] = [date.strftime('%Y')]
+        query_copy['hmonth'] = ALL_MONTHS  # Include all months
+        query_copy['hday'] = ALL_DAYS     # Include all days for each month
+        
     try:
-        data = client.retrieve(dataset, query_copy)
+        data = client.retrieve(dataset, query_copy, file_out)
     except Exception as e:
         if "404 Client Error" in str(e):
             LOGGER.debug(f"Dataset {dataset} not found in {URL_CDS}")
             client = cdsapi.Client(url=URL_EWDS, key=KEY)
-            data = client.retrieve(dataset, query_copy)
+            data = client.retrieve(dataset, query_copy, file_out)
         else:
-            LOGGER.debug(f"Error fetching dataset {dataset}: {e}")
+            LOGGER.error(f"Error fetching dataset {dataset}: {e}")
             return None
 
-    client.retrieve(dataset, query,file_out)
     if file_out.endswith('.zip'):
-        # Unzip the file
         extract_dir = file_out.split('.zip')[0]
         with zipfile.ZipFile(file_out, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
@@ -322,7 +304,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         mimetype = 'application/json'
 
         # Extract parameters
-        dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date = self._extract_parameters(data)
+        dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval = self._extract_parameters(data)
 
         # Validate input
         self._validate_inputs(dataset, query, self.token)
@@ -342,7 +324,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         self._check_s3_path_exists(zarr_out)
 
         # Fetch data (either by date range or single query)
-        data = self._fetch_data(dataset, query, file_out, engine, start_date, end_date)
+        data = self._fetch_data(dataset, query, file_out, engine, start_date, end_date, interval)
 
         # Save the data
         self._store_data(data, zarr_out, s3_save)
@@ -368,7 +350,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         start_date = data.get('date_start', None)
         end_date = data.get('date_end', None)
         self.token = data.get('token')
-        return dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date
+        interval = data.get('interval', None)
+        return dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval
 
     def _validate_inputs(self, dataset, query, token):
         """Validate input parameters."""
@@ -409,30 +392,43 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             if s3.exists(zarr_out):
                 raise ProcessorExecuteError(f'Path {zarr_out} already exists')
 
-    def _fetch_data(self, dataset, query, file_out, engine, start_date, end_date):
+    def _fetch_data(self, dataset, query, file_out, engine, start_date, end_date,interval):
         """Fetch data from the dataset based on the date range or single query."""
         if start_date and end_date:
             datetime_start = datetime.strptime(start_date, '%Y-%m-%d')
             datetime_end = datetime.strptime(end_date, '%Y-%m-%d')
-            days = list(generate_days_list(datetime_start, datetime_end))
-            return self._fetch_data_by_range(dataset, query, file_out, days)
+            dates = list(self.generate_dates_list(datetime_start, datetime_end, interval=interval))
+            return self._fetch_data_by_range(dataset, query, file_out, dates, interval)
         else:
             LOGGER.debug(f"Fetching data for a specific date {query}")
             return fetch_dataset(dataset, query, file_out, engine=engine)
 
-    def _fetch_data_by_range(self, dataset, query, file_out, days):
-        """Fetch data for a range of dates in parallel."""
+    def _fetch_data_by_range(self, dataset, query, file_out, dates, interval):
         datasets = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(fetch_dataset, dataset, query, f"{file_out.split('.netcdf4.zip')[0]}_{day.isoformat()}.netcdf4.zip", day): day for day in days}
+            futures = {
+                executor.submit(fetch_dataset, dataset, query, f"{file_out.split('.netcdf4.zip')[0]}_{date.isoformat()}.netcdf4.zip", date, interval): date
+                for date in dates
+            }
             for future in as_completed(futures):
-                day = futures[future]
+                date = futures[future]
                 try:
                     out_data = future.result()
                     datasets.append(out_data)
                 except Exception as exc:
-                    LOGGER.error(f"{day} generated an exception: {exc}")
+                    LOGGER.error(f"{date} generated an exception: {exc}")
         return xr.concat(datasets, dim='time')
+
+    def generate_dates_list(self, start_date, end_date, interval='day'):
+        current_date = start_date
+        while current_date <= end_date:
+            yield current_date
+            if interval == 'day':
+                current_date += timedelta(days=1)
+            elif interval == 'month':
+                current_date = (current_date.replace(day=1) + timedelta(days=32)).replace(day=1)
+            elif interval == 'year':
+                current_date = current_date.replace(year=current_date.year + 1, month=1, day=1)
 
     def _store_data(self, data, zarr_out, s3_save):
         """Store the fetched data either in S3 or locally."""
