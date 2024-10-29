@@ -44,13 +44,17 @@ if ingestor_process == "ingestor-smhi-vector-process":
     payload['inputs']['file_out'] = f"s3://52n-i-cisk/data-ingestor/smhi_seasonal_forecast_{living_lab}_{time.strftime('%Y%m')}.geojson"
 elif ingestor_process == "cds-ingestor-process":
     variable = payload['inputs']['query']['variable']
+    if isinstance(variable, list):
+        # if variable is a list, take all the elements and join them with '-'
+        variable = "-".join(variable)
+    dataset = payload['inputs']['dataset']
     year = time.strftime("%Y")
     month = time.strftime("%m")
     day = time.strftime("%d")
     payload['inputs']['query']['year'] = [year]
     payload['inputs']['query']['month'] = [month]
     payload['inputs']['query']['day'] = [day]
-    payload['inputs']['zarr_out'] = f"s3://52n-i-cisk/data-ingestor/cds_{variable}_{year}-{month}-{day}.zarr"
+    payload['inputs']['zarr_out'] = f"s3://52n-i-cisk/data-ingestor/cds_{dataset}_{variable}_{year}-{month}-{day}.zarr"
         
 api_root = os.getenv("API_ROOT", "http://localhost/")
 execute_url = f"{api_root}processes/{ingestor_process}/execution"
@@ -61,7 +65,7 @@ logger.info(f"Payload: '{json.dumps(payload)}' ")
 token = os.getenv("INT_API_TOKEN", "token")
 payload['inputs']['token'] = token
 
-logger.info(f"added secret token to payload!")
+logger.info("added secret token to payload!")
 
 
 invoke_ingestor_process(execute_url=execute_url, data=payload, logger=logger)
