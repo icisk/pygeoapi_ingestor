@@ -1,5 +1,5 @@
 {
-    "process": "cds-ingestor-process",
+    "process": "ingestor-cds-process",
     "payload": {
         "inputs": {
             "dataset": "cems-glofas-forecast",
