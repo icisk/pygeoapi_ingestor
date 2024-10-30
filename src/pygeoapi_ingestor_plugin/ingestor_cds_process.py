@@ -29,7 +29,7 @@
 
 # curl -X POST -H "Content-Type: application/json" -d "{\"inputs\":{\"name\":\"valerio\"}}" http://localhost:5000/processes/ingestor-process/execution
 # curl -X POST -H "Content-Type: application/json" -d "{\"inputs\":{\"name\":\"gdalinfo\"}}" http://localhost:5000/processes/k8s-process/execution
-
+from filelock import FileLock
 from ftplib import FTP
 import logging, time
 import yaml
@@ -47,7 +47,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import sys
-from pygeoapi_ingestor_plugin.utils import check_running_jobs, write_config, read_config
+from pygeoapi_ingestor_plugin.utils import write_config, read_config
 
 LOGGER = logging.getLogger(__name__)
 
@@ -153,139 +153,6 @@ PROCESS_METADATA = {
 }
 
 
-def generate_days_list(data_inizio, data_fine):
-    data_corrente = data_inizio
-    while data_corrente <= data_fine:
-        yield data_corrente
-        data_corrente += timedelta(days=1)
-
-def adjust_query(query, date, interval):
-    if interval == 'day':
-        query['hyear'] = [date.strftime('%Y')]
-        query['hmonth'] = [date.strftime('%m')]
-        query['hday'] = [date.strftime('%d')]
-    elif interval == 'month':
-        query['hyear'] = [date.strftime('%Y')]
-        query['hmonth'] = [date.strftime('%m')]
-        query['hday'] = ALL_DAYS  # Include all days for the month
-    elif interval == 'year':
-        query['hyear'] = [date.strftime('%Y')]
-        query['hmonth'] = ALL_MONTHS  # Include all months
-        query['hday'] = ALL_DAYS     # Include all days for each month
-    return query
-
-def fetch_dataset(dataset, query, file_out, date=None, interval=None, engine='h5netcdf'):
-    URL_CDS = 'https://cds.climate.copernicus.eu/api'
-    URL_EWDS = 'https://ewds.climate.copernicus.eu/api'
-    KEY = os.getenv('CDSAPI_KEY') 
-    client = cdsapi.Client(url=URL_CDS, key=KEY)
-
-    query_copy = query.copy()
-    
-    # Adjust query based on the specified interval
-    query_copy = adjust_query(query_copy, date, interval)
-        
-    try:
-        data = client.retrieve(dataset, query_copy, file_out)
-    except Exception as e:
-        if "404 Client Error" in str(e):
-            LOGGER.debug(f"Dataset {dataset} not found in {URL_CDS}")
-            client = cdsapi.Client(url=URL_EWDS, key=KEY)
-            data = client.retrieve(dataset, query_copy, file_out)
-        else:
-            LOGGER.error(f"Error fetching dataset {dataset}: {e}")
-            return None
-
-    if file_out.endswith('.zip'):
-        extract_dir = file_out.split('.zip')[0]
-        with zipfile.ZipFile(file_out, 'r') as zip_ref:
-            zip_ref.extractall(extract_dir)
-        for file in os.listdir(extract_dir):
-            if file.endswith('.nc'):
-                file_nc = os.path.join(extract_dir, file)
-        data = xr.open_dataset(file_nc, engine=engine)
-    elif file_out.endswith('.nc'):
-        data = xr.open_dataset(file_out)
-    # elif file_out.endswith('.grib'):
-    #     data = xr.open_dataset(file_out,engine="cfgrib")
-
-    if dataset == 'cems-glofas-forecast':
-        for var in data.data_vars:
-            data[var] = data[var].expand_dims(dim='time')
-
-    data.attrs['long_name'] = dataset
-
-    return data
-
-
-def update_config(data, dataset, zarr_out, config_file, s3_is_anon_access):
-    # get min/max values for longitude, latitude and time
-        min_x = float(data.coords['longitude'].min().values)
-        max_x = float(data.coords['longitude'].max().values)
-        min_y = float(data.coords['latitude'].min().values)
-        max_y = float(data.coords['latitude'].max().values)
-
-        min_time = data.coords['valid_time'].values.min()
-        max_time = data.coords['valid_time'].values.max()
-
-        # convert np.datetime64 to datetime object
-        datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
-        datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
-
-        config = read_config(config_file)
-
-        dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}"
-
-        config['resources'][dataset_pygeoapi_identifier] = {
-            'type': 'collection',
-            'title': dataset_pygeoapi_identifier,
-            'description': f'CDS {dataset} data from {datetime_min.date()} to {datetime_max.date()}',
-            'keywords': ['country'],
-            'extents': {
-                'spatial': {
-                    'bbox': [min_x, min_y, max_x, max_y],
-                    'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
-                },
-                'temporal': {
-                    'begin': datetime_min,
-                    'end': datetime_max
-                }
-            },
-            'providers': [
-                {
-                    'type': 'edr',
-                    'name': 'xarray-edr',
-                    'data': zarr_out,
-                    'x_field': 'longitude',
-                    'y_field': 'latitude',
-                    # 'time_field': 'time',
-                    'format': {'name': 'zarr', 'mimetype': 'application/zip'}
-                }
-            ]
-        }
-
-        endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
-        alternate_root = zarr_out.split("s3://")[1]
-        
-        if s3_is_anon_access:
-            config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
-                's3': {
-                    'anon': True,
-                    'requester_pays': False
-                }
-            }
-        else:    
-            config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
-                's3': {
-                    'anon': False,
-                    'alternate_root': alternate_root,
-                    'endpoint_url': endpoint_url,
-                    'requester_pays': False
-                }
-            }
-
-        write_config(config_path=config_file, config_out=config)
-
 class IngestorCDSProcessProcessor(BaseProcessor):
     """
     Ingestor Processor example
@@ -312,10 +179,6 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # Validate input
         self._validate_inputs(dataset, query, self.token)
 
-        # Check for running jobs
-        if check_running_jobs(total_retries=10, time_out=30):
-            return mimetype, {'message': 'There are running jobs, please try again later'}
-
         # Determine S3 access type
         s3_is_anon_access = self._is_s3_anon_access()
         LOGGER.debug(f"Using anon S3 access? '{s3_is_anon_access}'")
@@ -324,7 +187,9 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         zarr_out, s3_save = self._setup_output_paths(zarr_out, s3_save, dataset)
 
         # Check if S3 path already exists
-        self._check_s3_path_exists(zarr_out)
+        msg = self._check_s3_path_exists(zarr_out, dataset, s3_is_anon_access)
+        if msg:
+            return mimetype, {'id': self.id, 'value': msg}
 
         # Fetch data (either by date range or single query)
         data = self._fetch_data(dataset, query, file_out, engine, start_date, end_date, interval)
@@ -341,6 +206,79 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             'value': zarr_out
         }
         return mimetype, outputs
+    
+    def update_config(self, data, dataset, zarr_out, config_file, s3_is_anon_access):
+        # get min/max values for longitude, latitude and time
+        min_x = float(data.coords['longitude'].min().values)
+        max_x = float(data.coords['longitude'].max().values)
+        min_y = float(data.coords['latitude'].min().values)
+        max_y = float(data.coords['latitude'].max().values)
+
+        min_time = data.coords['valid_time'].values.min()
+        max_time = data.coords['valid_time'].values.max()
+
+        # convert np.datetime64 to datetime object
+        datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
+        datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
+
+        # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
+        lock = FileLock(f"{self.config_file}.lock")
+
+        with lock:
+            config = read_config(config_file)
+
+            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}"
+
+            config['resources'][dataset_pygeoapi_identifier] = {
+                'type': 'collection',
+                'title': dataset_pygeoapi_identifier,
+                'description': f'CDS {dataset} data from {datetime_min.date()} to {datetime_max.date()}',
+                'keywords': ['country'],
+                'extents': {
+                    'spatial': {
+                        'bbox': [min_x, min_y, max_x, max_y],
+                        'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+                    },
+                    'temporal': {
+                        'begin': datetime_min,
+                        'end': datetime_max
+                    }
+                },
+                'providers': [
+                    {
+                        'type': 'edr',
+                        'name': 'xarray-edr',
+                        'data': zarr_out,
+                        'x_field': 'longitude',
+                        'y_field': 'latitude',
+                        # 'time_field': 'time',
+                        'format': {'name': 'zarr', 'mimetype': 'application/zip'}
+                    }
+                ]
+            }
+
+            endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
+            alternate_root = zarr_out.split("s3://")[1]
+            
+            if s3_is_anon_access:
+                config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                    's3': {
+                        'anon': True,
+                        'requester_pays': False
+                    }
+                }
+            else:    
+                config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                    's3': {
+                        'anon': False,
+                        'alternate_root': alternate_root,
+                        'endpoint_url': endpoint_url,
+                        'requester_pays': False
+                    }
+                }
+
+            write_config(config_path=config_file, config_out=config)
+
 
     def _extract_parameters(self, data):
         """Extract parameters from the input data."""
@@ -388,12 +326,19 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     zarr_out = f'/pygeoapi/cds_data/{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
         return zarr_out, s3_save
 
-    def _check_s3_path_exists(self, zarr_out):
+    def _check_s3_path_exists(self, zarr_out, dataset, s3_is_anon_access):
         """Check if the S3 path already exists."""
+        msg = None
         if zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             if s3.exists(zarr_out):
-                raise ProcessorExecuteError(f'Path {zarr_out} already exists')
+                if zarr_out in str(read_config(self.config_file)['resources']):
+                    msg = f"Path {zarr_out} already exists in bucket and config"
+                else:
+                    data = xr.open_zarr(zarr_out)
+                    self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access)
+                    msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'"
+        return msg
 
     def _fetch_data(self, dataset, query, file_out, engine, start_date, end_date,interval):
         """Fetch data from the dataset based on the date range or single query."""
@@ -404,13 +349,13 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             return self._fetch_data_by_range(dataset, query, file_out, dates, interval)
         else:
             LOGGER.debug(f"Fetching data for a specific date {query}")
-            return fetch_dataset(dataset, query, file_out, engine=engine)
+            return self.fetch_dataset(dataset, query, file_out, engine=engine)
 
     def _fetch_data_by_range(self, dataset, query, file_out, dates, interval):
         datasets = []
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {
-                executor.submit(fetch_dataset, dataset, query, f"{file_out.split('.netcdf4.zip')[0]}_{date.isoformat()}.netcdf4.zip", date, interval): date
+                executor.submit(self.fetch_dataset, dataset, query, f"{file_out.split('.netcdf4.zip')[0]}_{date.isoformat()}.netcdf4.zip", date, interval): date
                 for date in dates
             }
             for future in as_completed(futures):
@@ -443,10 +388,68 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         LOGGER.debug(f"Storing data to {store}, data type: {type(data)}")
         data.to_zarr(store=store, consolidated=True, mode='w')
 
+    def adjust_query(self, query, date, interval):
+        if interval == 'day':
+            query['hyear'] = [date.strftime('%Y')]
+            query['hmonth'] = [date.strftime('%m')]
+            query['hday'] = [date.strftime('%d')]
+        elif interval == 'month':
+            query['hyear'] = [date.strftime('%Y')]
+            query['hmonth'] = [date.strftime('%m')]
+            query['hday'] = ALL_DAYS  # Include all days for the month
+        elif interval == 'year':
+            query['hyear'] = [date.strftime('%Y')]
+            query['hmonth'] = ALL_MONTHS  # Include all months
+            query['hday'] = ALL_DAYS     # Include all days for each month
+        return query
+
+    def fetch_dataset(self, dataset, query, file_out, date=None, interval=None, engine='h5netcdf'):
+        URL_CDS = 'https://cds.climate.copernicus.eu/api'
+        URL_EWDS = 'https://ewds.climate.copernicus.eu/api'
+        KEY = os.getenv('CDSAPI_KEY') 
+        client = cdsapi.Client(url=URL_CDS, key=KEY)
+
+        query_copy = query.copy()
+        
+        # Adjust query based on the specified interval
+        query_copy = self.adjust_query(query_copy, date, interval)
+            
+        try:
+            data = client.retrieve(dataset, query_copy, file_out)
+        except Exception as e:
+            if "404 Client Error" in str(e):
+                LOGGER.debug(f"Dataset {dataset} not found in {URL_CDS}")
+                client = cdsapi.Client(url=URL_EWDS, key=KEY)
+                data = client.retrieve(dataset, query_copy, file_out)
+            else:
+                LOGGER.error(f"Error fetching dataset {dataset}: {e}")
+                return None
+
+        if file_out.endswith('.zip'):
+            extract_dir = file_out.split('.zip')[0]
+            with zipfile.ZipFile(file_out, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            for file in os.listdir(extract_dir):
+                if file.endswith('.nc'):
+                    file_nc = os.path.join(extract_dir, file)
+            data = xr.open_dataset(file_nc, engine=engine)
+        elif file_out.endswith('.nc'):
+            data = xr.open_dataset(file_out)
+        # elif file_out.endswith('.grib'):
+        #     data = xr.open_dataset(file_out,engine="cfgrib")
+
+        if dataset == 'cems-glofas-forecast':
+            for var in data.data_vars:
+                data[var] = data[var].expand_dims(dim='time')
+
+        data.attrs['long_name'] = dataset
+
+        return data
+
     def _update_config_with_error_handling(self, data, dataset, zarr_out, s3_is_anon_access):
         """Update the config file and handle errors."""
         try:
-            update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access)
+            self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access)
         except Exception as e:
             LOGGER.error(f"Error updating config: {e}")
 

@@ -9,8 +9,9 @@ import xarray as xr
 from geojson import Feature, Point, FeatureCollection
 import geopandas as gpd
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
-from .utils import check_running_jobs, read_config, write_config
-
+from .utils import read_config, write_config
+from filelock import FileLock
+import pandas as pd
 # =================================================================
 #
 # Authors: Valerio Luzzi <valluzzi@gmail.com>
@@ -149,16 +150,15 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         # Extract and validate inputs
         file_out, issue_date, living_lab, s3_save = self._extract_and_validate_inputs(data)
 
-        # Check running jobs and early return if jobs are running
-        if self._check_running_jobs():
-            return mimetype, {'message': 'There are running jobs, please try again later'}
-
         # Prepare file output path
-        file_out = self._prepare_output_path(file_out, issue_date, s3_save)
-
+        msg = self._prepare_output_path(file_out, issue_date, s3_save, living_lab)
+        if msg:
+            return mimetype, {'id': self.id, 'value': msg}
         # Connect to FTP and retrieve files
         ftp_config = self._get_ftp_config()
         files = self._download_files_from_ftp(ftp_config, living_lab, data['data_dir'], issue_date)
+        if files == []:
+            raise ProcessorExecuteError('No files found in the FTP server')
 
         # Process files to extract features
         features = self._process_files(files, issue_date)
@@ -219,24 +219,30 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
 
         return file_out, issue_date, living_lab, s3_save
 
-    def _check_running_jobs(self):
-        """Check if jobs are running."""
-        return check_running_jobs(total_retries=10, time_out=30)
-
-    def _prepare_output_path(self, file_out, issue_date, s3_save):
+    def _prepare_output_path(self, file_out, issue_date, s3_save, living_lab):
         """Prepare file output path, depending on S3 or local save."""
+        msg = None
         if file_out and file_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             if s3.exists(file_out):
-                raise ProcessorExecuteError(f'Path {file_out} already exists')
-        elif s3_save:
-            bucket_name = os.getenv("DEFAULT_BUCKET")
-            remote_path = os.getenv("DEFAULT_REMOTE_DIR")
-            file_out = f's3://{bucket_name}/{remote_path}dataset_smhi_{issue_date}.geojson'
-        else:
-            if not file_out:
-                file_out = f'/pygeoapi/smhi_vector_data/dataset_smhi_{issue_date}.geojson'
-        return file_out
+                resource_key = f'{living_lab}_seasonal_forecast_{issue_date}'
+                if resource_key in read_config(self.config_file)['resources']:
+                    LOGGER.debug(f'Path {file_out} already exists in bucket and config')
+                    msg = f"Path {file_out} already exists in bucket and config"
+                # TODO: Get the data from the bucket and update the config
+                # else:
+                #     LOGGER.debug(f'Path {file_out} already exists in bucket but not in config')
+                #     # Process files to extract features
+                #     data = gpd.read_file(file_out)
+
+                #     bbox = data.total_bounds
+                #     time_list = data['time']
+                #     datetime_list = pd.to_datetime(time_list[0])
+                #     datetime_range = (datetime_list.min(), datetime_list.max())
+                #     # Update and save the configuration
+                #     self._update_config(living_lab, issue_date, file_out, bbox, datetime_range, s3_save)
+                #     msg = f"Path {file_out} already exists updates config at '{self.config_file}'"
+        return msg
 
     def _get_ftp_config(self):
         """Get FTP configuration from environment variables."""
@@ -341,24 +347,27 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
 
     def _update_config(self, living_lab, issue_date, file_out, bbox, datetime_range, s3_save):
         """Update and write configuration."""
-        
-        config = read_config(self.config_file)
-        resource_key = f'{living_lab}_seasonal_forecast_{issue_date}'
-        # Convert all values to float32
-        bbox_float = [float(val) for val in bbox]
-        config['resources'][resource_key] = {
-            'type': 'collection',
-            'title': resource_key,
-            'description': f'SMHI Discharge data of {living_lab}',
-            'keywords': [living_lab, 'country'],
-            'extents': {'spatial': {'bbox': bbox_float, 'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'},
-                        'temporal': {'begin': datetime_range[0], 'end': datetime_range[1]}},
-            'providers': [{'type': 'feature', 'name': 'GeoJSON', 'data': file_out, 'id_field': 'id'}]
-        }
-        
-        if s3_save:
-            config['resources'][resource_key]['providers'][0]['options'] = {'s3': {'anon': True, 'requester_pays': False}}
-        write_config(self.config_file, config)
+        # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
+        lock = FileLock(f"{self.config_file}.lock")
+
+        with lock:
+            config = read_config(self.config_file)
+            resource_key = f'{living_lab}_seasonal_forecast_{issue_date}'
+            # Convert all values to float32
+            bbox_float = [float(val) for val in bbox]
+            config['resources'][resource_key] = {
+                'type': 'collection',
+                'title': resource_key,
+                'description': f'SMHI Discharge data of {living_lab}',
+                'keywords': [living_lab, 'country'],
+                'extents': {'spatial': {'bbox': bbox_float, 'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'},
+                            'temporal': {'begin': datetime_range[0], 'end': datetime_range[1]}},
+                'providers': [{'type': 'feature', 'name': 'GeoJSON', 'data': file_out, 'id_field': 'id'}]
+            }
+            
+            if s3_save:
+                config['resources'][resource_key]['providers'][0]['options'] = {'s3': {'anon': True, 'requester_pays': False}}
+            write_config(self.config_file, config)
     
     def __repr__(self):
         return f'<IngestorSMHIVectorProcessProcessor> {self.name}'
