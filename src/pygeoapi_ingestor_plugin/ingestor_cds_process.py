@@ -159,28 +159,31 @@ def generate_days_list(data_inizio, data_fine):
         yield data_corrente
         data_corrente += timedelta(days=1)
 
+def adjust_query(query, date, interval):
+    if interval == 'day':
+        query['hyear'] = [date.strftime('%Y')]
+        query['hmonth'] = [date.strftime('%m')]
+        query['hday'] = [date.strftime('%d')]
+    elif interval == 'month':
+        query['hyear'] = [date.strftime('%Y')]
+        query['hmonth'] = [date.strftime('%m')]
+        query['hday'] = ALL_DAYS  # Include all days for the month
+    elif interval == 'year':
+        query['hyear'] = [date.strftime('%Y')]
+        query['hmonth'] = ALL_MONTHS  # Include all months
+        query['hday'] = ALL_DAYS     # Include all days for each month
+    return query
 
-def fetch_dataset(dataset, query, file_out, date=None, interval=None,engine='h5netcdf'):
+def fetch_dataset(dataset, query, file_out, date=None, interval=None, engine='h5netcdf'):
     URL_CDS = 'https://cds.climate.copernicus.eu/api'
     URL_EWDS = 'https://ewds.climate.copernicus.eu/api'
-    KEY = 'd08c3547-5017-4630-820f-57bb784f4973'
+    KEY = os.getenv('CDSAPI_KEY') 
     client = cdsapi.Client(url=URL_CDS, key=KEY)
 
     query_copy = query.copy()
     
     # Adjust query based on the specified interval
-    if interval == 'day':
-        query_copy['hyear'] = [date.strftime('%Y')]
-        query_copy['hmonth'] = [date.strftime('%m')]
-        query_copy['hday'] = [date.strftime('%d')]
-    elif interval == 'month':
-        query_copy['hyear'] = [date.strftime('%Y')]
-        query_copy['hmonth'] = [date.strftime('%m')]
-        query_copy['hday'] = ALL_DAYS  # Include all days for the month
-    elif interval == 'year':
-        query_copy['hyear'] = [date.strftime('%Y')]
-        query_copy['hmonth'] = ALL_MONTHS  # Include all months
-        query_copy['hday'] = ALL_DAYS     # Include all days for each month
+    query_copy = adjust_query(query_copy, date, interval)
         
     try:
         data = client.retrieve(dataset, query_copy, file_out)
