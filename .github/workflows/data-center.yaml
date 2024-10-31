@@ -33,14 +33,14 @@ jobs:
     steps:
     -
       name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     -
       name: Set up Docker Buildkit env
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@v3
     -
       name: Extract metadata (tags, labels) for tagging Docker Image
       id: meta
-      uses: docker/metadata-action@v4
+      uses: docker/metadata-action@v5
       with:
         images: "${{ env.IMAGE_TAG }}"
         labels: |
@@ -54,13 +54,13 @@ jobs:
     -
       name: Log in to Docker Hub
       if: github.event_name != 'pull_request'
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_TOKEN }}
     -
       name: Build and push Docker image
-      uses: docker/build-push-action@v3
+      uses: docker/build-push-action@v6
       with:
         context: "${{ env.BUILD_CONTEXT }}"
         push: ${{ github.event_name != 'pull_request' }}
@@ -133,7 +133,7 @@ jobs:
         initial_comment: "Trivy Results for '${{ github.repository }}' uploaded. Please review: https://github.com/${{ github.repository }}/actions"
     -
       name: Trigger redeployment
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GHA_WORKFLOW_TRIGGER }}
         script: |
