@@ -141,7 +141,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
-        self.config_file = os.environ.get(default='/pygeoapi/local.config.yml', key='PYGEOAPI_CONFIG_FILE')
+        self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
         self.id = 'smhi-ingestor-vector-process'
 
     def execute(self, data):
@@ -174,7 +174,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
 
         outputs = {'id': self.id, 'value': file_out}
         return mimetype, outputs
-    
+
     def download_files_from_ftp(self, ftp, folder):
         # ftp.cwd(folder)
         files = ftp.nlst()
@@ -364,10 +364,10 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                             'temporal': {'begin': datetime_range[0], 'end': datetime_range[1]}},
                 'providers': [{'type': 'feature', 'name': 'GeoJSON', 'data': file_out, 'id_field': 'id'}]
             }
-            
+
             if s3_save:
                 config['resources'][resource_key]['providers'][0]['options'] = {'s3': {'anon': True, 'requester_pays': False}}
             write_config(self.config_file, config)
-    
+
     def __repr__(self):
         return f'<IngestorSMHIVectorProcessProcessor> {self.name}'

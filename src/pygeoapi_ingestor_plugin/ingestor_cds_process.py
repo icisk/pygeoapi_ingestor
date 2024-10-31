@@ -147,7 +147,7 @@ PROCESS_METADATA = {
             },
             "interval": "month",
             "zarr_out": "s3://mybucket/test/icisk/cds_rdis_test.zarr",
-            "token": "ABC123XYZ666" 
+            "token": "ABC123XYZ666"
         }
     }
 }
@@ -167,7 +167,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         :returns: pygeoapi.process.ingestor_process.IngestorCDSProcessProcessor
         """
         super().__init__(processor_def, PROCESS_METADATA)
-        self.config_file = os.environ.get('PYGEOAPI_CONFIG_FILE', '/pygeoapi/local.config.yml')
+        self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
         self.id = 'cds-ingestor-process'
 
     def execute(self, data):
@@ -206,7 +206,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             'value': zarr_out
         }
         return mimetype, outputs
-    
+
     def update_config(self, data, dataset, zarr_out, config_file, s3_is_anon_access):
         # get min/max values for longitude, latitude and time
         min_x = float(data.coords['longitude'].min().values)
@@ -259,7 +259,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
             endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
             alternate_root = zarr_out.split("s3://")[1]
-            
+
             if s3_is_anon_access:
                 config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
                     's3': {
@@ -267,7 +267,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         'requester_pays': False
                     }
                 }
-            else:    
+            else:
                 config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
                     's3': {
                         'anon': False,
@@ -406,14 +406,14 @@ class IngestorCDSProcessProcessor(BaseProcessor):
     def fetch_dataset(self, dataset, query, file_out, date=None, interval=None, engine='h5netcdf'):
         URL_CDS = 'https://cds.climate.copernicus.eu/api'
         URL_EWDS = 'https://ewds.climate.copernicus.eu/api'
-        KEY = os.getenv('CDSAPI_KEY') 
+        KEY = os.getenv('CDSAPI_KEY')
         client = cdsapi.Client(url=URL_CDS, key=KEY)
 
         query_copy = query.copy()
-        
+
         # Adjust query based on the specified interval
         query_copy = self.adjust_query(query_copy, date, interval)
-            
+
         try:
             data = client.retrieve(dataset, query_copy, file_out)
         except Exception as e:
