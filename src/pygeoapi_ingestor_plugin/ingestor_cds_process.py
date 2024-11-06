@@ -174,10 +174,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         mimetype = 'application/json'
 
         # Extract parameters
-        dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval = self._extract_parameters(data)
+        service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval = self._extract_parameters(data)
 
         # Validate input
-        self._validate_inputs(dataset, query, self.token)
+        self._validate_inputs(service, dataset, query, self.token)
 
         # Determine S3 access type
         s3_is_anon_access = self._is_s3_anon_access()
@@ -192,7 +192,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             return mimetype, {'id': self.id, 'value': msg}
 
         # Fetch data (either by date range or single query)
-        data = self._fetch_data(dataset, query, file_out, engine, start_date, end_date, interval)
+        data = self._fetch_data(service, dataset, query, file_out, engine, start_date, end_date, interval)
 
         # Save the data
         self._store_data(data, zarr_out, s3_save)
@@ -229,7 +229,9 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
             dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}"
 
-            config['resources'][dataset_pygeoapi_identifier] = {
+            LOGGER.debug(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
+
+            dataset_definition = {
                 'type': 'collection',
                 'title': dataset_pygeoapi_identifier,
                 'description': f'CDS {dataset} data from {datetime_min.date()} to {datetime_max.date()}',
@@ -257,6 +259,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 ]
             }
 
+            LOGGER.debug(f"dataset definition to add: '{dataset_definition}'")
+
+            config['resources'][dataset_pygeoapi_identifier] = dataset_definition
+
             endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
             alternate_root = zarr_out.split("s3://")[1]
 
@@ -282,6 +288,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
     def _extract_parameters(self, data):
         """Extract parameters from the input data."""
+        service = data.get('service')
         dataset = data.get('dataset')
         query = data.get('query')
         file_out = data.get('file_out', os.path.join(f"{tempfile.gettempdir()}", f"copernicus_data_{int(datetime.now().timestamp())}.nc"))
@@ -292,10 +299,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         end_date = data.get('date_end', None)
         self.token = data.get('token')
         interval = data.get('interval', None)
-        return dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval
+        return service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval
 
-    def _validate_inputs(self, dataset, query, token):
+    def _validate_inputs(self, service, dataset, query, token):
         """Validate input parameters."""
+        if service is None:
+            raise ProcessorExecuteError('Cannot process without a service')
         if dataset is None:
             raise ProcessorExecuteError('Cannot process without a dataset')
         if query is None:
@@ -340,22 +349,22 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'"
         return msg
 
-    def _fetch_data(self, dataset, query, file_out, engine, start_date, end_date,interval):
+    def _fetch_data(self, service, dataset, query, file_out, engine, start_date, end_date,interval):
         """Fetch data from the dataset based on the date range or single query."""
         if start_date and end_date:
             datetime_start = datetime.strptime(start_date, '%Y-%m-%d')
             datetime_end = datetime.strptime(end_date, '%Y-%m-%d')
             dates = list(self.generate_dates_list(datetime_start, datetime_end, interval=interval))
-            return self._fetch_data_by_range(dataset, query, file_out, dates, interval)
+            return self._fetch_data_by_range(service, dataset, query, file_out, dates, interval)
         else:
             LOGGER.debug(f"Fetching data for a specific date {query}")
-            return self.fetch_dataset(dataset, query, file_out, engine=engine)
+            return self.fetch_dataset(service, dataset, query, file_out, engine=engine)
 
-    def _fetch_data_by_range(self, dataset, query, file_out, dates, interval):
+    def _fetch_data_by_range(self, service, dataset, query, file_out, dates, interval):
         datasets = []
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {
-                executor.submit(self.fetch_dataset, dataset, query, f"{file_out.split('.netcdf4.zip')[0]}_{date.isoformat()}.netcdf4.zip", date, interval): date
+                executor.submit(self.fetch_dataset, service, dataset, query, f"{file_out.split('.netcdf4.zip')[0]}_{date.isoformat()}.netcdf4.zip", date, interval): date
                 for date in dates
             }
             for future in as_completed(futures):
@@ -403,17 +412,24 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             query['hday'] = ALL_DAYS     # Include all days for each month
         return query
 
-    def fetch_dataset(self, dataset, query, file_out, date=None, interval=None, engine='h5netcdf'):
-        URL_CDS = 'https://cds.climate.copernicus.eu/api'
-        URL_EWDS = 'https://ewds.climate.copernicus.eu/api'
+    def fetch_dataset(self, service, dataset, query, file_out, date=None, interval=None, engine='h5netcdf'):
+
+        if service and service == 'EWDS':
+            URL = 'https://ewds.climate.copernicus.eu/api'
+        else:
+            URL = 'https://cds.climate.copernicus.eu/api'
+
         KEY = os.getenv('CDSAPI_KEY')
-        client = cdsapi.Client(url=URL_CDS, key=KEY)
+
+        client = cdsapi.Client(url=URL, key=KEY)
 
         query_copy = query.copy()
 
         # Adjust query based on the specified interval
         query_copy = self.adjust_query(query_copy, date, interval)
 
+        LOGGER.debug(f"service     : '{service}'")
+        LOGGER.debug(f"URL         : '{URL}'")
         LOGGER.debug(f"dataset     : '{dataset}'")
         LOGGER.debug(f"CDSAPI query: '{query_copy}'")
 
@@ -421,17 +437,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             data = client.retrieve(dataset, query_copy, file_out)
         except Exception as e:
 
-            if str(e) in ['404 Client Error', 'Not Found']:
-                LOGGER.debug(f"Dataset {dataset} not found in '{URL_CDS}'. Trying '{URL_EWDS}'")
-                client = cdsapi.Client(url=URL_EWDS, key=KEY)
-                try:
-                    data = client.retrieve(dataset, query_copy, file_out)
-                except Exception as e:
-                    LOGGER.error(f"Could not retrieve data from endpoint '{URL_EWDS}'. Error: '{e}'")
-                    return None
-            else:
-                LOGGER.error(f"Error fetching dataset {dataset}: {e}")
-                return None
+            LOGGER.error(f"Error fetching dataset {dataset} from service '{service}' ('{URL}'): '{e}'")
+            return None
 
         if file_out.endswith('.zip'):
             extract_dir = file_out.split('.zip')[0]

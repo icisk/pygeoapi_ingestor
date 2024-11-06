@@ -2,6 +2,7 @@
     "process": "ingestor-cds-process",
     "payload": {
         "inputs": {
+            "service": "EWDS",
             "dataset": "cems-glofas-forecast",
             "query": {
                 "system_version": ["operational"],
