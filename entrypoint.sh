@@ -99,6 +99,12 @@ case ${entry_cmd} in
 	  ;;
 
 	# Run pygeoapi server
+	#
+	# https://docs.pygeoapi.io/en/latest/running.html#gunicorn-and-flask
+	#
+	# https://docs.gunicorn.org/en/stable/settings.html
+	#
+	# FIXME: setting "--reload + --reload-extra-file intented for development/debugging only!
 	run)
 		# SCRIPT_NAME should not have value '/'
 		[[ "${SCRIPT_NAME}" = '/' ]] && export SCRIPT_NAME="" && echo "make SCRIPT_NAME empty from /"
