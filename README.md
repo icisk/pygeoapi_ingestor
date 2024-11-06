@@ -95,7 +95,7 @@ The following variables are required:
 - `CDSAPI_KEY`:
 
   Checkout the Climate Data Store (CDS) Application Program Interface (API) documentation [for retrieving an API key](https://cds.climate.copernicus.eu/api-how-to).
-  The `CDSAPI_KEY` is created by concatenating your `UID + ':' API Key`, e.g. `123456:12345678-9101-1121-1314-151617181920`.
+  The `CDSAPI_KEY` is the `Personal Access Token` from your [profile page](https://ewds.climate.copernicus.eu/profile), e.g. `12345678-9101-1121-1314-151617181920`.
   One needs to [accept the terms of service](https://cds.climate.copernicus.eu/cdsapp/#!/terms/licence-to-use-copernicus-products), before using the API.
 
   - EWDS Dataset [cems-glofas-forecast](https://ewds.climate.copernicus.eu/datasets/cems-glofas-forecast?tab=download)

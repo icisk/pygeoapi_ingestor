@@ -2,6 +2,7 @@
     "process": "ingestor-cds-process",
     "payload": {
         "inputs": {
+          "service": "CDS",
           "dataset": "seasonal-original-single-levels",
           "file_out": "/tmp/seasonal-original-single-levels.nc",
           "query": {
