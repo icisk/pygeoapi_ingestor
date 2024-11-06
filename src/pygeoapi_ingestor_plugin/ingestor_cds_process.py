@@ -414,13 +414,21 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # Adjust query based on the specified interval
         query_copy = self.adjust_query(query_copy, date, interval)
 
+        LOGGER.debug(f"dataset     : '{dataset}'")
+        LOGGER.debug(f"CDSAPI query: '{query_copy}'")
+
         try:
             data = client.retrieve(dataset, query_copy, file_out)
         except Exception as e:
-            if "404 Client Error" in str(e):
-                LOGGER.debug(f"Dataset {dataset} not found in {URL_CDS}")
+
+            if str(e) in ['404 Client Error', 'Not Found']:
+                LOGGER.debug(f"Dataset {dataset} not found in '{URL_CDS}'. Trying '{URL_EWDS}'")
                 client = cdsapi.Client(url=URL_EWDS, key=KEY)
-                data = client.retrieve(dataset, query_copy, file_out)
+                try:
+                    data = client.retrieve(dataset, query_copy, file_out)
+                except Exception as e:
+                    LOGGER.error(f"Could not retrieve data from endpoint '{URL_EWDS}'. Error: '{e}'")
+                    return None
             else:
                 LOGGER.error(f"Error fetching dataset {dataset}: {e}")
                 return None
