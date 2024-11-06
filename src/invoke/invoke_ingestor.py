@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import sys
-import time 
+import time
 from utils import invoke_ingestor_process
 
 
@@ -55,7 +55,7 @@ elif ingestor_process == "cds-ingestor-process":
     payload['inputs']['query']['month'] = [month]
     payload['inputs']['query']['day'] = [day]
     payload['inputs']['zarr_out'] = f"s3://52n-i-cisk/data-ingestor/cds_{dataset}_{variable}_{year}-{month}-{day}.zarr"
-        
+
 api_root = os.getenv("API_ROOT", "http://localhost/")
 execute_url = f"{api_root}processes/{ingestor_process}/execution"
 
