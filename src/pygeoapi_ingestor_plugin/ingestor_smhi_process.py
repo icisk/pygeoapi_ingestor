@@ -43,7 +43,7 @@ import logging
 import sys
 from .utils import read_config, write_config
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 #: Process metadata and description
@@ -135,9 +135,9 @@ def download_files_from_ftp(ftp, folder):
                     os.makedirs(f"./seasonal_forecast/{folder}")
                 with open(local_filename, 'wb') as f:
                     ftp.retrbinary('RETR ' + file, f.write)
-                LOGGER.debug(f"Downloaded: {local_filename}")
+                logger.debug(f"Downloaded: {local_filename}")
             else:
-                LOGGER.debug(f"File already exists: {local_filename}")
+                logger.debug(f"File already exists: {local_filename}")
                 pass
     ftp.cwd("..")
     return nc_files
@@ -316,9 +316,9 @@ class IngestorSMHIProcessProcessor(BaseProcessor):
             ]
         }
 
-        LOGGER.debug("***********************************")
-        LOGGER.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
-        LOGGER.debug("***********************************")
+        logger.debug("***********************************")
+        logger.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
+        logger.debug("***********************************")
 
         write_config(self.config_file, config)
 

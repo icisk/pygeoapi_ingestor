@@ -46,7 +46,7 @@ from dotenv import load_dotenv, find_dotenv
 import logging
 import sys
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 load_dotenv(find_dotenv())
 #: Process metadata and description
@@ -143,9 +143,9 @@ def download_files_from_ftp(ftp, folder):
                     os.makedirs(f"./seasonal_forecast/{folder}")
                 with open(local_filename, 'wb') as f:
                     ftp.retrbinary('RETR ' + file, f.write)
-                LOGGER.debug(f"Downloaded: {local_filename}")
+                logger.debug(f"Downloaded: {local_filename}")
             else:
-                LOGGER.debug(f"File already exists: {local_filename}")
+                logger.debug(f"File already exists: {local_filename}")
                 pass
     ftp.cwd("..")
     return nc_files
@@ -210,7 +210,7 @@ class IngestorPlanetaryProcessProcessor(BaseProcessor):
             remote_url = f's3://{bucket_name}/{remote_path}dataset_planetary_{int(datetime.datetime.now().timestamp())}.zarr'
 
 
-        # LOGGER.debug("DATA RETRIEVED")
+        # logger.debug("DATA RETRIEVED")
 
         # data = xr.open_dataset(f'{file_out}', engine=engine)
 
@@ -256,8 +256,8 @@ class IngestorPlanetaryProcessProcessor(BaseProcessor):
         # #                     consolidated=True,
         # #
         # #             mode='w')
-        # LOGGER.debug("DATA")
-        # LOGGER.debug(data)
+        # logger.debug("DATA")
+        # logger.debug(data)
         # return mimetype, remote_url
         # # get min/max values for geo_x, geo_y and time
         # min_x = float(data['geo_x'].min().values)
@@ -307,9 +307,9 @@ class IngestorPlanetaryProcessProcessor(BaseProcessor):
         #     ]
         # }
 
-        # LOGGER.debug("***********************************")
-        # LOGGER.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
-        # LOGGER.debug("***********************************")
+        # logger.debug("***********************************")
+        # logger.debug(config['resources'][f'georgia_seasonal_forecast_{issue_date}'])
+        # logger.debug("***********************************")
 
         #FIXME use env PYGEOAPI_CONFIG
         # with  open('/pygeoapi/local.config.yml', 'w') as outfile:

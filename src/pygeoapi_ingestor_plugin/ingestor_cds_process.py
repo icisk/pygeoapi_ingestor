@@ -49,7 +49,7 @@ import logging
 import sys
 from pygeoapi_ingestor_plugin.utils import write_config, read_config
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # Define constants for all days and all months
 ALL_DAYS = [f"{day:02}" for day in range(1, 32)]
@@ -181,7 +181,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         # Determine S3 access type
         s3_is_anon_access = self._is_s3_anon_access()
-        LOGGER.debug(f"Using anon S3 access? '{s3_is_anon_access}'")
+        logger.debug(f"Using anon S3 access? '{s3_is_anon_access}'")
 
         # Set up output paths
         zarr_out, s3_save = self._setup_output_paths(zarr_out, s3_save, dataset)
@@ -229,7 +229,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
             dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}"
 
-            LOGGER.debug(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
+            logger.debug(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
 
             dataset_definition = {
                 'type': 'collection',
@@ -259,7 +259,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 ]
             }
 
-            LOGGER.debug(f"dataset definition to add: '{dataset_definition}'")
+            logger.debug(f"dataset definition to add: '{dataset_definition}'")
 
             config['resources'][dataset_pygeoapi_identifier] = dataset_definition
 
@@ -313,7 +313,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('Identify yourself with valid token!')
 
         if token != os.getenv("INT_API_TOKEN", "token"):
-            LOGGER.error(f"WRONG INTERNAL API TOKEN {token} ({type(token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
+            logger.error(f"WRONG INTERNAL API TOKEN {token} ({type(token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
             raise ProcessorExecuteError('ACCESS DENIED: wrong token')
 
     def _is_s3_anon_access(self):
@@ -357,7 +357,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             dates = list(self.generate_dates_list(datetime_start, datetime_end, interval=interval))
             return self._fetch_data_by_range(service, dataset, query, file_out, dates, interval)
         else:
-            LOGGER.debug(f"Fetching data for a specific date {query}")
+            logger.debug(f"Fetching data for a specific date {query}")
             return self.fetch_dataset(service, dataset, query, file_out, engine=engine)
 
     def _fetch_data_by_range(self, service, dataset, query, file_out, dates, interval):
@@ -373,7 +373,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     out_data = future.result()
                     datasets.append(out_data)
                 except Exception as exc:
-                    LOGGER.error(f"{date} generated an exception: {exc}")
+                    logger.error(f"{date} generated an exception: {exc}")
         return xr.concat(datasets, dim='time')
 
     def generate_dates_list(self, start_date, end_date, interval='day'):
@@ -394,7 +394,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             store = s3fs.S3Map(root=zarr_out, s3=s3, check=False)
         else:
             store = zarr_out
-        LOGGER.debug(f"Storing data to {store}, data type: {type(data)}")
+        logger.debug(f"Storing data to {store}, data type: {type(data)}")
         data.to_zarr(store=store, consolidated=True, mode='w')
 
     def adjust_query(self, query, date, interval):
@@ -428,16 +428,16 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # Adjust query based on the specified interval
         query_copy = self.adjust_query(query_copy, date, interval)
 
-        LOGGER.debug(f"service     : '{service}'")
-        LOGGER.debug(f"URL         : '{URL}'")
-        LOGGER.debug(f"dataset     : '{dataset}'")
-        LOGGER.debug(f"CDSAPI query: '{query_copy}'")
+        logger.debug(f"service     : '{service}'")
+        logger.debug(f"URL         : '{URL}'")
+        logger.debug(f"dataset     : '{dataset}'")
+        logger.debug(f"CDSAPI query: '{query_copy}'")
 
         try:
             data = client.retrieve(dataset, query_copy, file_out)
         except Exception as e:
 
-            LOGGER.error(f"Error fetching dataset {dataset} from service '{service}' ('{URL}'): '{e}'")
+            logger.error(f"Error fetching dataset {dataset} from service '{service}' ('{URL}'): '{e}'")
             return None
 
         if file_out.endswith('.zip'):
@@ -466,7 +466,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         try:
             self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access)
         except Exception as e:
-            LOGGER.error(f"Error updating config: {e}")
+            logger.error(f"Error updating config: {e}")
 
     def __repr__(self):
         return f'<IngestorCDSProcessProcessor> {self.name}'

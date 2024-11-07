@@ -18,7 +18,7 @@ from dotenv import load_dotenv, find_dotenv
 
 from .utils import download_source, cleanup_data_temp
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 load_dotenv(find_dotenv())
 
@@ -183,13 +183,13 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
     def read_config(self):
         with open(self.config_file, 'r') as file:
-            LOGGER.debug("read config")
+            logger.debug("read config")
             return(yaml.safe_load(file))
 
     def write_config(self, new_config):
         with  open(self.config_file, 'w') as outfile:
             yaml.dump(new_config, outfile, default_flow_style=False)
-        LOGGER.debug("updated config")
+        logger.debug("updated config")
 
     def get_data_from_cloud(self):
         mapper = fsspec.get_mapper(self.zarr_out,
@@ -271,7 +271,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
         if self.token != os.getenv("INT_API_TOKEN", "token"):
             #TODO Is this the correct error to return? Does this result in a BadRequest error?
-            LOGGER.info("wrong internal API token received")
+            logger.info("wrong internal API token received")
             raise ProcessorExecuteError('ACCESS DENIED wrong token')
 
         if self.zarr_out and self.zarr_out.startswith('s3://'):
@@ -283,7 +283,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
                     self.update_config()
                     msg = f"Path {self.zarr_out} already exists updates config at '{self.config_file}'"
 
-                LOGGER.info(msg)
+                logger.info(msg)
                 return mimetype, {'id': 'creaf_forecast_ingestor', 'value': msg}
 
 

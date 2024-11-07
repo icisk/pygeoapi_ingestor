@@ -41,7 +41,7 @@ import pandas as pd
 #
 # =================================================================
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 #: Process metadata and description
 PROCESS_METADATA = {
@@ -227,11 +227,11 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             if s3.exists(file_out):
                 resource_key = f'{living_lab}_seasonal_forecast_{issue_date}'
                 if resource_key in read_config(self.config_file)['resources']:
-                    LOGGER.debug(f'Path {file_out} already exists in bucket and config')
+                    logger.debug(f'Path {file_out} already exists in bucket and config')
                     msg = f"Path {file_out} already exists in bucket and config"
                 # TODO: Get the data from the bucket and update the config
                 # else:
-                #     LOGGER.debug(f'Path {file_out} already exists in bucket but not in config')
+                #     logger.debug(f'Path {file_out} already exists in bucket but not in config')
                 #     # Process files to extract features
                 #     data = gpd.read_file(file_out)
 

@@ -29,7 +29,7 @@ def read_config(config_path):
 
 
 def write_config(config_path, config_out):
-    
+
     # Register the custom representer with PyYAML
     yaml.add_representer(np.ndarray, numpy_array_representer)
     with open(config_path, 'w') as outfile:
@@ -97,11 +97,10 @@ def check_running_jobs(retry=1,total_retries=1, time_out=10):
             if running_job_count > 1:
                 running_job = True
                 break
-    
+
     if running_job and retry < total_retries:
         time.sleep(time_out)
         if not check_running_jobs(retry=retry+1, total_retries=total_retries, time_out=time_out):
             return False
-
 
     return running_job
