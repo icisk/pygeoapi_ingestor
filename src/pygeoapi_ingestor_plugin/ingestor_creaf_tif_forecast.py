@@ -183,13 +183,13 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
     def read_config(self):
         with open(self.config_file, 'r') as file:
-            logger.debug("read config")
+            logger.info("read config")
             return(yaml.safe_load(file))
 
     def write_config(self, new_config):
         with  open(self.config_file, 'w') as outfile:
             yaml.dump(new_config, outfile, default_flow_style=False)
-        logger.debug("updated config")
+        logger.info("updated config")
 
     def get_data_from_cloud(self):
         mapper = fsspec.get_mapper(self.zarr_out,

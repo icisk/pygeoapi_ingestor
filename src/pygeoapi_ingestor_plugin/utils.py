@@ -9,12 +9,12 @@ import zipfile
 import time
 import numpy as np
 
-logger = logging.getLogger('init config check')
-logger.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(ch)
+logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
+# ch = logging.StreamHandler()
+# ch.setLevel(logging.DEBUG)
+# ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+# logger.addHandler(ch)
 
 
 # Create a representer for NumPy arrays
@@ -24,7 +24,7 @@ def numpy_array_representer(dumper, data):
 
 def read_config(config_path):
         with open(config_path, 'r') as file:
-            logger.debug(f"reading config from '{config_path}")
+            logger.info(f"reading config from '{config_path}")
             return(yaml.safe_load(file))
 
 
@@ -33,13 +33,13 @@ def write_config(config_path, config_out):
     # Register the custom representer with PyYAML
     yaml.add_representer(np.ndarray, numpy_array_representer)
     with open(config_path, 'w') as outfile:
-        logger.debug(f"locking file '{config_path}'")
+        logger.info(f"locking file '{config_path}'")
         fcntl.flock(outfile, fcntl.LOCK_EX)
         try:
-            logger.debug(f"writing data to '{config_path}'")
+            logger.info(f"writing data to '{config_path}'")
             yaml.dump(config_out, outfile, default_flow_style=False, sort_keys=False)
         finally:
-            logger.debug(f"unlocking file '{config_path}'")
+            logger.info(f"unlocking file '{config_path}'")
             fcntl.flock(outfile, fcntl.LOCK_UN)
 
 def cleanup_data_temp():
