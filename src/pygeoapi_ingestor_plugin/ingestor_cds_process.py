@@ -181,7 +181,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         # Determine S3 access type
         s3_is_anon_access = self._is_s3_anon_access()
-        logger.debug(f"Using anon S3 access? '{s3_is_anon_access}'")
+        logger.info(f"Using anon S3 access? '{s3_is_anon_access}'")
 
         # Set up output paths
         zarr_out, s3_save = self._setup_output_paths(zarr_out, s3_save, dataset)
@@ -229,7 +229,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
             dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}"
 
-            logger.debug(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
+            logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
 
             dataset_definition = {
                 'type': 'collection',
@@ -259,7 +259,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 ]
             }
 
-            logger.debug(f"dataset definition to add: '{dataset_definition}'")
+            logger.info(f"dataset definition to add: '{dataset_definition}'")
 
             config['resources'][dataset_pygeoapi_identifier] = dataset_definition
 
@@ -357,7 +357,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             dates = list(self.generate_dates_list(datetime_start, datetime_end, interval=interval))
             return self._fetch_data_by_range(service, dataset, query, file_out, dates, interval)
         else:
-            logger.debug(f"Fetching data for a specific date {query}")
+            logger.info(f"Fetching data for a specific date {query}")
             return self.fetch_dataset(service, dataset, query, file_out, engine=engine)
 
     def _fetch_data_by_range(self, service, dataset, query, file_out, dates, interval):
@@ -394,7 +394,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             store = s3fs.S3Map(root=zarr_out, s3=s3, check=False)
         else:
             store = zarr_out
-        logger.debug(f"Storing data to {store}, data type: {type(data)}")
+        logger.info(f"Storing data to {store}, data type: {type(data)}")
         data.to_zarr(store=store, consolidated=True, mode='w')
 
     def adjust_query(self, query, date, interval):
@@ -428,10 +428,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # Adjust query based on the specified interval
         query_copy = self.adjust_query(query_copy, date, interval)
 
-        logger.debug(f"service     : '{service}'")
-        logger.debug(f"URL         : '{URL}'")
-        logger.debug(f"dataset     : '{dataset}'")
-        logger.debug(f"CDSAPI query: '{query_copy}'")
+        logger.info(f"service     : '{service}'")
+        logger.info(f"URL         : '{URL}'")
+        logger.info(f"dataset     : '{dataset}'")
+        logger.info(f"CDSAPI query: '{query_copy}'")
 
         try:
             data = client.retrieve(dataset, query_copy, file_out)

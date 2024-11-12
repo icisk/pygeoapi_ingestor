@@ -9,7 +9,7 @@ def invoke_ingestor_process(execute_url, data, logger):
     max_tries = 5
     while not success and n_tries < max_tries:
         n_tries += 1
-        logger.debug(f"[{n_tries}/{max_tries}]: Send POST to '{execute_url}")
+        logger.info(f"[{n_tries}/{max_tries}]: Send POST to '{execute_url}")
         try:
             response = requests.post(execute_url,
                 headers={
@@ -18,8 +18,8 @@ def invoke_ingestor_process(execute_url, data, logger):
                 },
                 data=json.dumps(data)
             )
-            logger.debug(f"Response status code: {response.status_code}")
-            logger.debug(f"Response body       : {response.text}")
+            logger.info(f"Response status code: {response.status_code}")
+            logger.info(f"Response body       : {response.text}")
 
             if response.status_code >= 200 and response.status_code < 300:
                 #TODO next iteration: for long running tasks implement async processes and use /jobs/<job-id>

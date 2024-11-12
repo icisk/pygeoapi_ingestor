@@ -227,11 +227,11 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             if s3.exists(file_out):
                 resource_key = f'{living_lab}_seasonal_forecast_{issue_date}'
                 if resource_key in read_config(self.config_file)['resources']:
-                    logger.debug(f'Path {file_out} already exists in bucket and config')
+                    logger.info(f'Path {file_out} already exists in bucket and config')
                     msg = f"Path {file_out} already exists in bucket and config"
                 # TODO: Get the data from the bucket and update the config
                 # else:
-                #     logger.debug(f'Path {file_out} already exists in bucket but not in config')
+                #     logger.info(f'Path {file_out} already exists in bucket but not in config')
                 #     # Process files to extract features
                 #     data = gpd.read_file(file_out)
 
