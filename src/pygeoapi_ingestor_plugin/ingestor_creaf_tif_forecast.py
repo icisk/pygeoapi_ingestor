@@ -209,7 +209,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         max_y = float(da.latitude.values.max())
 
         # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
-        lock = FileLock(f"{self.config_file}.lock")
+        lock = FileLock(f"{self.config_file}.lock", thread_local=False)
 
         with lock:
 
