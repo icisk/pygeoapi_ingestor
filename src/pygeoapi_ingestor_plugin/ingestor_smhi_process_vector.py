@@ -348,7 +348,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
     def _update_config(self, living_lab, issue_date, file_out, bbox, datetime_range, s3_save):
         """Update and write configuration."""
         # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
-        lock = FileLock(f"{self.config_file}.lock")
+        lock = FileLock(f"{self.config_file}.lock", thread_local=False)
 
         with lock:
             config = read_config(self.config_file)
