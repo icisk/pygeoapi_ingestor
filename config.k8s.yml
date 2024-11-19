@@ -49,7 +49,7 @@ server:
     # templates: /path/to/templates
     map:
         url: https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png
-        attribution: '<a href="https://wikimediafoundation.org/wiki/Maps_Terms_of_Use">Wikimedia maps</a> | Map data &copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+        attribution: '<a href="https://wikimediafoundation.org/wiki/Maps_Terms_of_Use">Wikimedia maps</a> | MainMap data &copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
     ogc_schemas_location: /schemas.opengis.net
     manager:  # optional OGC API - Processes asynchronous job management
       name: TinyDB  # plugin name (see pygeoapi.plugin for supported process_manager's)
@@ -116,6 +116,11 @@ resources:
   ingestor-smhi-vector-process:
     processor:
       name: pygeoapi_ingestor_plugin.IngestorSMHIVectorProcessProcessor
+    type: process
+
+  ingestor-creafhistoric-process:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorCREAFHISTORICProcessProcessor
     type: process
 
   # ingestor-planetary-process:
