@@ -108,6 +108,11 @@ resources:
       name: pygeoapi_ingestor_plugin.IngestorCREAFFORECASTProcessProcessor
     type: process
 
+  ingestor-creafhistoric-process:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorCREAFHISTORICProcessProcessor
+    type: process
+
   ingestor-smhi-process:
     processor:
       name: pygeoapi_ingestor_plugin.IngestorSMHIProcessProcessor
