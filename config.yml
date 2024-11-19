@@ -94,10 +94,8 @@ server:
     name: TinyDB
     output_dir: /tmp/
   map:
-    attribution: <a href="https://wikimediafoundation.org/wiki/Maps_Terms_of_Use">Wikimedia
-      maps</a> | Map data &copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap
-      contributors</a>
-    url: https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png
+    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+    url: https://tile.openstreetmap.org/{z}/{x}/{y}.png
   mimetype: application/json; charset=UTF-8
   ogc_schemas_location: /schemas.opengis.net
   pretty_print: true
