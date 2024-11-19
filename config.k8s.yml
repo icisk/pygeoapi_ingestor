@@ -52,12 +52,12 @@ server:
         url: https://tile.openstreetmap.org/{z}/{x}/{y}.png
     ogc_schemas_location: /schemas.opengis.net
     manager:  # optional OGC API - Processes asynchronous job management
-      name: TinyDB  # plugin name (see pygeoapi.plugin for supported process_manager's)
-      connection: /tmp/pygeoapi-process-manager.db  # connection info to store jobs (e.g. filepath)
-      output_dir: /tmp/  # temporary file area for storing job results (files)
+        name: TinyDB  # plugin name (see pygeoapi.plugin for supported process_manager's)
+        connection: /tmp/pygeoapi-process-manager.db  # connection info to store jobs (e.g. filepath)
+        output_dir: /tmp/  # temporary file area for storing job results (files)
 logging:
-  level: DEBUG
-  logfile: /dev/stdout
+    level: DEBUG
+    logfile: /dev/stdout
 metadata:
     identification:
         title: pygeoapi icisk
