@@ -16,7 +16,7 @@ from osgeo import gdal
 import logging
 from dotenv import load_dotenv, find_dotenv
 
-from utils import download_source
+from .utils import download_source
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ PROCESS_METADATA = {
     'version': '0.2.0',
     'id': 'creaf_historic_ingestor',
     'title': {
-        'en': 'creaf_forecast',
+        'en': 'creaf_historic',
     },
     'description': {
         'en': 'joins tiff-data and saves it to zarr format and uploads it to s3 bucket'},
@@ -49,7 +49,7 @@ PROCESS_METADATA = {
         },
         'variable':{
             'title': 'Variable',
-            'description': 'The name of the variable'
+            'description': 'The name of the variable',
             'schema': {
                 'type': 'string'
             }
@@ -114,12 +114,12 @@ def tifs_to_ds(path, variable):
     # files_per_var = [[f for f in files if os.path.basename(f).split("_")[3] == var] for var in variables]
     
 
-    time = sorted(set([np.datetime64(f'{parts[0]}-{int(parts[1]):02}-01') for fn in file_names for parts in [fn.split("_")[0:2]]]))
+    time = sorted(set([np.datetime64(f'{parts[0]}-{parts[1]}-01') for fn in file_names for parts in [fn.split("_")[0:2]]]))
     x, y = get_pixel_centroids(files[0])
     # xarray creation
     da_list = []
 
-    arrays = [tiff.imread(file) for file in file_names]
+    arrays = [tiff.imread(file) for file in files]
     stacked = np.stack(arrays, axis=0)
     da = xr.DataArray(stacked,
                             dims=['time', 'latitude', 'longitude'],
@@ -163,7 +163,7 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
 
         super().__init__(processor_def, PROCESS_METADATA)
         self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
-        self.title = 'creaf_forecast'
+        self.title = 'creaf_historic'
         self.otc_key = os.environ.get(key='FSSPEC_S3_KEY')
         self.otc_secret = os.environ.get(key='FSSPEC_S3_SECRET')
         self.otc_endpoint = os.environ.get(key='FSSPEC_S3_ENDPOINT_URL')
@@ -254,7 +254,7 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
         self.zarr_out = data.get('zarr_out')
         self.token = data.get('token')
         self.variable = data.get('variable')
-        self.alternate_root = self.zarr_out.split("s3://")[1]
+        self.alternate_root = self.zarr_out.split("s3://")[1] if self.zarr_out is not None else "bibi"
 
         if self.data_source is None:
             raise ProcessorExecuteError('Cannot process without a data path')
@@ -287,7 +287,7 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
         store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
         # TODO: @JSL: Implement downloading of tifs from self.data_source (support at least https)
         data_path = download_source(self.data_source)
-        tiff_da = tifs_to_ds(data_path, variable)
+        tiff_da = tifs_to_ds(data_path, self.variable)
         tiff_da.to_zarr(store=store, consolidated=True, mode='w')
 
         self.update_config()
