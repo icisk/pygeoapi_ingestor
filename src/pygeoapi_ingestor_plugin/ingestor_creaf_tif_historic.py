@@ -115,11 +115,13 @@ def tifs_to_ds(path, variable):
     
 
     time = sorted(set([np.datetime64(f'{parts[0]}-{parts[1]}-01') for fn in file_names for parts in [fn.split("_")[0:2]]]))
+    LOGGER.debug(f"getting centereeeeeeeeeeeoids")
     x, y = get_pixel_centroids(files[0])
     # xarray creation
     da_list = []
-
+    LOGGER.debug(f"reading tiffs")
     arrays = [tiff.imread(file) for file in files]
+    LOGGER.debug(f"stackong arrays")
     stacked = np.stack(arrays, axis=0)
     da = xr.DataArray(stacked,
                             dims=['time', 'latitude', 'longitude'],
@@ -256,6 +258,7 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
         self.variable = data.get('variable')
         self.alternate_root = self.zarr_out.split("s3://")[1] if self.zarr_out is not None else "bibi"
 
+        LOGGER.debug(f"checking process inputs")
         if self.data_source is None:
             raise ProcessorExecuteError('Cannot process without a data path')
         if self.zarr_out is None or not self.zarr_out.startswith('s3://') :
@@ -268,6 +271,7 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
             LOGGER.error("WRONG INTERNAL API TOKEN")
             raise ProcessorExecuteError('ACCESS DENIED wrong token')
 
+        LOGGER.debug(f"checking online resources")
         if self.zarr_out and self.zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             if s3.exists(self.zarr_out):
@@ -286,8 +290,11 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
 
         store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
         # TODO: @JSL: Implement downloading of tifs from self.data_source (support at least https)
+        LOGGER.debug(f"download data_source: '{self.data_source}'")
         data_path = download_source(self.data_source)
+        LOGGER.debug(f"processing files")
         tiff_da = tifs_to_ds(data_path, self.variable)
+        LOGGER.debug(f"upload ZARR: '{self.zarr_out}'")
         tiff_da.to_zarr(store=store, consolidated=True, mode='w')
 
         self.update_config()
