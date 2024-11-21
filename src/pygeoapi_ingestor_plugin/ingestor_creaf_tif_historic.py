@@ -209,7 +209,7 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
             config= self.read_config()
             config['resources'][self.title] = {
                 'type': 'collection',
-                'title': self.title,
+                'title': f'{self.title}_{self.variable}',
                 'description': f'creaf_historic of {self.variable}',
                 'keywords': ['country'],
                 'extents': {
@@ -285,7 +285,7 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
                     msg = f"Path {self.zarr_out} already exists updates config at '{self.config_file}'"
 
                 LOGGER.info(msg)
-                return mimetype, {'id': 'creaf_forecast_ingestor', 'value': msg}
+                return mimetype, {'id': 'creaf_historic_ingestor', 'value': msg}
 
 
         store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
@@ -300,11 +300,11 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
         self.update_config()
 
         outputs = {
-            'id': 'creaf_forecast_ingestor',
+            'id': 'creaf_historic_ingestor',
             'value': self.zarr_out
         }
 
         return mimetype, outputs
 
     def __repr__(self):
-        return f'<IngestorCDSProcessProcessor> {self.name}'
+        return f'<IngestorCREAFHISTORICProcessProcessor> {self.name}'
