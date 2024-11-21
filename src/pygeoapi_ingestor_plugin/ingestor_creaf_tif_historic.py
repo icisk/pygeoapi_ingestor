@@ -207,10 +207,10 @@ class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
         with lock:
 
             config= self.read_config()
-            config['resources'][self.title] = {
+            config['resources'][f'{self.title}_{self.variable}'] = {
                 'type': 'collection',
                 'title': f'{self.title}_{self.variable}',
-                'description': f'creaf_historic of {self.variable}',
+                'description': f'{self.title} of {self.variable}',
                 'keywords': ['country'],
                 'extents': {
                     'spatial': {
