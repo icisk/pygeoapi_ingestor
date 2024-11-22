@@ -112,7 +112,7 @@ def tifs_to_ds(path, variable):
 
     # variables = sorted(set([name.split("_")[3] for name in file_names]))
     # files_per_var = [[f for f in files if os.path.basename(f).split("_")[3] == var] for var in variables]
-    
+
 
     time = sorted(set([np.datetime64(f'{parts[0]}-{parts[1]}-01') for fn in file_names for parts in [fn.split("_")[0:2]]]))
     LOGGER.debug(f"getting centereeeeeeeeeeeoids")
@@ -151,7 +151,13 @@ def tifs_to_ds(path, variable):
 
 class IngestorCREAFHISTORICProcessProcessor(BaseProcessor):
     """
-    Ingestor Processor example
+    Ingestor Processor
+
+    joins tiff-data and saves it to zarr format and uploads it to s3 bucket
+
+    Resource Requirements:
+    - CPU: 3
+    - RAM: 12G
     """
 
     def __init__(self, processor_def):
