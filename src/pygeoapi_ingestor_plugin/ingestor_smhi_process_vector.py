@@ -359,14 +359,39 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                 'type': 'collection',
                 'title': resource_key,
                 'description': f'SMHI Discharge data of {living_lab}',
-                'keywords': [living_lab, 'country'],
-                'extents': {'spatial': {'bbox': bbox_float, 'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'},
-                            'temporal': {'begin': datetime_range[0], 'end': datetime_range[1]}},
-                'providers': [{'type': 'feature', 'name': 'GeoJSON', 'data': file_out, 'id_field': 'id'}]
+                'keywords': [
+                    living_lab,
+                    'country',
+                    'discharge',
+                    'forecast',
+                    'smhi',
+                    'seasonal'
+                ],
+                'extents': {
+                    'spatial': {
+                        'bbox': bbox_float,
+                        'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+                    },
+                    'temporal': {
+                        'begin': datetime_range[0],
+                        'end': datetime_range[1]
+                    }
+                },
+                'providers': [{
+                    'type': 'feature',
+                    'name': 'provider.S3GeoJSONProvider',
+                    'data': file_out,
+                    'id_field': 'id'
+                }]
             }
 
             if s3_save:
-                config['resources'][resource_key]['providers'][0]['options'] = {'s3': {'anon': True, 'requester_pays': False}}
+                config['resources'][resource_key]['providers'][0]['options'] = {
+                    's3': {
+                        'anon': True,
+                        'requester_pays': False
+                    }
+                }
             write_config(self.config_file, config)
 
     def __repr__(self):

@@ -40,7 +40,7 @@ from pygeoapi.util import crs_transform
 LOGGER = logging.getLogger(__name__)
 
 
-class GeoJSONProvider(BaseProvider):
+class S3GeoJSONProvider(BaseProvider):
     """Provider class backed by local GeoJSON files
 
     This is meant to be simple
@@ -260,4 +260,4 @@ class GeoJSONProvider(BaseProvider):
             dst.write(json.dumps(all_data))
 
     def __repr__(self):
-        return f'<GeoJSONProvider> {self.data}'
+        return f'<S3GeoJSONProvider> {self.data}'

@@ -15,7 +15,6 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY . .
-COPY ./provider/geojson.py /pygeoapi/pygeoapi/provider/geojson.py
 
 RUN pip install . \
         # cdsapi \
