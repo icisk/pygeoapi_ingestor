@@ -145,36 +145,94 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         self.id = 'smhi-ingestor-vector-process'
 
     def execute(self, data):
+
         mimetype = 'application/json'
 
         # Extract and validate inputs
-        file_out, issue_date, living_lab, s3_save = self._extract_and_validate_inputs(data)
+        file_out, issue_date, living_lab, s3_save, data_dir = self._extract_and_validate_inputs(data)
 
-        # Prepare file output path
+        # Prepare output path
         msg = self._prepare_output_path(file_out, issue_date, s3_save, living_lab)
         if msg:
             return mimetype, {'id': self.id, 'value': msg}
+        
         # Connect to FTP and retrieve files
         ftp_config = self._get_ftp_config()
-        files = self._download_files_from_ftp(ftp_config, living_lab, data['data_dir'], issue_date)
+
+        files = self._download_files_from_ftp(ftp_config, living_lab, data_dir, issue_date)
         if files == []:
             raise ProcessorExecuteError('No files found in the FTP server')
 
-        # Process files to extract features
-        features = self._process_files(files, issue_date)
+        features = []
+        for file_nc in files:
 
-        # Create the feature collection and calculate bounding box and time range
-        feature_collection, bbox, datetime_range = self._create_feature_collection_and_metadata(features)
+            data, model, data_var = self._extract_data_from_netcdf(file_nc)
+
+            geopandas_df = self._convert_to_geodataframe(data, data_var, model)
+            
+            # create a feature for each id
+            # fore each unique id in the dataframe
+            for id in geopandas_df.id.unique():
+                # filter the dataframe by id
+                df = geopandas_df[geopandas_df.id == id]
+                time_serie = []
+                var_serie = []
+                for index, row in df.iterrows():
+                    time_serie.append(row['time'])
+                    var_serie.append(row[f"{data_var}_{model}"])
+
+                # if no feature with the same id exists in features inside features list, create a new feature and append it
+                # else, append the time and var series to the existing feature
+                # if features is empty, create a new feature and append it
+                features = self._process_feature(features, id, df, data_var, model, time_serie, var_serie)
+
+        feature_collection = FeatureCollection(features)
+
+        # get min and max values for bbox from features
+        bbox = self._calculate_bbox(features)
+        
+        # get datetime min and max values
+        datetime_range = self._calculate_time_range(features)
 
         # Write the feature collection to the appropriate location (S3 or local)
         self._write_feature_collection(file_out, feature_collection)
 
-        # Update and save the configuration
         self._update_config(living_lab, issue_date, file_out, bbox, datetime_range, s3_save)
-
-        outputs = {'id': self.id, 'value': file_out}
+        
+        outputs = {
+            'id': self.id,
+            'value': file_out
+        }
         return mimetype, outputs
 
+    def _process_feature(self, features, id, df, data_var, model, time_serie, var_serie):
+        if len(features) == 0:
+            new_feature = Feature(geometry=Point((df.geo_x.iloc[0], df.geo_y.iloc[0])),
+                                properties={"id": id,
+                                            "time": time_serie,
+                                            f"{data_var}_{model}": var_serie})
+            features.append(new_feature)
+        else:
+            found = False
+            sel_feature = None
+            for f in features:
+
+                if f.get("properties", {}).get("id") == id:
+                    found = True
+                    sel_feature = f
+                    break
+
+            if found:
+                sel_feature["properties"][f"{data_var}_{model}"] = var_serie
+            else:
+
+                new_feature = Feature(geometry=Point((df.geo_x.iloc[0], df.geo_y.iloc[0])),
+                                    properties={"id": id,
+                                                "time": time_serie,
+                                                f"{data_var}_{model}": var_serie})
+                features.append(new_feature)
+        return features
+    
     def download_files_from_ftp(self, ftp, folder):
         # ftp.cwd(folder)
         files = ftp.nlst()
@@ -207,6 +265,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         living_lab = data.get('living_lab')
         s3_save = data.get('s3_save')
         self.token = data.get('token')
+        data_dir = data.get('data_dir')
 
         if not issue_date:
             raise ProcessorExecuteError('Cannot process without an issue_date')
@@ -217,7 +276,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         if not self.token or self.token != os.getenv("INT_API_TOKEN", "token"):
             raise ProcessorExecuteError('Identify yourself with a valid token!')
 
-        return file_out, issue_date, living_lab, s3_save
+        return file_out, issue_date, living_lab, s3_save, data_dir
 
     def _prepare_output_path(self, file_out, issue_date, s3_save, living_lab):
         """Prepare file output path, depending on S3 or local save."""
@@ -261,15 +320,6 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             ftp.cwd(remote_folder)
             return self.download_files_from_ftp(ftp, remote_folder)
 
-    def _process_files(self, files, issue_date):
-        """Process downloaded files and extract features."""
-        features = []
-        for file_nc in files:
-            data, model, data_var = self._extract_data_from_netcdf(file_nc)
-            geopandas_df = self._convert_to_geodataframe(data, data_var, model)
-            features += self._extract_features_from_dataframe(geopandas_df, data_var, model)
-        return features
-
     def _extract_data_from_netcdf(self, file_nc):
         """Extract data from NetCDF file."""
         data = self.read_netcdf(file_nc)
@@ -277,8 +327,15 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         model = file_nc.split(f'{data_var}_')[1].split('.')[0]
         data[f"{data_var}_{model}"] = data[data_var]
         data = data.drop_vars(data_var)
-        return data, model, data_var
+        
+        if data_var in data:
+            data[f"{data_var}_{model}"] = data[data_var]
+            data[f"{data_var}_{model}"].attrs['long_name'] = f"{data_var}_{model}"
+            # drop the original data variable
+            data = data.drop_vars(data_var)
 
+        return data, model, data_var
+    
     def _convert_to_geodataframe(self, data, data_var, model):
         """Convert data to a GeoDataFrame."""
         dataframe = data.to_dataframe().reset_index()
@@ -289,39 +346,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
             f"{data_var}_{model}": 'float64', 'id': 'str'
         })
         return gdf
-
-    def _extract_features_from_dataframe(self, gdf, data_var, model):
-        """Extract features from GeoDataFrame."""
-        features = []
-        for id in gdf.id.unique():
-            df = gdf[gdf.id == id]
-            time_series = df['time'].tolist()
-            var_series = df[f"{data_var}_{model}"].tolist()
-            feature = self._get_or_create_feature(features, id, df, data_var, model, time_series, var_series)
-            if feature not in features:
-                features.append(feature)
-        return features
-
-    def _get_or_create_feature(self, features, id, df, data_var, model, time_series, var_series):
-        """Get an existing feature by ID or create a new one."""
-        for f in features:
-            if f.get("properties", {}).get("id") == id:
-                f["properties"][f"{data_var}_{model}"] = var_series
-                return f
-
-        new_feature = Feature(
-            geometry=Point((df.geo_x.iloc[0], df.geo_y.iloc[0])),
-            properties={"id": id, "time": time_series, f"{data_var}_{model}": var_series}
-        )
-        return new_feature
-
-    def _create_feature_collection_and_metadata(self, features):
-        """Create feature collection and calculate bounding box and time range."""
-        feature_collection = FeatureCollection(features)
-        bbox = self._calculate_bbox(features)
-        datetime_range = self._calculate_time_range(features)
-        return feature_collection, bbox, datetime_range
-
+    
     def _calculate_bbox(self, features):
         """Calculate bounding box for the features."""
         min_x = min([f['geometry']['coordinates'][0] for f in features])
