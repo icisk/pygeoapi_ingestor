@@ -37,6 +37,8 @@ setuptools.setup(
         "numpy==1.24.0",
         "pygeoapi",
         "python-dotenv",
+        "rasterio",
+        "rioxarray",
         "s3fs",
         "shyaml",
         "tifffile",
