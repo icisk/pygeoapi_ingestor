@@ -49,7 +49,7 @@ PROCESS_METADATA = {
         'hreflang': 'en-US'
     }],
     'inputs': {
-        'zarr_base': {
+        'zarr_out': {
             'title': 'Zarr Output',
             'description': 'The URL of the Zarr file in the S3 bucket',
             'schema': {
@@ -332,8 +332,8 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         if self.mode == 'append':
             date = datetime.datetime.fromtimestamp(self.online_data.time.values[-1].astype('datetime64[s]').astype(int))
             date = date + datetime.timedelta(days=1)
-            if date >= datetime.date(self.current_year, 10, 1):
-                return
+            if date >= datetime.datetime(self.current_year, 10, 1):
+                return mimetype, {'id': 'knmi_ingestor', 'value': 'time window for defit precip isch over'}
 
 
         y = date.year
