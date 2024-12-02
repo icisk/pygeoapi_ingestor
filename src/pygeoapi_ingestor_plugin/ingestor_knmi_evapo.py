@@ -332,6 +332,8 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         if self.mode == 'append':
             date = datetime.datetime.fromtimestamp(self.online_data.time.values[-1].astype('datetime64[s]').astype(int))
             date = date + datetime.timedelta(days=1)
+            if date >= datetime.date(self.current_year, 10, 1):
+                return
 
 
         y = date.year
