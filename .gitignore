@@ -2,3 +2,4 @@ venv
 *.egg-info
 build
 docker-compose_cred.yml
+.idea/
