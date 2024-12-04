@@ -46,9 +46,23 @@ PROCESS_METADATA = {
         'hreflang': 'en-US'
     }],
     'inputs': {
-        'zarr_out': {
-            'title': 'Zarr Output',
-            'description': 'The URL of the Zarr file in the S3 bucket',
+        'data_url': {
+            'title': 'data url',
+            'description': 'The URL of the zipped csv data',
+            'schema': {
+                'type': 'string'
+            }
+        },
+        'variable': {
+            'title': 'variable name',
+            'description': 'variable to put into db',
+            'schema': {
+                'type': 'string'
+            }
+        },
+        'db_database': {
+            'title': 'LL database name',
+            'description': 'name of LL database',
             'schema': {
                 'type': 'string'
             }
@@ -79,13 +93,13 @@ PROCESS_METADATA = {
     },
     'example': {
         "inputs": {
-            "zarr_out": "s3://example/target/bucket.zarr",
+            "data_url": "s3://example/target/bucket.zarr",
+            "variable": "precip",
+            "db_database": "postgres",
             "token": "ABC123XYZ666"
         }
     }
 }
-
-
 
 
 class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
@@ -105,7 +119,7 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
 
         :param processor_def: provider definition
 
-        :returns: pygeoapi.process.ingestor_process.IngestorCREAFHISTORICProcessProcessor
+        :returns: pygeoapi.process.ingestor_process.IngestorAEMETSTATIONSProcessProcessor
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
@@ -114,11 +128,9 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         self.db_user = os.environ.get(key='DB_USER')
         self.db_password = os.environ.get(key='DB_PASSWORD')
         self.db_host = os.environ.get(key='DB_HOST')
-        self.db_port = os.environ.get(key='DB_PORT')
+        self.db_port = int(os.environ.get(key='DB_PORT'))
         self.db_database = None ## os.environ.get(key='DB_DATABASE')
         self.data_url = None
-        self.variable = None
-        self.variables = ['precip', 't_min', 't_max', 't_mean']
         self.data_path = None
         self.csv_file_name = None
 
@@ -133,7 +145,7 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         LOGGER.debug("updated config")
 
 
-    def update_config(self):
+    def update_config(self, var):
         min_x, min_y, max_x, max_y = [float(val) for val in self.data.total_bounds]
 
         # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
@@ -142,10 +154,10 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         with lock:
 
             config= self.read_config()
-            config['resources'][f'{self.title}_{self.variable}'] = {
+            config['resources'][f'{self.title}_{var}'] = {
                 'type': 'collection',
-                'title': f'{self.title}_{self.variable}',
-                'description': f'historic station data of {self.variable}',
+                'title': f'{self.title}_{var}',
+                'description': f'historic station data of {var}',
                 'keywords': ['country'],
                 'extents': {
                     'spatial': {
@@ -154,7 +166,7 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
                     },
                 },
                 'providers':
-                    {
+                    [{
                         'type': 'feature',
                         'name': 'PostgreSQL',
                         'data': {
@@ -163,12 +175,12 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
                             'dbname': self.db_database,
                             'user': self.db_user,
                             'password': self.db_password,
-                            'search_path': ['osm', 'public']
+                            'search_path': ['public']
                         },
-                        'id_field': 'CODI_INM',
-                        'table': f'AEMET_{self.variable}',
+                        'id_field': 'index',
+                        'table': f'aemet_{var}',
                         'geom_field': 'geometry'
-                    }
+                    }]
             }
 
             self.write_config(config)
@@ -186,20 +198,19 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         gdf['LAT'] = gdf.geometry.y
         gdf['LON'] = gdf.geometry.x
 
+        return gdf
+
 
     def execute(self, data):
         mimetype = 'application/json'
 
         self.data_url = data.get('data_url')
-        self.variable = data.get('variable')
         self.db_database = data.get('db_database')
         self.token = data.get('token')
 
         LOGGER.debug(f"checking process inputs")
         if self.data_url is None:
             raise ProcessorExecuteError('Cannot process without a zarr path')
-        if self.variable not in self.variables:
-            raise ProcessorExecuteError(f"'{self.variable}' not in '{self.variables}' check spelling ")
         if self.db_database is None:
             raise ProcessorExecuteError(f'give database name!')
         if self.token is None:
@@ -212,28 +223,32 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('ACCESS DENIED wrong token')
 
         LOGGER.debug(f"selecting variable")
-        if self.variable == 'precip':
-            self.csv_file_name = "PRECIPITATION_monthlydata_GuadalquivirLL_1950_2019_v2.csv"
-        if self.variable == 't_min':
-            self.csv_file_name = 'MINTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv'
-        if self.variable == 't_mean':
-            self.csv_file_name = 'MEANTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv'
-        if self.variable == 't_max':
-            self.csv_file_name = 'MAXTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv'
+        # if self.variable == 'precip':
+        #     self.csv_file_name = "PRECIPITATION_monthlydata_GuadalquivirLL_1950_2019_v2.csv"
+        # if self.variable == 't_min':
+        #     self.csv_file_name = 'MINTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv'
+        # if self.variable == 't_mean':
+        #     self.csv_file_name = 'MEANTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv'
+        # if self.variable == 't_max':
+        #     self.csv_file_name = 'MAXTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv'
 
         self.data_path = download_source(self.data_url)
 
-        self.data = self.transform(os.path.join(self.data_path, self.csv_file_name))
+        vars = dict(precip="PRECIPITATION_monthlydata_GuadalquivirLL_1950_2019_v2.csv",
+                    t_min='MINTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv',
+                    t_max='MAXTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv',
+                    t_mean='MEANTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv')
 
-        engine = create_engine(f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_database}")
-        self.data.to_postgis(f"AEMET_{self.variable}", engine, if_exists='replace', index=False)
-
-        self.update_config()
+        for key in vars.keys():
+            self.data = self.transform(os.path.join(self.data_path, vars[key]))
+            engine = create_engine(f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_database}")
+            self.data.to_postgis(f"aemet_{key}", engine, if_exists='replace', index=True)
+            self.update_config(key)
 
 
         outputs = {
-            'id': 'AEMET_stations_ingestor',
-            'value': self.variable
+            'id': 'aemet_stations_ingestor',
+            'value': 'done'
         }
 
         return mimetype, outputs
