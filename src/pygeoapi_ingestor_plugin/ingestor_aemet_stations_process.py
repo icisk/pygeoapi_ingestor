@@ -129,7 +129,7 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         self.db_password = os.environ.get(key='DB_PASSWORD')
         self.db_host = os.environ.get(key='DB_HOST')
         self.db_port = int(os.environ.get(key='DB_PORT'))
-        self.db_database = None ## os.environ.get(key='DB_DATABASE')
+        self.db_database = os.environ.get(key='DB_DATABASE')
         self.data_url = None
         self.data_path = None
         self.csv_file_name = None
@@ -205,14 +205,11 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         mimetype = 'application/json'
 
         self.data_url = data.get('data_url')
-        self.db_database = data.get('db_database')
         self.token = data.get('token')
 
         LOGGER.debug(f"checking process inputs")
         if self.data_url is None:
             raise ProcessorExecuteError('Cannot process without a zarr path')
-        if self.db_database is None:
-            raise ProcessorExecuteError(f'give database name!')
         if self.token is None:
             raise ProcessorExecuteError('Identify yourself with valid token!')
 
@@ -222,7 +219,7 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
             LOGGER.error("WRONG INTERNAL API TOKEN")
             raise ProcessorExecuteError('ACCESS DENIED wrong token')
 
-        LOGGER.debug(f"selecting variable")
+        # LOGGER.debug(f"selecting variable")
         # if self.variable == 'precip':
         #     self.csv_file_name = "PRECIPITATION_monthlydata_GuadalquivirLL_1950_2019_v2.csv"
         # if self.variable == 't_min':
