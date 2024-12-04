@@ -125,11 +125,11 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         super().__init__(processor_def, PROCESS_METADATA)
         self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
         self.title = 'AEMET_stations'
-        self.db_user = os.environ.get(key='DB_USER')
-        self.db_password = os.environ.get(key='DB_PASSWORD')
-        self.db_host = os.environ.get(key='DB_HOST')
-        self.db_port = int(os.environ.get(key='DB_PORT'))
-        self.db_database = os.environ.get(key='DB_DATABASE')
+        self.db_user = os.environ.get(key='DB_USER', default="postgres")
+        self.db_password = os.environ.get(key='DB_PASSWORD',default= "password")
+        self.db_host = os.environ.get(key='DB_HOST', default="localhost")
+        self.db_port = int(os.environ.get(key='DB_PORT', default="5432"))
+        self.db_database = os.environ.get(key='DB_DATABASE', default="postgres")
         self.data_url = None
         self.data_path = None
         self.csv_file_name = None
