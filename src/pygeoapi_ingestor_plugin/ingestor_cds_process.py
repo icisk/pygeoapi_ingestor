@@ -48,6 +48,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import sys
 from pygeoapi_ingestor_plugin.utils import write_config, read_config
+import cftime
 
 logger = logging.getLogger(__name__)
 
@@ -214,12 +215,22 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         min_y = float(data.coords['latitude'].min().values)
         max_y = float(data.coords['latitude'].max().values)
 
-        min_time = data.coords['valid_time'].values.min()
-        max_time = data.coords['valid_time'].values.max()
+        logger.debug(f"min_x: {min_x}, max_x: {max_x}, min_y: {min_y}, max_y: {max_y}")
+
+        try:
+                
+            min_time = data.coords['valid_time'].values.min()
+            max_time = data.coords['valid_time'].values.max()
+        except Exception as e:
+            logger.error(f"Error getting min/max time: {e}")
+            min_time = data.coords['forecast_period'].values.min()
+            max_time = data.coords['forecast_period'].values.max()
 
         # convert np.datetime64 to datetime object
         datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
         datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
+
+        logger.debug(f"datetime_min: {datetime_min}, datetime_max: {datetime_max}")
 
         # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
         lock = FileLock(f"{self.config_file}.lock", thread_local=False)
@@ -230,7 +241,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}"
 
             logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
-
+            if dataset == "cems-glofas-seasonal":
+                time_field = "forecast_period"
+            else:
+                time_field = "time"
             dataset_definition = {
                 'type': 'collection',
                 'title': dataset_pygeoapi_identifier,
@@ -253,7 +267,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         'data': zarr_out,
                         'x_field': 'longitude',
                         'y_field': 'latitude',
-                        # 'time_field': 'time',
+                        'time_field': time_field,
                         'format': {'name': 'zarr', 'mimetype': 'application/zip'}
                     }
                 ]
@@ -303,8 +317,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
     def _validate_inputs(self, service, dataset, query, token):
         """Validate input parameters."""
-        if service is None:
-            raise ProcessorExecuteError('Cannot process without a service')
+        # if service is None:
+        #     raise ProcessorExecuteError('Cannot process without a service')
         if dataset is None:
             raise ProcessorExecuteError('Cannot process without a dataset')
         if query is None:
@@ -356,9 +370,89 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             datetime_end = datetime.strptime(end_date, '%Y-%m-%d')
             dates = list(self.generate_dates_list(datetime_start, datetime_end, interval=interval))
             return self._fetch_data_by_range(service, dataset, query, file_out, dates, interval)
+        elif dataset == "cems-glofas-seasonal":
+            logger.info("Fetching data for cems-glofas-seasonal")
+            return self.fetch_dataset_by_chunk(service, dataset, query, file_out, engine=engine)
         else:
             logger.info(f"Fetching data for a specific date {query}")
             return self.fetch_dataset(service, dataset, query, file_out, engine=engine)
+
+    # Function to create chunks of leadtime_hour values
+    def chunk_list(self, data, chunk_size):
+        """Split a list into smaller chunks."""
+        for i in range(0, len(data), chunk_size):
+            yield data[i:i + chunk_size]
+            
+    # Function to handle individual chunk requests
+    def fetch_chunk(self, chunk,base_request,service,dataset, file_out, engine):
+        try:
+            if service and service == 'EWDS':
+                URL = 'https://ewds.climate.copernicus.eu/api'
+            else:
+                URL = 'https://cds.climate.copernicus.eu/api'
+
+            KEY = os.getenv('CDSAPI_KEY')
+
+            client = cdsapi.Client(url=URL, key=KEY)
+            request = base_request.copy()
+            request["leadtime_hour"] = chunk
+            output_filename = f"{file_out}_chunk_{chunk[0]}-{chunk[-1]}.zip"
+
+            logger.debug(f"Fetching data for leadtime_hours={chunk[0]} to {chunk[-1]}...")
+            client.retrieve(dataset, request).download(output_filename)
+            logger.debug(f"Downloaded: {output_filename}")
+
+            if output_filename.endswith('.zip'):
+                extract_dir = output_filename[:-4] 
+                with zipfile.ZipFile(output_filename, 'r') as zip_ref:
+                    zip_ref.extractall(extract_dir)
+                for file in os.listdir(extract_dir):
+                    if file.endswith('.nc'):
+                        logger.debug(f"Extracted file: {extract_dir}\{file}")
+                        file_nc = os.path.join(extract_dir, file)
+                data = xr.open_dataset(file_nc, engine=engine)
+            elif output_filename.endswith('.nc'):
+                data = xr.open_dataset(output_filename, engine=engine)
+            # elif file_out.endswith('.grib'):
+            #     data = xr.open_dataset(file_out,engine="cfgrib")
+            
+            data.attrs['long_name'] = dataset
+            data['forecast_period'] = data['valid_time']
+            data.drop_vars('valid_time')
+            return data
+        except Exception as e:
+            logger.error(f"Error fetching data for leadtime_hours={chunk[0]} to {chunk[-1]}: {e}")
+            raise
+        
+    def fetch_dataset_by_chunk(self, service, dataset, query, file_out, engine):
+
+        # List of leadtime_hour values
+        leadtime_hours = [str(i) for i in range(24, 5161, 24)]  # From 24 to 5160 in steps of 24
+        chunk_size = 54  # Number of leadtime_hours per request
+        leadtime_chunks = list(self.chunk_list(leadtime_hours, chunk_size))
+
+        # Main execution block
+        datasets = []
+
+        with ThreadPoolExecutor(max_workers=5) as executor:  # Adjust max_workers as needed
+            # Submit tasks to executor
+            futures = {
+                executor.submit(self.fetch_chunk, chunk, query, service, dataset, file_out, engine): chunk       #fetch_chunk(self, chunk,base_request,service,dataset):
+                for chunk in leadtime_chunks
+            }
+
+            # Process completed futures
+            for future in as_completed(futures):
+                chunk = futures[future]
+                try:
+                    out_data = future.result()  # Get the result of the future
+                    datasets.append(out_data)  # Collect successful outputs
+                except Exception as exc:
+                    logger.error(f"Chunk {chunk[0]}-{chunk[-1]} generated an exception: {exc}")
+
+        xr_data = xr.merge(datasets)
+        logger.debug(xr_data)
+        return xr_data
 
     def _fetch_data_by_range(self, service, dataset, query, file_out, dates, interval):
         datasets = []
