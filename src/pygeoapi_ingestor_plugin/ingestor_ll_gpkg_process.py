@@ -30,12 +30,12 @@ load_dotenv(find_dotenv())
 
 PROCESS_METADATA = {
     'version': '0.2.0',
-    'id': 'aemet_stations_ingestor',
+    'id': 'll_gpkg_ingestor',
     'title': {
-        'en': 'aemet_stations',
+        'en': 'll_gpkg',
     },
     'description': {
-        'en': 'downloads temp and precip data ingests ts in postgis-db'},
+        'en': 'creates collections in postgis db from gpkg layers'},
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'keywords': ['ingestor process'],
     'links': [{
