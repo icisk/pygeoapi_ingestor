@@ -96,8 +96,8 @@ class InitialContainerCheck():
 
 
 if __name__ == '__main__':
-    #config = os.environ.get('PYGEOAPI_CONFIG', default= '/pygeoapi/config/local.config.yml', )
-    config = '/work/PROJEKTE/ICISK/pygeoapi_ingestor/src/init_script/test.config.yaml'
+    config = os.environ.get('PYGEOAPI_CONFIG', default= '/pygeoapi/config/local.config.yml', )
+    #config = '/work/PROJEKTE/ICISK/pygeoapi_ingestor/src/init_script/test.config.yaml'
 
     # s3 = {'FSSPEC_S3_ENDPOINT_URL': 'https://obs.eu-de.otc.t-systems.com',
     #       'FSSPEC_S3_KEY': '',
