@@ -58,6 +58,9 @@ def download_source(source):
             os.makedirs(out_dir, exist_ok=True)
             with zipfile.ZipFile(io.BytesIO(res.content)) as zip:
                 zip.extractall(out_dir)
+        if source.endswith('.gpkg'):
+            source_dir = os.path.basename(source)
+            out_dir = os.path.join(base_path, source_dir)
 
     return(out_dir)
 
