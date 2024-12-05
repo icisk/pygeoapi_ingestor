@@ -79,7 +79,7 @@ class InitialContainerCheck():
                     logger.debug(f"dataset '{dataset}' available at '{data}")
             if self.config['resources'][dataset]['providers'][0]['name'] == 'PostgreSQL':
                 db = data
-                db['host'] = 'localhost'
+                #db['host'] = 'localhost'
                 engine = create_engine(f"postgresql://{db['user']}:{db['password']}@{db['host']}:{db['port']}/{db['dbname']}")
                 inspector = inspect(engine)
                 if self.config['resources'][dataset]['providers'][0]['table'] not in inspector.get_table_names():
