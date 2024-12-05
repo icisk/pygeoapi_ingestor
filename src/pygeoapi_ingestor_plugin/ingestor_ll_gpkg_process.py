@@ -139,7 +139,7 @@ class IngestorLLGPKGProcessProcessor(BaseProcessor):
 
 
     def update_config(self, var):
-        min_x, min_y, max_x, max_y = [float(val) for val in self.data.total_bounds]
+        #min_x, min_y, max_x, max_y = [float(val) for val in self.data.total_bounds]
 
         # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
         lock = FileLock(f"{self.config_file}.lock")
@@ -154,7 +154,7 @@ class IngestorLLGPKGProcessProcessor(BaseProcessor):
                 'keywords': ['country'],
                 'extents': {
                     'spatial': {
-                        'bbox': [min_x, min_y, max_x, max_y],
+                        'bbox': [-180, -90, 180, 90],
                         'crs': 'http://www.opengis.net/def/crs/EPSG/0/4326'
                     },
                 },
