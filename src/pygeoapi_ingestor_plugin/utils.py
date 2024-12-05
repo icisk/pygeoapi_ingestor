@@ -61,6 +61,8 @@ def download_source(source):
         if source.endswith('.gpkg'):
             source_dir = os.path.basename(source)
             out_dir = os.path.join(base_path, source_dir)
+            with open(out_dir, 'wb') as file:
+                file.write(res.content)
 
     return(out_dir)
 
