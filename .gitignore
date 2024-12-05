@@ -3,3 +3,4 @@ venv
 build
 docker-compose_cred.yml
 .idea/
+test.*
