@@ -3,6 +3,8 @@ import s3fs
 import yaml
 import logging
 import fcntl
+from sqlalchemy import create_engine, inspect
+
 
 logger = logging.getLogger('init config check')
 logger.setLevel(logging.DEBUG)
@@ -65,20 +67,37 @@ class InitialContainerCheck():
         poped_ds = []
         new_config = self.config.copy()
         for dataset, data in self.resources.items():
-            if not self.s3.exists(data):
-                logger.debug(f"dataset '{dataset}' NOT available at '{data}")
-                new_config['resources'].pop(dataset)
-                logger.debug(f"removed '{dataset}'")
-                poped_ds.append(dataset)
-            else:
-                logger.debug(f"dataset '{dataset}' available at '{data}")
+            #FIXME: nur s3 checken wenn s3 xarray-edr
+            #TODO das ganze für andere quellen auch bitte danke
+            if self.config['resources'][dataset]['providers'][0]['name'] == 'xarray-edr':
+                if not self.s3.exists(data):
+                    logger.debug(f"dataset '{dataset}' NOT available at '{data}")
+                    new_config['resources'].pop(dataset)
+                    logger.debug(f"removed '{dataset}'")
+                    poped_ds.append(dataset)
+                else:
+                    logger.debug(f"dataset '{dataset}' available at '{data}")
+            if self.config['resources'][dataset]['providers'][0]['name'] == 'PostgreSQL':
+                db = data
+                db['host'] = 'localhost'
+                engine = create_engine(f"postgresql://{db['user']}:{db['password']}@{db['host']}:{db['port']}/{db['dbname']}")
+                inspector = inspect(engine)
+                if self.config['resources'][dataset]['providers'][0]['table'] not in inspector.get_table_names():
+                    logger.debug(f"dataset '{dataset}' NOT available")
+                    new_config['resources'].pop(dataset)
+                    logger.debug(f"removed '{dataset}'")
+                    poped_ds.append(dataset)
+                else:
+                    logger.debug(f"dataset '{dataset}' available")
+
         logger.debug(f"found {len(poped_ds)} dataset to be unavailable: {', '.join(poped_ds)}")
         return new_config
 
 
 
 if __name__ == '__main__':
-    config = os.environ.get('PYGEOAPI_CONFIG', default= '/pygeoapi/config/local.config.yml', )
+    #config = os.environ.get('PYGEOAPI_CONFIG', default= '/pygeoapi/config/local.config.yml', )
+    config = '/work/PROJEKTE/ICISK/pygeoapi_ingestor/src/init_script/test.config.yaml'
 
     # s3 = {'FSSPEC_S3_ENDPOINT_URL': 'https://obs.eu-de.otc.t-systems.com',
     #       'FSSPEC_S3_KEY': '',
