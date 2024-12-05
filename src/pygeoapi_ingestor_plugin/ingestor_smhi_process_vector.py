@@ -404,7 +404,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
                 },
                 'providers': [{
                     'type': 'feature',
-                    'name': 'provider.S3GeoJSONProvider',
+                    'name': 'S3GeoJSONProvider.S3GeoJSONProvider',
                     'data': file_out,
                     'id_field': 'id'
                 }]
