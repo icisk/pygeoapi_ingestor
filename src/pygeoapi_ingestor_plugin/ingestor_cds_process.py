@@ -238,7 +238,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with lock:
             config = read_config(config_file)
 
-            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}"
+            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}_[{min_x},{min_y},{max_x},{max_y}]"
 
             logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
             if dataset == "cems-glofas-seasonal":
@@ -248,7 +248,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             dataset_definition = {
                 'type': 'collection',
                 'title': dataset_pygeoapi_identifier,
-                'description': f'CDS {dataset} data from {datetime_min.date()} to {datetime_max.date()}',
+                'description': f'CDS {dataset} data from {datetime_min.date()} to {datetime_max.date()} for area [{min_x},{min_y},{max_x},{max_y}]',
                 'keywords': ['country'],
                 'extents': {
                     'spatial': {
@@ -451,8 +451,9 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     logger.error(f"Chunk {chunk[0]}-{chunk[-1]} generated an exception: {exc}")
 
         xr_data = xr.merge(datasets)
-        logger.debug(xr_data)
-        return xr_data
+        xr_split_model_data = self.split_dis24_to_variables(xr_data)
+        logger.debug(xr_split_model_data)
+        return xr_split_model_data
 
     def _fetch_data_by_range(self, service, dataset, query, file_out, dates, interval):
         datasets = []
@@ -561,6 +562,42 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access)
         except Exception as e:
             logger.error(f"Error updating config: {e}")
+
+    def split_dis24_to_variables(self, ds):
+        """
+        Splits the 'dis24' variable in an xarray dataset into separate variables for each 'number'.
+
+        Parameters:
+            ds (xarray.Dataset): Input dataset with 'dis24' variable having dimensions
+                                (latitude, longitude, forecast_period, number).
+
+        Returns:
+            xarray.Dataset: New dataset with variables dis24_{number}.
+        """
+        # Ensure the 'dis24' variable exists
+        if 'dis24' not in ds:
+            raise ValueError("Input dataset must contain the variable 'dis24'.")
+
+        # Ensure the 'number' dimension exists
+        if 'number' not in ds['dis24'].dims:
+            raise ValueError("'dis24' variable must have a 'number' dimension.")
+
+        # Extract the number coordinate
+        number_values = ds['number'].values
+
+        # Create a dictionary to hold the new variables
+        new_data = ds.copy()
+
+        for number in number_values:
+            # Select the slice of dis24 corresponding to the current number
+            var_name = f"dis24_{number}"
+            new_data[var_name] = ds['dis24'].sel(number=number)
+
+        # # Create a new dataset with the new variables
+        new_data = new_data.drop_vars('dis24')
+        new_data = new_data.drop_vars('number')
+        return new_data
+
 
     def __repr__(self):
         return f'<IngestorCDSProcessProcessor> {self.name}'
