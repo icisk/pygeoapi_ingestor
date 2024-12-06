@@ -69,7 +69,7 @@ class InitialContainerCheck():
         for dataset, data in self.resources.items():
             #FIXME: nur s3 checken wenn s3 xarray-edr
             #TODO das ganze für andere quellen auch bitte danke
-            if self.config['resources'][dataset]['providers'][0]['name'] == 'xarray-edr':
+            if self.config['resources'][dataset]['providers'][0]['name'] in ['xarray-edr', 'S3GeoJSONProvider.S3GeoJSONProvider']:
                 if not self.s3.exists(data):
                     logger.debug(f"dataset '{dataset}' NOT available at '{data}")
                     new_config['resources'].pop(dataset)
