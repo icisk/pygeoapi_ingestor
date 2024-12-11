@@ -451,7 +451,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     logger.error(f"Chunk {chunk[0]}-{chunk[-1]} generated an exception: {exc}")
 
         xr_data = xr.merge(datasets)
-        xr_split_model_data = self.split_dis24_to_variables(xr_data)
+        xr_split_model_data = self.split_var_to_variables(xr_data, "dis24")
         logger.debug(xr_split_model_data)
         return xr_split_model_data
 
@@ -551,6 +551,13 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if dataset == 'cems-glofas-forecast':
             for var in data.data_vars:
                 data[var] = data[var].expand_dims(dim='time')
+        elif dataset == "seasonal-original-single-levels":
+            data = self.split_var_to_variables(data, 'tp')
+            data = data.drop_vars("time")  # Drop existing 'time' if necessary
+            data['step'] = data['valid_time']
+
+            data = data.rename({'step': 'time'})
+            logger.debug(data)
 
         data.attrs['long_name'] = dataset
 
@@ -563,24 +570,24 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         except Exception as e:
             logger.error(f"Error updating config: {e}")
 
-    def split_dis24_to_variables(self, ds):
+    def split_var_to_variables(self, ds, data_var):
         """
-        Splits the 'dis24' variable in an xarray dataset into separate variables for each 'number'.
+        Splits the 'data_var' variable in an xarray dataset into separate variables for each 'number'.
 
         Parameters:
-            ds (xarray.Dataset): Input dataset with 'dis24' variable having dimensions
+            ds (xarray.Dataset): Input dataset with 'data_var' variable having dimensions
                                 (latitude, longitude, forecast_period, number).
 
         Returns:
-            xarray.Dataset: New dataset with variables dis24_{number}.
+            xarray.Dataset: New dataset with variables data_var_{number}.
         """
-        # Ensure the 'dis24' variable exists
-        if 'dis24' not in ds:
-            raise ValueError("Input dataset must contain the variable 'dis24'.")
+        # Ensure the 'data_var' variable exists
+        if data_var not in ds:
+            raise ValueError(f"Input dataset must contain the variable {data_var}.")
 
         # Ensure the 'number' dimension exists
-        if 'number' not in ds['dis24'].dims:
-            raise ValueError("'dis24' variable must have a 'number' dimension.")
+        if 'number' not in ds[data_var].dims:
+            raise ValueError(f"{data_var} variable must have a 'number' dimension.")
 
         # Extract the number coordinate
         number_values = ds['number'].values
@@ -589,12 +596,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         new_data = ds.copy()
 
         for number in number_values:
-            # Select the slice of dis24 corresponding to the current number
-            var_name = f"dis24_{number}"
-            new_data[var_name] = ds['dis24'].sel(number=number)
+            # Select the slice of data_var corresponding to the current number
+            var_name = f"{data_var}_{number}"
+            new_data[var_name] = ds[data_var].sel(number=number)
 
         # # Create a new dataset with the new variables
-        new_data = new_data.drop_vars('dis24')
+        new_data = new_data.drop_vars(data_var)
         new_data = new_data.drop_vars('number')
         return new_data
 
