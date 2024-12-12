@@ -42,7 +42,8 @@ if ingestor_process == "ingestor-smhi-vector-process":
     living_lab = payload['inputs']['living_lab']
     payload['inputs']['issue_date'] = time.strftime("%Y%m")
     payload['inputs']['file_out'] = f"s3://52n-i-cisk/data-ingestor/smhi_seasonal_forecast_{living_lab}_{time.strftime('%Y%m')}.geojson"
-elif ingestor_process == "cds-ingestor-process":
+elif ingestor_process == "ingestor-cds-process":
+    area = payload['inputs']['query']['area']
     variable = payload['inputs']['query']['variable']
     if isinstance(variable, list):
         # if variable is a list, take all the elements and join them with '-'
@@ -52,11 +53,13 @@ elif ingestor_process == "cds-ingestor-process":
     month = time.strftime("%m")
     day = time.strftime("%d")
     payload['inputs']['query']['year'] = [year]
+    zarr_out = payload['inputs']['zarr_out']
     payload['inputs']['query']['month'] = [month]
-    payload['inputs']['query']['day'] = [day]
-    payload['inputs']['zarr_out'] = f"s3://52n-i-cisk/data-ingestor/cds_{dataset}_{variable}_{year}-{month}-{day}.zarr"
+    # if dataset == "seasonal-original-single-levels":
+    #     payload['inputs']['query']['day'] = [day]
+    payload['inputs']['zarr_out'] = f"{zarr_out.split(".zarr")[0]}-{dataset}_{variable}_{year}{month}{day}.zarr"    # f"s3://saferplaces.co/test/icisk/cds_{dataset}_{variable}_{year}{month}{day}.zarr"
 
-api_root = os.getenv("API_ROOT", "http://localhost/")
+api_root = os.getenv("API_ROOT", "http://localhost:5000/")
 execute_url = f"{api_root}processes/{ingestor_process}/execution"
 
 logger.info(f"Ingestor process: '{execute_url}' ")
