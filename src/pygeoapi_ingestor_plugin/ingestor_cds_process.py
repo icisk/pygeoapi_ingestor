@@ -552,7 +552,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             for var in data.data_vars:
                 data[var] = data[var].expand_dims(dim='time')
         elif dataset == "seasonal-original-single-levels":
-            data = self.split_var_to_variables(data, 'tp')
+            if 'total_precipitation' in query['variable']:
+                varname = 'tp'
+            elif '2m_temperature' in query['variable']:
+                varname = 't2m'
+                
+            data = self.split_var_to_variables(data, varname)
             data = data.drop_vars("time")  # Drop existing 'time' if necessary
             data['step'] = data['valid_time']
 
