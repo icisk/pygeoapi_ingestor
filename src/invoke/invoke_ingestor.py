@@ -57,7 +57,8 @@ elif ingestor_process == "ingestor-cds-process":
     payload['inputs']['query']['month'] = [month]
     # if dataset == "seasonal-original-single-levels":
     #     payload['inputs']['query']['day'] = [day]
-    payload['inputs']['zarr_out'] = f"{zarr_out.split(".zarr")[0]}-{dataset}_{variable}_{year}{month}{day}.zarr"    # f"s3://saferplaces.co/test/icisk/cds_{dataset}_{variable}_{year}{month}{day}.zarr"
+    # f"s3://saferplaces.co/test/icisk/cds_{dataset}_{variable}_{year}{month}{day}.zarr"
+    payload['inputs']['zarr_out'] = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{year}{month}{day}.zarr"
 
 api_root = os.getenv("API_ROOT", "http://localhost:5000/")
 execute_url = f"{api_root}processes/{ingestor_process}/execution"
