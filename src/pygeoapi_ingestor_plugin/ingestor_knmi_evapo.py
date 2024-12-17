@@ -13,10 +13,13 @@ import requests
 import xarray as xr
 import datetime
 import pandas as pd
+import geopandas as gpd
 import numpy as np
-import rioxarray
-import rasterio
-from rasterio.io import MemoryFile
+from sqlalchemy import create_engine, inspect
+import geoalchemy2
+import psycopg2
+
+
 
 
 from osgeo import gdal
@@ -88,6 +91,25 @@ PROCESS_METADATA = {
     }
 }
 
+def prepare_tab_data(path):
+    date = datetime.datetime.strptime(os.path.basename(path).split(".")[0].split("_")[1], '%Y%m%d')
+    gdf = gpd.read_file(path, geometry='geometry')
+    gdf = gdf.drop(columns='ID')
+    gdf = gdf.set_crs(epsg=28992, inplace=True)
+    gdf = gdf.to_crs(epsg=4326)
+    gdf['date'] = date
+    return gdf
+
+def get_db_data(engine):
+    cmd = 'SELECT * FROM public.knmi_obs'
+    gdf = gpd.read_postgis(cmd, engine, geom_col='geometry')
+    gdf = gdf.drop(columns='index')
+    return gdf
+
+def merge_db_tab_data(db, tab):
+    merged = gpd.GeoDataFrame(pd.concat([db, tab], ignore_index=True), geometry='geometry')
+    return merged
+
 
 class IngestorKNMIProcessProcessor(BaseProcessor):
     """
@@ -111,22 +133,35 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
 
         super().__init__(processor_def, PROCESS_METADATA)
         self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
-        self.title = 'knmi_evapo'
+        self.title = 'knmi_evapo_obs'
         self.otc_key = os.environ.get(key='FSSPEC_S3_KEY')
         self.otc_secret = os.environ.get(key='FSSPEC_S3_SECRET')
         self.otc_endpoint = os.environ.get(key='FSSPEC_S3_ENDPOINT_URL')
         self.knmi_api_key = os.environ.get(key='KNMI_API_KEY')
         self.knmi_header = dict(Authorization=self.knmi_api_key)
+        self.smhi_server = os.environ.get(key='SMHI_FTP_SERVER', default='ftp.smhi.se')
+        self.smhi_user = os.environ.get(key='SMHI_FTP_USER', default='icisk')
+        self.smhi_passwd = os.environ.get(key='SMHI_FTP_PASSWORD')
+        self.smhi_fc_root = 'living_labs/netherlands/gridded_seasonal_forecast'
+        self.db_user = os.environ.get(key='DB_USER', default="postgres")
+        self.db_password = os.environ.get(key='DB_PASSWORD',default= "password")
+        self.db_host = os.environ.get(key='DB_HOST', default="localhost")
+        self.db_port = int(os.environ.get(key='DB_PORT', default="5432"))
+        self.db_database = os.environ.get(key='DB_DATABASE', default="postgres")
+        self.table_name = 'knmi_obs'
+        self.db_data = None
         self.alternate_root = None
-        self.data_path = None
-        self.zarr_base = None
-        self.zarr_out = None
+        self.obs_zarr_out = None
+        self.fc_zarr_out = "s3://52n-i-cisk/data-ingestor/smhi/rijnland/latest_fc.zarr"
         self.variable = None
         self.current_year = datetime.datetime.now().year
+        self.current_month = datetime.datetime.now().month
         self.mode = 'init' # 'init' - first time  or 'append' - every other time
         self.save_path = '/tmp/knmi'
+        self.fc_save_path = '/tmp/knmi/fc'
         os.makedirs(self.save_path, exist_ok=True)
-        self.online_data = None
+        self.online_obs_data = None
+
 
     def read_config(self):
         with open(self.config_file, 'r') as file:
@@ -138,8 +173,8 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             yaml.dump(new_config, outfile, default_flow_style=False)
         LOGGER.debug("updated config")
 
-    def get_data_from_cloud(self):
-        mapper = fsspec.get_mapper(self.zarr_out,
+    def get_data_from_cloud(self, zarr_path):
+        mapper = fsspec.get_mapper(zarr_path,
                        alternate_root=self.alternate_root,
                        endpoint_url = self.otc_endpoint,
                        key=self.otc_key,
@@ -148,8 +183,8 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         return xr.open_zarr(mapper)
 
 
-    def update_config(self):
-        da = self.get_data_from_cloud()
+    def update_zarr_config(self):
+        da = self.get_data_from_cloud(self.obs_zarr_out)
         min_x = float(da.x.values.min())
         max_x = float(da.x.values.max())
         min_y = float(da.y.values.min())
@@ -176,7 +211,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
                     {
                         'type': 'edr',
                         'name': 'xarray-edr',
-                        'data': self.zarr_out,
+                        'data': self.obs_zarr_out,
                         'x_field': 'x',
                         'y_field': 'y',
                         'time_field': 'time',
@@ -192,6 +227,50 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
                         }
                     }
                 ]
+            }
+
+            self.write_config(config)
+
+    def update_db_config(self):
+        # da = self.get_data_from_cloud(self.obs_zarr_out)
+        # min_x = float(da.x.values.min())
+        # max_x = float(da.x.values.max())
+        # min_y = float(da.y.values.min())
+        # max_y = float(da.y.values.max())
+        min_x, min_y, max_x, max_y = [float(val) for val in self.db_data.total_bounds]
+        # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
+        lock = FileLock(f"{self.config_file}.lock")
+
+        with lock:
+
+            config= self.read_config()
+            config['resources'][f'{self.title}'] = {
+                'type': 'collection',
+                'title': f'{self.title}',
+                'description': f'pot precip deficit obs',
+                'keywords': ['country'],
+                'extents': {
+                    'spatial': {
+                        'bbox': [min_x, min_y, max_x, max_y],
+                        'crs': 'http://www.opengis.net/def/crs/EPSG/0/4326'
+                    },
+                },
+                'providers':
+                    [{
+                        'type': 'feature',
+                        'name': 'PostgreSQL',
+                        'data': {
+                            'host': self.db_host,
+                            'port': self.db_port,
+                            'dbname': self.db_database,
+                            'user': self.db_user,
+                            'password': self.db_password,
+                            'search_path': ['public']
+                        },
+                        'id_field': 'index',
+                        'table': f'{self.table_name}',
+                        'geom_field': 'geometry'
+                    }]
             }
 
             self.write_config(config)
@@ -276,26 +355,27 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         Tadd = 5
         Tscale = 45
 
-        PET = np.where(Ta + Tadd > 0,
-                       kc * (Re / (lam * rho)) * ((Ta + Tadd) / Tscale) * 1000,
-                       0)
+        PET_value = kc * (Re / (lam * rho)) * ((Ta + Tadd) / Tscale) * 1000
+
+        PET = np.where((Ta + Tadd > 0) & (PET_value > 0), PET_value, 0)
 
         return PET
+
+    def calc_p_def(self, pet, p):
+        p_def = np.where((pet - p > 0), pet - p, 0)
+        return p_def
 
 
     def execute(self, data):
         mimetype = 'application/json'
-        #FIXME: hier token aus data lesen --> invoke nicht vergessen wa
-        #process_token = data.get("precess_token")
-        #
 
-        self.zarr_out = data.get('zarr_out')
+        self.obs_zarr_out = data.get('zarr_out')
         self.token = data.get('token')
-        self.alternate_root = self.zarr_out.split("s3://")[1] if self.zarr_out is not None else "bibi"
+        self.alternate_root = self.obs_zarr_out.split("s3://")[1] if self.obs_zarr_out is not None else "bibi"
 
         LOGGER.debug(f"checking process inputs")
 
-        if self.zarr_out is None or not self.zarr_out.startswith('s3://') :
+        if self.obs_zarr_out is None or not self.obs_zarr_out.startswith('s3://') :
             raise ProcessorExecuteError('Cannot process without a zarr path')
         if self.token is None:
             raise ProcessorExecuteError('Identify yourself with valid token!')
@@ -306,34 +386,37 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError('ACCESS DENIED wrong token')
 
         LOGGER.debug(f"checking online resources")
-        if self.zarr_out and self.zarr_out.startswith('s3://'):
+        if self.obs_zarr_out and self.obs_zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
-            if s3.exists(self.zarr_out):
-                self.online_data = self.get_data_from_cloud()
+            if s3.exists(self.obs_zarr_out):
+                self.online_obs_data = self.get_data_from_cloud(self.obs_zarr_out)
                 if self.title in self.read_config()['resources']:
                     self.mode = 'append'
-                    msg = f"Path {self.zarr_out} already exists in bucket and config; appending to dataset"
+                    msg = f"Path {self.obs_zarr_out} already exists in bucket and config; appending to dataset"
                 else:
                     #FIXME gescheiten exit finden
-                    self.update_config()
+                    self.update_zarr_config()
                     self.mode = 'append'
-                    msg = f"Path {self.zarr_out} already exists updates config at '{self.config_file}'; appending to dataset"
+                    msg = f"Path {self.obs_zarr_out} already exists updates config at '{self.config_file}'; appending to dataset"
                 #return mimetype, {'id': 'creaf_historic_ingestor', 'value': msg}
             else:
-                msg = f"No online ressource '{self.zarr_out}' available; initially creating one"
+                msg = f"No online ressource '{self.obs_zarr_out}' available; initially creating one"
 
-            LOGGER.info(msg)
+        LOGGER.info(msg)
 
 
-        store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
+
+        store = s3fs.S3Map(root=self.obs_zarr_out, s3=s3, check=False)
         if self.mode == 'init':
             date = datetime.date(self.current_year, 4, 1)
+            # date = datetime.date(self.current_year, 12, 1) #für test
 
         if self.mode == 'append':
-            date = datetime.datetime.fromtimestamp(self.online_data.time.values[-1].astype('datetime64[s]').astype(int))
+            date = datetime.datetime.fromtimestamp(self.online_obs_data.time.values[-1].astype('datetime64[s]').astype(int))
             date = date + datetime.timedelta(days=1)
-            if date >= datetime.datetime(self.current_year, 10, 1):
-                return mimetype, {'id': 'knmi_ingestor', 'value': 'time window for defit precip isch over'}
+            # TODO: nach testphase hier wieder legitimieren auch oben
+            # if date >= datetime.datetime(self.current_year, 10, 1):
+            #     return mimetype, {'id': 'knmi_ingestor', 'value': 'time window for defit precip isch over'}
 
 
         y = date.year
@@ -350,9 +433,9 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         p = xr.open_dataset(summary['precip']['output_path'])
 
         t_vals = t['prediction'].values
-        pet_vals = self.calc_PET(t_vals, (2024, 7, 15))
+        pet_vals = self.calc_PET(t_vals, (y, m, d))
         p_vals = p['prediction'].values
-        p_def = pet_vals - p_vals
+        p_def = self.calc_p_def(pet_vals, p_vals)
         res = xr.Dataset(
             data_vars=dict(p_def=(['time', 'y', 'x'], p_def)),
             coords=dict(
@@ -362,7 +445,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             )
         )
 
-        LOGGER.debug(f"upload ZARR: '{self.zarr_out}' in '{self.mode}-mode'")
+        LOGGER.debug(f"upload ZARR: '{self.obs_zarr_out}' in '{self.mode}-mode'")
         date_string = datetime.date(y, m , d).strftime('%Y%m%d')
         export_tif_path =f"s3://52n-i-cisk/tif/LL_Rijnland/evapo/evapo_{date_string}.tif"
 
@@ -370,7 +453,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             res.to_zarr(store=store, consolidated=True, mode='w')
             res.to_netcdf(f"/tmp/evapo_{date_string}.nc")
         if self.mode == 'append':
-            new_p_def = self.online_data.isel(time=-1)['p_def'] + res.isel(time=0)['p_def']
+            new_p_def = self.online_obs_data.isel(time=-1)['p_def'] + res.isel(time=0)['p_def']
             new_res = xr.Dataset(
                 data_vars=dict(p_def=(['time', 'y', 'x'], np.expand_dims(new_p_def.data, axis=0))),
                 coords=dict(
@@ -382,25 +465,67 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             new_res.to_zarr(store=store, consolidated=True, append_dim='time', mode='a')
             new_res.to_netcdf(f"/tmp/evapo_{date_string}.nc")
 
+        self.update_zarr_config()
 
-        command = f"gdal_translate -a_ullr {float(res.x.values.min())} {float(res.y.values.max())} {float(res.x.values.max())} {float(res.y.values.min())} -a_srs EPSG:28992 /tmp/evapo_{date_string}.nc /tmp/evapo_{date_string}.tif"
-        LOGGER.debug(command)
+        command_tif = f"gdal_translate -a_ullr {float(res.x.values.min())} {float(res.y.values.max())} {float(res.x.values.max())} {float(res.y.values.min())} -a_srs EPSG:28992 /tmp/evapo_{date_string}.nc /tmp/evapo_{date_string}.tif"
+        LOGGER.debug(command_tif)
         try:
-            subprocess.run(command, shell=True, check=True)
-            print("gdal_transform completed successfully.")
+            subprocess.run(command_tif, shell=True, check=True)
+            LOGGER.debug("gdal_transform completed successfully.")
         except subprocess.CalledProcessError as e:
-            print(f"Error: {e}")
+            LOGGER.error(f"Error: {e}")
 
-        with open(f'/tmp/evapo_{date_string}.tif', 'rb') as file:
-            tiff_data = file.read()
-        with s3.open(export_tif_path, "wb") as tif:
-            tif.write(tiff_data)
+        if self.mode == 'init':
+            iso_min = float(res['p_def'].min().values)
+            iso_max = float(res['p_def'].max().values)
+        if self.mode == 'append':
+            iso_min = float(new_res['p_def'].min().values)
+            iso_max = float(new_res['p_def'].max().values)
 
-        self.update_config()
+        iso_diff = iso_max - iso_min
+
+        if iso_diff <= 1:
+            contour_step = 0.05
+        if iso_diff <= 3 and iso_diff > 1:
+            contour_step = 0.2
+        if iso_diff <= 15 and iso_diff > 3:
+            contour_step = 1
+        if iso_diff <= 30 and iso_diff > 15:
+            contour_step = 5
+        if iso_diff > 30:
+            contour_step = 10
+
+        command_iso = f"gdal_contour -a lvl -i {contour_step} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
+        LOGGER.debug(command_iso)
+        try:
+            subprocess.run(command_iso, shell=True, check=True)
+            LOGGER.debug("gdal_contour completed successfully.")
+        except subprocess.CalledProcessError as e:
+            LOGGER.error(f"Error: {e}")
+
+
+        engine = create_engine(
+            f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_database}")
+        inspector = inspect(engine)
+        table_exists = f'{self.table_name}' in inspector.get_table_names()
+
+
+        if table_exists:
+            db = get_db_data(engine)
+            tab = prepare_tab_data(f"/tmp/evapo_{date_string}.geojson")
+            merged = merge_db_tab_data(db, tab)
+            merged.to_postgis('knmi_obs', engine, if_exists='replace', index=True)
+            self.db_data = merged
+        else:
+            tab = prepare_tab_data(f"/tmp/evapo_{date_string}.geojson")
+            tab.to_postgis('knmi_obs', engine, if_exists='replace', index=True)
+            self.db_data = tab
+
+        self.update_db_config()
 
         outputs = {
             'id': 'knmi_ingestor',
-            'value': self.zarr_out
+            'value': self.obs_zarr_out
         }
 
         return mimetype, outputs
