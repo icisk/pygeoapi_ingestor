@@ -28,7 +28,7 @@ RUN pip install . \
         # numpy==1.26.4 \
     && rm -rf ./process
 
-
+RUN pip install git+https://github.com/icisk/pygeoapi-provider-s3-geojson.git
 # entrypoint.sh and scheduler.sh EOL must be UNIX-style (LF). If not you can occur in the following error: exec /entrypoint.sh: no such file or directory
 RUN chmod +x /pygeoapi/entrypoint.sh
 

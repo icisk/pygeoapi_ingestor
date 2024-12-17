@@ -48,6 +48,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import sys
 from pygeoapi_ingestor_plugin.utils import write_config, read_config
+import cftime
 
 logger = logging.getLogger(__name__)
 
@@ -208,18 +209,31 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         return mimetype, outputs
 
     def update_config(self, data, dataset, zarr_out, config_file, s3_is_anon_access):
+        # Get variable name
+        variable_name = list(data.data_vars)[0]
+
         # get min/max values for longitude, latitude and time
         min_x = float(data.coords['longitude'].min().values)
         max_x = float(data.coords['longitude'].max().values)
         min_y = float(data.coords['latitude'].min().values)
         max_y = float(data.coords['latitude'].max().values)
 
-        min_time = data.coords['valid_time'].values.min()
-        max_time = data.coords['valid_time'].values.max()
+        logger.debug(f"min_x: {min_x}, max_x: {max_x}, min_y: {min_y}, max_y: {max_y}")
+
+        try:
+                
+            min_time = data.coords['valid_time'].values.min()
+            max_time = data.coords['valid_time'].values.max()
+        except Exception as e:
+            logger.error(f"Error getting min/max time: {e}")
+            min_time = data.coords['forecast_period'].values.min()
+            max_time = data.coords['forecast_period'].values.max()
 
         # convert np.datetime64 to datetime object
         datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
         datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
+
+        logger.debug(f"datetime_min: {datetime_min}, datetime_max: {datetime_max}")
 
         # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
         lock = FileLock(f"{self.config_file}.lock", thread_local=False)
@@ -227,14 +241,17 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with lock:
             config = read_config(config_file)
 
-            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}"
+            dataset_pygeoapi_identifier = f"{dataset}_{variable_name}_{datetime_min.date()}_{datetime_max.date()}_[{min_x},{min_y},{max_x},{max_y}]"
 
             logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
-
+            if dataset == "cems-glofas-seasonal":
+                time_field = "forecast_period"
+            else:
+                time_field = "time"
             dataset_definition = {
                 'type': 'collection',
                 'title': dataset_pygeoapi_identifier,
-                'description': f'CDS {dataset} data from {datetime_min.date()} to {datetime_max.date()}',
+                'description': f'CDS {dataset} variable {variable_name} data from {datetime_min.date()} to {datetime_max.date()} for area [{min_x},{min_y},{max_x},{max_y}]',
                 'keywords': ['country'],
                 'extents': {
                     'spatial': {
@@ -253,7 +270,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         'data': zarr_out,
                         'x_field': 'longitude',
                         'y_field': 'latitude',
-                        # 'time_field': 'time',
+                        'time_field': time_field,
                         'format': {'name': 'zarr', 'mimetype': 'application/zip'}
                     }
                 ]
@@ -303,8 +320,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
     def _validate_inputs(self, service, dataset, query, token):
         """Validate input parameters."""
-        if service is None:
-            raise ProcessorExecuteError('Cannot process without a service')
+        # if service is None:
+        #     raise ProcessorExecuteError('Cannot process without a service')
         if dataset is None:
             raise ProcessorExecuteError('Cannot process without a dataset')
         if query is None:
@@ -356,9 +373,90 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             datetime_end = datetime.strptime(end_date, '%Y-%m-%d')
             dates = list(self.generate_dates_list(datetime_start, datetime_end, interval=interval))
             return self._fetch_data_by_range(service, dataset, query, file_out, dates, interval)
+        elif dataset == "cems-glofas-seasonal":
+            logger.info("Fetching data for cems-glofas-seasonal")
+            return self.fetch_dataset_by_chunk(service, dataset, query, file_out, engine=engine)
         else:
             logger.info(f"Fetching data for a specific date {query}")
             return self.fetch_dataset(service, dataset, query, file_out, engine=engine)
+
+    # Function to create chunks of leadtime_hour values
+    def chunk_list(self, data, chunk_size):
+        """Split a list into smaller chunks."""
+        for i in range(0, len(data), chunk_size):
+            yield data[i:i + chunk_size]
+            
+    # Function to handle individual chunk requests
+    def fetch_chunk(self, chunk,base_request,service,dataset, file_out, engine):
+        try:
+            if service and service == 'EWDS':
+                URL = 'https://ewds.climate.copernicus.eu/api'
+            else:
+                URL = 'https://cds.climate.copernicus.eu/api'
+
+            KEY = os.getenv('CDSAPI_KEY')
+
+            client = cdsapi.Client(url=URL, key=KEY)
+            request = base_request.copy()
+            request["leadtime_hour"] = chunk
+            output_filename = f"{file_out}_chunk_{chunk[0]}-{chunk[-1]}.zip"
+
+            logger.debug(f"Fetching data for leadtime_hours={chunk[0]} to {chunk[-1]}...")
+            client.retrieve(dataset, request).download(output_filename)
+            logger.debug(f"Downloaded: {output_filename}")
+
+            if output_filename.endswith('.zip'):
+                extract_dir = output_filename[:-4] 
+                with zipfile.ZipFile(output_filename, 'r') as zip_ref:
+                    zip_ref.extractall(extract_dir)
+                for file in os.listdir(extract_dir):
+                    if file.endswith('.nc'):
+                        logger.debug(f"Extracted file: {extract_dir}\{file}")
+                        file_nc = os.path.join(extract_dir, file)
+                data = xr.open_dataset(file_nc, engine=engine)
+            elif output_filename.endswith('.nc'):
+                data = xr.open_dataset(output_filename, engine=engine)
+            # elif file_out.endswith('.grib'):
+            #     data = xr.open_dataset(file_out,engine="cfgrib")
+            
+            data.attrs['long_name'] = dataset
+            data['forecast_period'] = data['valid_time']
+            data.drop_vars('valid_time')
+            return data
+        except Exception as e:
+            logger.error(f"Error fetching data for leadtime_hours={chunk[0]} to {chunk[-1]}: {e}")
+            raise
+        
+    def fetch_dataset_by_chunk(self, service, dataset, query, file_out, engine):
+
+        # List of leadtime_hour values
+        leadtime_hours = [str(i) for i in range(24, 5161, 24)]  # From 24 to 5160 in steps of 24
+        chunk_size = 54  # Number of leadtime_hours per request
+        leadtime_chunks = list(self.chunk_list(leadtime_hours, chunk_size))
+
+        # Main execution block
+        datasets = []
+
+        with ThreadPoolExecutor(max_workers=5) as executor:  # Adjust max_workers as needed
+            # Submit tasks to executor
+            futures = {
+                executor.submit(self.fetch_chunk, chunk, query, service, dataset, file_out, engine): chunk       #fetch_chunk(self, chunk,base_request,service,dataset):
+                for chunk in leadtime_chunks
+            }
+
+            # Process completed futures
+            for future in as_completed(futures):
+                chunk = futures[future]
+                try:
+                    out_data = future.result()  # Get the result of the future
+                    datasets.append(out_data)  # Collect successful outputs
+                except Exception as exc:
+                    logger.error(f"Chunk {chunk[0]}-{chunk[-1]} generated an exception: {exc}")
+
+        xr_data = xr.merge(datasets)
+        xr_split_model_data = self.split_var_to_variables(xr_data, "dis24")
+        logger.debug(xr_split_model_data)
+        return xr_split_model_data
 
     def _fetch_data_by_range(self, service, dataset, query, file_out, dates, interval):
         datasets = []
@@ -456,6 +554,18 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if dataset == 'cems-glofas-forecast':
             for var in data.data_vars:
                 data[var] = data[var].expand_dims(dim='time')
+        elif dataset == "seasonal-original-single-levels":
+            if 'total_precipitation' in query['variable']:
+                varname = 'tp'
+            elif '2m_temperature' in query['variable']:
+                varname = 't2m'
+                
+            data = self.split_var_to_variables(data, varname)
+            data = data.drop_vars("time")  # Drop existing 'time' if necessary
+            data['step'] = data['valid_time']
+
+            data = data.rename({'step': 'time'})
+            logger.debug(data)
 
         data.attrs['long_name'] = dataset
 
@@ -467,6 +577,42 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access)
         except Exception as e:
             logger.error(f"Error updating config: {e}")
+
+    def split_var_to_variables(self, ds, data_var):
+        """
+        Splits the 'data_var' variable in an xarray dataset into separate variables for each 'number'.
+
+        Parameters:
+            ds (xarray.Dataset): Input dataset with 'data_var' variable having dimensions
+                                (latitude, longitude, forecast_period, number).
+
+        Returns:
+            xarray.Dataset: New dataset with variables data_var_{number}.
+        """
+        # Ensure the 'data_var' variable exists
+        if data_var not in ds:
+            raise ValueError(f"Input dataset must contain the variable {data_var}.")
+
+        # Ensure the 'number' dimension exists
+        if 'number' not in ds[data_var].dims:
+            raise ValueError(f"{data_var} variable must have a 'number' dimension.")
+
+        # Extract the number coordinate
+        number_values = ds['number'].values
+
+        # Create a dictionary to hold the new variables
+        new_data = ds.copy()
+
+        for number in number_values:
+            # Select the slice of data_var corresponding to the current number
+            var_name = f"{data_var}_{number}"
+            new_data[var_name] = ds[data_var].sel(number=number)
+
+        # # Create a new dataset with the new variables
+        new_data = new_data.drop_vars(data_var)
+        new_data = new_data.drop_vars('number')
+        return new_data
+
 
     def __repr__(self):
         return f'<IngestorCDSProcessProcessor> {self.name}'

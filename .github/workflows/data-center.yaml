@@ -2,7 +2,6 @@ name: "build push images of data center"
 concurrency:
   group: "data-center"
   cancel-in-progress: true
-
 env:
   BUILD_CONTEXT: .
   IMAGE_AUTHORS: https://52North.org/
@@ -12,7 +11,6 @@ env:
   IMAGE_TITLE: 52°North I-Cisk Data Center
   IMAGE_VENDOR: 52°North GmbH
   METADATA_TAG_PATTERN: data-center-v(.*)
-
 on:
   workflow_dispatch:
     inputs:
@@ -26,10 +24,9 @@ on:
 
 jobs:
   push_to_docker_hub:
-
     name: "data-center: build, publish and scan container image"
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
     steps:
     -
       name: Checkout Repository
