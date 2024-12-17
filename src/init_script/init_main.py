@@ -15,7 +15,7 @@ logger.addHandler(ch)
 
 
 class InitialContainerCheck():
-    def __init__(self, 
+    def __init__(self,
                  config_path: str,
                  s3OTC: dict) -> None:
         self.config_path = config_path
@@ -69,7 +69,7 @@ class InitialContainerCheck():
         for dataset, data in self.resources.items():
             #FIXME: nur s3 checken wenn s3 xarray-edr
             #TODO das ganze für andere quellen auch bitte danke
-            if self.config['resources'][dataset]['providers'][0]['name'] == 'xarray-edr':
+            if self.config['resources'][dataset]['providers'][0]['name'] in ['xarray-edr', 'S3GeoJSONProvider.S3GeoJSONProvider']:
                 if not self.s3.exists(data):
                     logger.debug(f"dataset '{dataset}' NOT available at '{data}")
                     new_config['resources'].pop(dataset)
@@ -77,7 +77,7 @@ class InitialContainerCheck():
                     poped_ds.append(dataset)
                 else:
                     logger.debug(f"dataset '{dataset}' available at '{data}")
-            if self.config['resources'][dataset]['providers'][0]['name'] == 'PostgreSQL':
+            elif self.config['resources'][dataset]['providers'][0]['name'] == 'PostgreSQL':
                 db = data
                 #db['host'] = 'localhost'
                 engine = create_engine(f"postgresql://{db['user']}:{db['password']}@{db['host']}:{db['port']}/{db['dbname']}")

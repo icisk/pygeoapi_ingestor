@@ -8,3 +8,4 @@ from .ingestor_creaf_tif_historic import IngestorCREAFHISTORICProcessProcessor
 from .ingestor_knmi_evapo import IngestorKNMIProcessProcessor
 from .ingestor_ll_gpkg_process import IngestorLLGPKGProcessProcessor
 from .utils import write_config, read_config, download_source, cleanup_data_temp
+import S3GeoJSONProvider
