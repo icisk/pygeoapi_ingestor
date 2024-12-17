@@ -209,6 +209,9 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         return mimetype, outputs
 
     def update_config(self, data, dataset, zarr_out, config_file, s3_is_anon_access):
+        # Get variable name
+        variable_name = list(data.data_vars)[0]
+
         # get min/max values for longitude, latitude and time
         min_x = float(data.coords['longitude'].min().values)
         max_x = float(data.coords['longitude'].max().values)
@@ -238,7 +241,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with lock:
             config = read_config(config_file)
 
-            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min.date()}_{datetime_max.date()}_[{min_x},{min_y},{max_x},{max_y}]"
+            dataset_pygeoapi_identifier = f"{dataset}_{variable_name}_{datetime_min.date()}_{datetime_max.date()}_[{min_x},{min_y},{max_x},{max_y}]"
 
             logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
             if dataset == "cems-glofas-seasonal":
@@ -248,7 +251,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             dataset_definition = {
                 'type': 'collection',
                 'title': dataset_pygeoapi_identifier,
-                'description': f'CDS {dataset} data from {datetime_min.date()} to {datetime_max.date()} for area [{min_x},{min_y},{max_x},{max_y}]',
+                'description': f'CDS {dataset} variable {variable_name} data from {datetime_min.date()} to {datetime_max.date()} for area [{min_x},{min_y},{max_x},{max_y}]',
                 'keywords': ['country'],
                 'extents': {
                     'spatial': {
