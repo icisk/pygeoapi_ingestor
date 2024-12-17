@@ -41,7 +41,7 @@ PROCESS_METADATA = {
         'en': 'knmi_evapo',
     },
     'description': {
-        'en': 'downloads temp and precip data calculates potential evapotranspiration and cumsums it updating the online ressource'},
+        'en': 'downloads temp and precip data calculates potential evapotranspiration and cumsums it updating the online ressource; adds isolines to db'},
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'keywords': ['ingestor process'],
     'links': [{
@@ -115,7 +115,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
     """
     Ingestor Processor
 
-    joins tiff-data and saves it to zarr format and uploads it to s3 bucket
+    calculates precip deficit and saves it to zarr format and uploads it to s3 bucket
 
     Resource Requirements:
     - CPU: 3
@@ -152,13 +152,10 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         self.db_data = None
         self.alternate_root = None
         self.obs_zarr_out = None
-        self.fc_zarr_out = "s3://52n-i-cisk/data-ingestor/smhi/rijnland/latest_fc.zarr"
-        self.variable = None
         self.current_year = datetime.datetime.now().year
         self.current_month = datetime.datetime.now().month
         self.mode = 'init' # 'init' - first time  or 'append' - every other time
         self.save_path = '/tmp/knmi'
-        self.fc_save_path = '/tmp/knmi/fc'
         os.makedirs(self.save_path, exist_ok=True)
         self.online_obs_data = None
 
@@ -232,11 +229,6 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             self.write_config(config)
 
     def update_db_config(self):
-        # da = self.get_data_from_cloud(self.obs_zarr_out)
-        # min_x = float(da.x.values.min())
-        # max_x = float(da.x.values.max())
-        # min_y = float(da.y.values.min())
-        # max_y = float(da.y.values.max())
         min_x, min_y, max_x, max_y = [float(val) for val in self.db_data.total_bounds]
         # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
         lock = FileLock(f"{self.config_file}.lock")
@@ -301,18 +293,8 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         data_source['temp']['filename'] = f'INTER_OPER_R___TG1_____L3__{ds}T000000_{de}T000000_0006.nc'
         data_source['precip']['filename'] = f'INTER_OPER_R___RD1NRT__L3__{ds}T080000_{de}T080000_0002.nc'
 
-        # #getting latest ds name
-        # try:
-        #     res_filename = requests.get(var_url, params=params, headers=header)
-        #     res_filename.raise_for_status()
-        #     data_filename = res_filename.json()
-        #     latest_file = data_filename['files'][0]['filename']
-        #     #TODO: check for latest file in zarr archive before //outside func
-        #     #TODO: check if files exists already //outside func
-        # except requests.exceptions.HTTPError as e:
-        #     print(f""" latest file error '{str(e)}'; HTML-code '{res_filename.status_code}'""")
         for var in data_source:
-            print(var)
+            LOGGER.debug(var)
             source = data_source[var]
             # getting date ds url
             try:
@@ -321,7 +303,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
                 data_dwn_url = res_dwn_url.json()
                 dwn_url = data_dwn_url['temporaryDownloadUrl']
             except requests.exceptions.HTTPError as e:
-                print(f""" download url error '{str(e)}'; HTML-code '{res_dwn_url.status_code}'""")
+                LOGGER.debug(f""" download url error '{str(e)}'; HTML-code '{res_dwn_url.status_code}'""")
                 return None
 
             # getting data itself
@@ -447,7 +429,6 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
 
         LOGGER.debug(f"upload ZARR: '{self.obs_zarr_out}' in '{self.mode}-mode'")
         date_string = datetime.date(y, m , d).strftime('%Y%m%d')
-        export_tif_path =f"s3://52n-i-cisk/tif/LL_Rijnland/evapo/evapo_{date_string}.tif"
 
         if self.mode == 'init':
             res.to_zarr(store=store, consolidated=True, mode='w')
@@ -474,6 +455,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             LOGGER.debug("gdal_transform completed successfully.")
         except subprocess.CalledProcessError as e:
             LOGGER.error(f"Error: {e}")
+            raise ProcessorExecuteError(f"""could not create tif from nc '{e}'""")
 
         if self.mode == 'init':
             iso_min = float(res['p_def'].min().values)
@@ -502,13 +484,13 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             LOGGER.debug("gdal_contour completed successfully.")
         except subprocess.CalledProcessError as e:
             LOGGER.error(f"Error: {e}")
+            raise ProcessorExecuteError(f"""could not create contours from geojson '{e}'""")
 
 
         engine = create_engine(
             f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_database}")
         inspector = inspect(engine)
         table_exists = f'{self.table_name}' in inspector.get_table_names()
-
 
         if table_exists:
             db = get_db_data(engine)
@@ -524,7 +506,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         self.update_db_config()
 
         outputs = {
-            'id': 'knmi_ingestor',
+            'id': 'knmi_evapo_ingestor',
             'value': self.obs_zarr_out
         }
 
