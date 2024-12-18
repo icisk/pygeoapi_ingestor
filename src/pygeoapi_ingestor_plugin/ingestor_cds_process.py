@@ -557,15 +557,21 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         elif dataset == "seasonal-original-single-levels":
             if 'total_precipitation' in query['variable']:
                 varname = 'tp'
+                
+                data = self.split_var_to_variables(data, varname)
+                if 'time' in data.dims:
+                    data = data.drop_vars("time") # Drop existing 'time' if necessary
+                data['forecast_period'] = data['valid_time']
+
+                data = data.rename({'forecast_period': 'time'})
             elif '2m_temperature' in query['variable']:
                 varname = 't2m'
                 
-            data = self.split_var_to_variables(data, varname)
-            data = data.drop_vars("time")  # Drop existing 'time' if necessary
-            data['step'] = data['valid_time']
+                data = self.split_var_to_variables(data, varname)
+                data = data.drop_vars("time")  # Drop existing 'time' if necessary
+                data['step'] = data['valid_time']
 
-            data = data.rename({'step': 'time'})
-            logger.debug(data)
+                data = data.rename({'step': 'time'})
 
         data.attrs['long_name'] = dataset
 
