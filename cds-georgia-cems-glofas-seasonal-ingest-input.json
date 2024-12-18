@@ -243,7 +243,7 @@
                     45.196243,
                     41.120975,
                     46.736885,
-                    42.115761
+                    43.115761
                 ]
             },
             "zarr_out": "s3://52n-i-cisk/data-ingestor/cds_georgia.zarr"
