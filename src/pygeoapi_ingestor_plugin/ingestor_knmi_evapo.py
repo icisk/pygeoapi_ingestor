@@ -152,7 +152,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         self.db_data = None
         self.alternate_root = None
         self.obs_zarr_out = None
-        self.current_year = datetime.datetime.now().year
+        self.current_year = 2024 #datetime.datetime.now().year
         self.current_month = datetime.datetime.now().month
         self.mode = 'init' # 'init' - first time  or 'append' - every other time
         self.save_path = '/tmp/knmi'
@@ -339,12 +339,12 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
 
         PET_value = kc * (Re / (lam * rho)) * ((Ta + Tadd) / Tscale) * 1000
 
-        PET = np.where((Ta + Tadd > 0) & (PET_value > 0), PET_value, 0)
+        PET = np.where((Ta + Tadd > 0), PET_value, 0)
 
         return PET
 
-    def calc_p_def(self, pet, p):
-        p_def = np.where((pet - p > 0), pet - p, 0)
+    def calc_p_def(self, pet0, pet1):
+        p_def = np.where((pet0 + pet1 > 0), pet0 + pet1, 0)
         return p_def
 
 
@@ -417,7 +417,8 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         t_vals = t['prediction'].values
         pet_vals = self.calc_PET(t_vals, (y, m, d))
         p_vals = p['prediction'].values
-        p_def = self.calc_p_def(pet_vals, p_vals)
+        p_def = pet_vals - p_vals
+        #p_def = self.calc_p_def(pet_vals, p_vals)
         res = xr.Dataset(
             data_vars=dict(p_def=(['time', 'y', 'x'], p_def)),
             coords=dict(
@@ -434,7 +435,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             res.to_zarr(store=store, consolidated=True, mode='w')
             res.to_netcdf(f"/tmp/evapo_{date_string}.nc")
         if self.mode == 'append':
-            new_p_def = self.online_obs_data.isel(time=-1)['p_def'] + res.isel(time=0)['p_def']
+            new_p_def = self.calc_p_def(self.online_obs_data.isel(time=-1)['p_def'], res.isel(time=0)['p_def'])
             new_res = xr.Dataset(
                 data_vars=dict(p_def=(['time', 'y', 'x'], np.expand_dims(new_p_def.data, axis=0))),
                 coords=dict(
