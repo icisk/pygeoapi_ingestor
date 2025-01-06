@@ -34,52 +34,68 @@ metadata:
     name: pygeoapi Development Team
     url: https://pygeoapi.io
 resources:
-  creaf_forecast:
-    description: creaf_forecast of precipitation
+  ingestKNMI:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorKNMIProcessProcessor
+    type: process
+  knmi_evapo_obs:
+    description: pot precip deficit obs
     extents:
       spatial:
         bbox:
-        - 107963.51010420798
-        - 4012553.4808084117
-        - 628263.690765058
-        - 4347991.887574628
-        crs: http://www.opengis.net/def/crs/EPSG/0/25830
+        - 3.292034674366435
+        - 50.71517388522664
+        - 7.289092584241217
+        - 53.5792215153204
+        crs: http://www.opengis.net/def/crs/EPSG/0/4326
     keywords:
     - country
     providers:
-    - data: s3://52n-i-cisk/data-ingestor/creaf_forecast_auto_test.zarr
+    - data:
+        dbname: postgres
+        host: postgis
+        password: password
+        port: 5432
+        search_path:
+        - public
+        user: postgres
+      geom_field: geometry
+      id_field: index
+      name: PostgreSQL
+      table: knmi_obs
+      type: feature
+    title: knmi_evapo_obs
+    type: collection
+  knmi_evapo_obs_2024:
+    description: knmi_evapo_obs of 2024
+    extents:
+      spatial:
+        bbox:
+        - 500.0
+        - 290500.0
+        - 299500.0
+        - 639500.0
+        crs: http://www.opengis.net/def/crs/EPSG/0/28992
+    keywords:
+    - country
+    providers:
+    - data: s3://52n-i-cisk/data-ingestor/knmi_2024.zarr
       format:
         mimetype: application/zip
         name: zarr
       name: xarray-edr
       options:
         s3:
-          alternate_root: 52n-i-cisk/data-ingestor/creaf_forecast_auto_test.zarr
+          alternate_root: 52n-i-cisk/data-ingestor/knmi_2024.zarr
           anon: false
           endpoint_url: https://obs.eu-de.otc.t-systems.com
           requester_pays: false
       time_field: time
       type: edr
-      x_field: longitude
-      y_field: latitude
-    title: creaf_forecast
+      x_field: x
+      y_field: y
+    title: knmi_evapo_obs_2024
     type: collection
-  ingestor-cds-process:
-    processor:
-      name: pygeoapi_ingestor_plugin.IngestorCDSProcessProcessor
-    type: process
-  ingestor-creafforecast-process:
-    processor:
-      name: pygeoapi_ingestor_plugin.IngestorCREAFFORECASTProcessProcessor
-    type: process
-  ingestor-smhi-process:
-    processor:
-      name: pygeoapi_ingestor_plugin.IngestorSMHIProcessProcessor
-    type: process
-  ingestor-smhi-vector-process:
-    processor:
-      name: pygeoapi_ingestor_plugin.IngestorSMHIVectorProcessProcessor
-    type: process
 server:
   bind:
     host: 0.0.0.0
@@ -88,13 +104,14 @@ server:
   encoding: utf-8
   gzip: false
   language: en-US
-  limit: 10
+  limit: 10000
   manager:
     connection: /tmp/pygeoapi-process-manager.db
     name: TinyDB
     output_dir: /tmp/
   map:
-    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap
+      contributors</a>'
     url: https://tile.openstreetmap.org/{z}/{x}/{y}.png
   mimetype: application/json; charset=UTF-8
   ogc_schemas_location: /schemas.opengis.net
