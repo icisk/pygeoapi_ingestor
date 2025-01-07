@@ -152,7 +152,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         self.db_data = None
         self.alternate_root = None
         self.obs_zarr_out = None
-        self.current_year = datetime.datetime.now().year
+        self.current_year = 2024 #datetime.datetime.now().year
         self.current_month = datetime.datetime.now().month
         self.mode = 'init' # 'init' - first time  or 'append' - every other time
         self.save_path = '/tmp/knmi'
@@ -339,12 +339,16 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
 
         PET_value = kc * (Re / (lam * rho)) * ((Ta + Tadd) / Tscale) * 1000
 
-        PET = np.where((Ta + Tadd > 0) & (PET_value > 0), PET_value, 0)
+        PET = np.where((Ta + Tadd > 0), PET_value, 0)
 
         return PET
 
-    def calc_p_def(self, pet, p):
-        p_def = np.where((pet - p > 0), pet - p, 0)
+    def calc_p_def(self, pet0, pet1):
+        p_def = np.where((pet0 + pet1 > 0), pet0 + pet1, 0)
+        return p_def
+
+    def calc_init_p_def(self, pet0):
+        p_def = np.where((pet0 > 0), pet0 , 0)
         return p_def
 
 
@@ -417,7 +421,8 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         t_vals = t['prediction'].values
         pet_vals = self.calc_PET(t_vals, (y, m, d))
         p_vals = p['prediction'].values
-        p_def = self.calc_p_def(pet_vals, p_vals)
+        p_def = pet_vals - p_vals
+        #p_def = self.calc_p_def(pet_vals, p_vals)
         res = xr.Dataset(
             data_vars=dict(p_def=(['time', 'y', 'x'], p_def)),
             coords=dict(
@@ -431,10 +436,20 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         date_string = datetime.date(y, m , d).strftime('%Y%m%d')
 
         if self.mode == 'init':
-            res.to_zarr(store=store, consolidated=True, mode='w')
-            res.to_netcdf(f"/tmp/evapo_{date_string}.nc")
+            new_p_def = self.calc_init_p_def(res.isel(time=0)['p_def'])
+            LOGGER.debug(f"min: {np.min(new_p_def)}; max: {np.max(new_p_def)}")
+            new_res = xr.Dataset(
+                data_vars=dict(p_def=(['time', 'y', 'x'], np.expand_dims(new_p_def.data, axis=0))),
+                coords=dict(
+                    time=t.time.data,
+                    y=t.y.data,
+                    x=t.x.data
+                )
+            )
+            new_res.to_zarr(store=store, consolidated=True, mode='w')
+            new_res.to_netcdf(f"/tmp/evapo_{date_string}.nc")
         if self.mode == 'append':
-            new_p_def = self.online_obs_data.isel(time=-1)['p_def'] + res.isel(time=0)['p_def']
+            new_p_def = self.calc_p_def(self.online_obs_data.isel(time=-1)['p_def'], res.isel(time=0)['p_def'])
             new_res = xr.Dataset(
                 data_vars=dict(p_def=(['time', 'y', 'x'], np.expand_dims(new_p_def.data, axis=0))),
                 coords=dict(
@@ -477,7 +492,9 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         if iso_diff > 30:
             contour_step = 10
 
-        command_iso = f"gdal_contour -a lvl -i {contour_step} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
+        command_iso_line = f"gdal_contour -a lvl -i {contour_step} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
+        command_iso_poly = f"gdal_contour -p -amin lvlmin -amax lvlmax -i {contour_step} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
+        command_iso = command_iso_poly
         LOGGER.debug(command_iso)
         try:
             subprocess.run(command_iso, shell=True, check=True)
@@ -497,11 +514,14 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             tab = prepare_tab_data(f"/tmp/evapo_{date_string}.geojson")
             merged = merge_db_tab_data(db, tab)
             merged.to_postgis('knmi_obs', engine, if_exists='replace', index=True)
+            #psqltab.to_postgis('knmi_obs', engine, if_exists='append', index=False) # TODO find a way to only append - maybe saves memory
             self.db_data = merged
+            engine.dispose()
         else:
             tab = prepare_tab_data(f"/tmp/evapo_{date_string}.geojson")
             tab.to_postgis('knmi_obs', engine, if_exists='replace', index=True)
             self.db_data = tab
+            engine.dispose()
 
         self.update_db_config()
 
