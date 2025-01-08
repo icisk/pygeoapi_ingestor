@@ -39,9 +39,10 @@ with open(args.json_path, 'r') as f:
 ingestor_process = data['process']
 payload = data['payload']
 if ingestor_process == "ingestor-smhi-vector-process":
+    current_issue_date = time.strftime("%Y%m")
     living_lab = payload['inputs']['living_lab']
-    payload['inputs']['issue_date'] = time.strftime("%Y%m")
-    payload['inputs']['file_out'] = f"s3://52n-i-cisk/data-ingestor/smhi_seasonal_forecast_{living_lab}_{time.strftime('%Y%m')}.geojson"
+    payload['inputs']['issue_date'] = current_issue_date
+    payload['inputs']['file_out'] = f"{payload['inputs']['file_out'].split('.geojson')[0]}{current_issue_date}.geojson" # f"s3://52n-i-cisk/data-ingestor/smhi_seasonal_forecast_{living_lab}_{time.strftime('%Y%m')}.geojson"
 elif ingestor_process == "ingestor-cds-process":
     area = payload['inputs']['query']['area']
     variable = payload['inputs']['query']['variable']
