@@ -4,9 +4,9 @@
         "inputs": {
             "data_dir": "seasonal_forecast",
             "issue_date": "202404",
-            "living_lab": "georgia",
+            "living_lab": "lesotho",
             "token": "token",
-            "file_out": "s3://52n-i-cisk/data-ingestor/smhi_seasonal_forecast_georgia_202409.geojson"
+            "file_out": "s3://52n-i-cisk/data-ingestor/smhi_seasonal_forecast_lesotho_.geojson"
         }
     }
 }
