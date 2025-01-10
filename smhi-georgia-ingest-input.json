@@ -6,7 +6,7 @@
             "issue_date": "202404",
             "living_lab": "georgia",
             "token": "token",
-            "file_out": "s3://52n-i-cisk/data-ingestor/smhi_seasonal_forecast_georgia_.geojson"
+            "file_out": "s3://52n-i-cisk/data-ingestor/georgia/smhi_seasonal_forecast_georgia_.geojson"
         }
     }
 }

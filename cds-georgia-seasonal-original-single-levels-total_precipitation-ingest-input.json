@@ -244,7 +244,7 @@
                     43.115761
                 ]
             },
-            "zarr_out": "s3://52n-i-cisk/data-ingestor/cds_georgia.zarr"
+            "zarr_out": "s3://52n-i-cisk/data-ingestor/georgia/seasonal_timeseries/cds_georgia.zarr"
         }
     }
 }
