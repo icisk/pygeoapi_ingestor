@@ -428,32 +428,36 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             raise
         
     def fetch_dataset_by_chunk(self, service, dataset, query, file_out, engine):
+        
+        if len(query['leadtime_hour']) <= 30:
+            logger.info(f"Fetching data for <=30 leadtime_hour {query}")
+            xr_data = self.fetch_chunk(query['leadtime_hour'], query, service, dataset, file_out, engine)
+        else:
+            # List of leadtime_hour values
+            leadtime_hours = [str(i) for i in range(24, 5161, 24)]  # From 24 to 5160 in steps of 24
+            chunk_size = 54  # Number of leadtime_hours per request
+            leadtime_chunks = list(self.chunk_list(leadtime_hours, chunk_size))
 
-        # List of leadtime_hour values
-        leadtime_hours = [str(i) for i in range(24, 5161, 24)]  # From 24 to 5160 in steps of 24
-        chunk_size = 54  # Number of leadtime_hours per request
-        leadtime_chunks = list(self.chunk_list(leadtime_hours, chunk_size))
+            logger.info(f"Fetching data for {len(leadtime_hours)} leadtime_hours in {len(leadtime_chunks)} chunks...")
+            # Main execution block
+            datasets = []
+            with ThreadPoolExecutor(max_workers=5) as executor:  # Adjust max_workers as needed
+                # Submit tasks to executor
+                futures = {
+                    executor.submit(self.fetch_chunk, chunk, query, service, dataset, file_out, engine): chunk       #fetch_chunk(self, chunk,base_request,service,dataset):
+                    for chunk in leadtime_chunks
+                }
 
-        # Main execution block
-        datasets = []
+                # Process completed futures
+                for future in as_completed(futures):
+                    chunk = futures[future]
+                    try:
+                        out_data = future.result()  # Get the result of the future
+                        datasets.append(out_data)  # Collect successful outputs
+                    except Exception as exc:
+                        logger.error(f"Chunk {chunk[0]}-{chunk[-1]} generated an exception: {exc}")
 
-        with ThreadPoolExecutor(max_workers=5) as executor:  # Adjust max_workers as needed
-            # Submit tasks to executor
-            futures = {
-                executor.submit(self.fetch_chunk, chunk, query, service, dataset, file_out, engine): chunk       #fetch_chunk(self, chunk,base_request,service,dataset):
-                for chunk in leadtime_chunks
-            }
-
-            # Process completed futures
-            for future in as_completed(futures):
-                chunk = futures[future]
-                try:
-                    out_data = future.result()  # Get the result of the future
-                    datasets.append(out_data)  # Collect successful outputs
-                except Exception as exc:
-                    logger.error(f"Chunk {chunk[0]}-{chunk[-1]} generated an exception: {exc}")
-
-        xr_data = xr.merge(datasets)
+                xr_data = xr.merge(datasets)
         xr_split_model_data = self.split_var_to_variables(xr_data, "dis24")
         logger.debug(xr_split_model_data)
         return xr_split_model_data
@@ -563,9 +567,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             data = self.split_var_to_variables(data, varname)
             if 'time' in data.variables:
                 data = data.drop_vars("time")  # Drop existing 'time' if necessary
-            data['step'] = data['valid_time']
-
-            data = data.rename({'step': 'time'})
+            if 'forecast_period' in data.variables:
+                data["forecast_period"] = data["valid_time"]
+                data = data.rename({'forecast_period': 'time'})
+            else:
+                data['step'] = data['valid_time']
+                data = data.rename({'step': 'time'})
 
         data.attrs['long_name'] = dataset
 

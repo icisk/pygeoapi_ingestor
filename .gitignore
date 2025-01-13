@@ -4,3 +4,4 @@ build
 docker-compose_cred.yml
 .idea/
 test.*
+*__pycache__/

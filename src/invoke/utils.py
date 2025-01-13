@@ -10,15 +10,20 @@ def invoke_ingestor_process(execute_url, data, logger):
     max_tries = int(os.getenv('INVOKE_MAX_TRIES', 5))
     sleep_seconds = int(os.getenv('INVOKE_SLEEP_SECONDS', 10))
     logger.info(f"Starting execution trigger with '{max_tries}' max tries and '{sleep_seconds}'s of intermediate sleep.")
+    headers = {
+        'accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+    if 'async' in data['inputs'] and data['inputs']['async'] == True:
+        headers['Prefer'] = "respond-async"
+        logger.info("Setting Prefer header to 'respond-async' for async processing")
+    logger.info(f"Headers: {headers}")
     while not success and n_tries < max_tries:
         n_tries += 1
         logger.info(f"[{n_tries}/{max_tries}]: Send POST to '{execute_url}")
         try:
             response = requests.post(execute_url,
-                headers={
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
+                headers=headers,
                 data=json.dumps(data)
             )
             logger.info(f"Response status code: {response.status_code}")

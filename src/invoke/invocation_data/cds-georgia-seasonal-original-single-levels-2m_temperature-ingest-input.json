@@ -2,23 +2,22 @@
     "process": "ingestor-cds-process",
     "payload": {
         "inputs": {
-            "dataset": "cems-glofas-seasonal",
-            "service": "EWDS",
-            "file_out": "/tmp/cems-glofas-seasonal.netcdf4.zip",
-            "interval": "month",
+            "dataset": "seasonal-original-single-levels",
+            "file_out": "/tmp/seasonal-original-single-levels.nc",
             "query": {
-                "hydrological_model": [
-                    "lisflood",
-                    "htessel_lisflood"
-                ],
+                "originating_centre": "ecmwf",
+                "system": "51",
                 "variable": [
-                    "river_discharge_in_the_last_24_hours"
+                    "2m_temperature"
                 ],
                 "year": [
                     "2024"
                 ],
                 "month": [
-                    "11"
+                    "12"
+                ],
+                "day": [
+                    "01"
                 ],
                 "leadtime_hour": [
                     "24",
@@ -237,16 +236,15 @@
                     "5136",
                     "5160"
                 ],
-                "download_format": "zip",
                 "data_format": "netcdf",
                 "area": [
-                    10.4542,
-                    44.224998,
-                    10.9592,
-                    44.583302
+                    41.120975,
+                    45.196243,
+                    43.115761,
+                    46.736885
                 ]
             },
-            "zarr_out": "s3://52n-i-cisk/data-ingestor/italy/seasonal_timeseries/cds_italy.zarr"
+            "zarr_out": "s3://52n-i-cisk/data-ingestor/georgia/seasonal_timeseries/cds_georgia.zarr"
         }
     }
 }
