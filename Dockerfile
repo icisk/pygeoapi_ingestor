@@ -8,6 +8,7 @@ RUN apt-get update \
         curl \
         git \
         gdal-bin\
+        vim \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /pygeoapi
