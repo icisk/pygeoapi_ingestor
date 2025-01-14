@@ -162,7 +162,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
 
         files = self._download_files_from_ftp(ftp_config, living_lab, data_dir, issue_date)
         if files == []:
-            raise ProcessorExecuteError('No files found in the FTP server')
+            return mimetype, {'id': self.id, 'value': 'No files found in FTP server'}
 
         features = []
         for file_nc in files:
@@ -326,10 +326,14 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
     def _download_files_from_ftp(self, ftp_config, living_lab, data_dir, issue_date):
         """Connect to FTP and download files."""
         remote_folder = f"{ftp_config['folder']}/{living_lab}/{data_dir}/{issue_date}"
-        with FTP(ftp_config['url']) as ftp:
-            ftp.login(user=ftp_config['user'], passwd=ftp_config['passwd'])
-            ftp.cwd(remote_folder)
-            return self.download_files_from_ftp(ftp, remote_folder)
+        try:
+            with FTP(ftp_config['url']) as ftp:
+                ftp.login(user=ftp_config['user'], passwd=ftp_config['passwd'])
+                ftp.cwd(remote_folder)
+                return self.download_files_from_ftp(ftp, remote_folder)
+        except Exception as e:
+            logger.error(f"Error downloading files from FTP: {e}")
+            return []
 
     def _extract_data_from_netcdf(self, file_nc):
         """Extract data from NetCDF file."""
