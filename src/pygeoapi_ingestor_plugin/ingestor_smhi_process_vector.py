@@ -12,6 +12,7 @@ from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 from .utils import read_config, write_config
 from filelock import FileLock
 import pandas as pd
+import time
 # =================================================================
 #
 # Authors: Valerio Luzzi <valluzzi@gmail.com>
@@ -260,12 +261,22 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
 
     def _extract_and_validate_inputs(self, data):
         """Extract inputs and raise errors for missing values."""
-        file_out = data.get('file_out')
-        issue_date = data.get('issue_date')
+        
+        cron_invocation = data.get('cron_invocation')
+        
         living_lab = data.get('living_lab')
         s3_save = data.get('s3_save')
         self.token = data.get('token')
         data_dir = data.get('data_dir')
+
+        if cron_invocation:
+            current_issue_date = time.strftime("%Y%m")
+            issue_date = current_issue_date
+            logger.info(f'Cron invocation requested. Current issue date: {current_issue_date}')
+        else:
+            issue_date = data.get('issue_date')
+
+        file_out = f"{data.get('file_out').split('.geojson')[0]}{issue_date}.geojson" # f"s3://52n-i-cisk/data-ingestor/smhi_seasonal_forecast_{living_lab}_{time.strftime('%Y%m')}.geojson"
 
         if not issue_date:
             raise ProcessorExecuteError('Cannot process without an issue_date')
