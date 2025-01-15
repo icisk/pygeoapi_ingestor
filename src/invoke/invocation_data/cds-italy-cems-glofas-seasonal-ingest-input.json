@@ -2,6 +2,7 @@
     "process": "ingestor-cds-process",
     "payload": {
         "inputs": {
+            "cron_invocation": true,
             "dataset": "cems-glofas-seasonal",
             "async": true,
             "service": "EWDS",
