@@ -2,6 +2,7 @@
     "process": "ingestor-smhi-vector-process",
     "payload": {
         "inputs": {
+            "cron_invocation": true,
             "data_dir": "seasonal_forecast",
             "issue_date": "202404",
             "living_lab": "georgia",

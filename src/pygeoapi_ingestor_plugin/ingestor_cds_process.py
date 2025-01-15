@@ -195,6 +195,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # Fetch data (either by date range or single query)
         data = self._fetch_data(service, dataset, query, file_out, engine, start_date, end_date, interval)
 
+        if data is None:
+            return mimetype, {'id': self.id, 'value': f'Error data for {dataset} not found'} 
         # Save the data
         self._store_data(data, zarr_out, s3_save)
 
@@ -316,6 +318,20 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         end_date = data.get('date_end', None)
         self.token = data.get('token')
         interval = data.get('interval', None)
+        cron_invocation = data.get('cron_invocation')
+        variable = query['variable']
+        if isinstance(variable, list):
+            # if variable is a list, take all the elements and join them with '-'
+            variable = "-".join(variable)
+        if cron_invocation:
+            year = time.strftime("%Y")
+            month = time.strftime("%m")
+            # day = time.strftime("%d")
+            query['year'] = [year]
+            query['month'] = [month]
+
+        zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}.zarr"   
+
         return service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval
 
     def _validate_inputs(self, service, dataset, query, token):

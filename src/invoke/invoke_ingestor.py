@@ -38,22 +38,6 @@ with open(args.json_path, 'r') as f:
 
 ingestor_process = data['process']
 payload = data['payload']
-if ingestor_process == "ingestor-cds-process":
-    area = payload['inputs']['query']['area']
-    variable = payload['inputs']['query']['variable']
-    if isinstance(variable, list):
-        # if variable is a list, take all the elements and join them with '-'
-        variable = "-".join(variable)
-    dataset = payload['inputs']['dataset']
-    year = time.strftime("%Y")
-    month = time.strftime("%m")
-    day = time.strftime("%d")
-    payload['inputs']['query']['year'] = [year]
-    zarr_out = payload['inputs']['zarr_out']
-    payload['inputs']['query']['month'] = [month]
-    # if dataset == "seasonal-original-single-levels":
-    #     payload['inputs']['query']['day'] = [day]
-    payload['inputs']['zarr_out'] = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{year}{month}{day}.zarr"   
 
 api_root = os.getenv("API_ROOT", "http://localhost:5000/")
 execute_url = f"{api_root}processes/{ingestor_process}/execution"
