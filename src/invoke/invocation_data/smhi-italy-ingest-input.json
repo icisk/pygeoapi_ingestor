@@ -7,7 +7,7 @@
             "issue_date": "202404",
             "living_lab": "italy",
             "token": "token",
-            "file_out": "s3://52n-i-cisk/data-ingestor/italy/smhi_seasonal_forecast_lesotho_.geojson"
+            "file_out": "s3://52n-i-cisk/data-ingestor/italy/smhi_seasonal_forecast_italy_.geojson"
         }
     }
 }
