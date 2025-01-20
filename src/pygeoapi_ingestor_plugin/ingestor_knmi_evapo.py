@@ -481,7 +481,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         fixed_lvls = [50, 100, 125, 150, 175, 200]
 
         # command_iso_line = f"gdal_contour -a lvl -i {contour_step} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
-        command_iso_poly = f"gdal_contour -p -amin lvlmin -amax lvlmax -fl {" ".join(str(lvl) for lvl in fixed_lvls)} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
+        command_iso_poly = f"""gdal_contour -p -amin lvlmin -amax lvlmax -fl {' '.join(str(lvl) for lvl in fixed_lvls)} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"""
         command_iso = command_iso_poly
         LOGGER.debug(command_iso)
         try:
