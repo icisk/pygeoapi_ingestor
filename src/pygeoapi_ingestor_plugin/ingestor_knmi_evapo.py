@@ -1,34 +1,20 @@
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
-
-from filelock import Timeout, FileLock
-
-import fsspec
-import s3fs
-import yaml
-
+import datetime
+import logging
 import os
 import subprocess
-import io
-import requests
-import xarray as xr
-import datetime
-import pandas as pd
+
+import fsspec
 import geopandas as gpd
 import numpy as np
-from sqlalchemy import create_engine, inspect
-import geoalchemy2
-import psycopg2
-
-
-
-
-from osgeo import gdal
-
-import logging
+import pandas as pd
+import requests
+import s3fs
+import xarray as xr
+import yaml
 from dotenv import load_dotenv, find_dotenv
-
-
-from .utils import download_source
+from filelock import FileLock
+from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
+from sqlalchemy import create_engine, inspect
 
 LOGGER = logging.getLogger(__name__)
 
@@ -324,7 +310,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
 
         return (data_source)
 
-    def get_Re(self, date, csv='/pygeoapi/tab_Re.csv'):
+    def get_Re(self, date, csv='/pygeoapi/secondary_process_data/tab_Re.csv'):
         y, m, d = date
         data = pd.read_csv(csv)
         return float(data['value'][data['x'] == f'{d}-{m}'].values[0])
@@ -479,21 +465,23 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             iso_min = float(new_res['p_def'].min().values)
             iso_max = float(new_res['p_def'].max().values)
 
-        iso_diff = iso_max - iso_min
+        # iso_diff = iso_max - iso_min
+        #
+        # if iso_diff <= 1:
+        #     contour_step = 0.05
+        # if iso_diff <= 3 and iso_diff > 1:
+        #     contour_step = 0.2
+        # if iso_diff <= 15 and iso_diff > 3:
+        #     contour_step = 1
+        # if iso_diff <= 30 and iso_diff > 15:
+        #     contour_step = 5
+        # if iso_diff > 30:
+        #     contour_step = 10
 
-        if iso_diff <= 1:
-            contour_step = 0.05
-        if iso_diff <= 3 and iso_diff > 1:
-            contour_step = 0.2
-        if iso_diff <= 15 and iso_diff > 3:
-            contour_step = 1
-        if iso_diff <= 30 and iso_diff > 15:
-            contour_step = 5
-        if iso_diff > 30:
-            contour_step = 10
+        fixed_lvls = [50, 100, 125, 150, 175, 200]
 
-        command_iso_line = f"gdal_contour -a lvl -i {contour_step} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
-        command_iso_poly = f"gdal_contour -p -amin lvlmin -amax lvlmax -i {contour_step} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
+        # command_iso_line = f"gdal_contour -a lvl -i {contour_step} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
+        command_iso_poly = f"gdal_contour -p -amin lvlmin -amax lvlmax -fl {" ".join(str(lvl) for lvl in fixed_lvls)} /tmp/evapo_{date_string}.tif /tmp/evapo_{date_string}.geojson"
         command_iso = command_iso_poly
         LOGGER.debug(command_iso)
         try:
@@ -509,9 +497,12 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
         inspector = inspect(engine)
         table_exists = f'{self.table_name}' in inspector.get_table_names()
 
+        nl_landmasses_clip = gpd.read_file("/pygeoapi/secondary_process_data/NL_landmasses_4326_50thdegreebuffer.geojson")
+
         if table_exists:
             db = get_db_data(engine)
             tab = prepare_tab_data(f"/tmp/evapo_{date_string}.geojson")
+            tab = tab.clip(nl_landmasses_clip)
             merged = merge_db_tab_data(db, tab)
             merged.to_postgis('knmi_obs', engine, if_exists='replace', index=True)
             #psqltab.to_postgis('knmi_obs', engine, if_exists='append', index=False) # TODO find a way to only append - maybe saves memory
@@ -519,6 +510,7 @@ class IngestorKNMIProcessProcessor(BaseProcessor):
             engine.dispose()
         else:
             tab = prepare_tab_data(f"/tmp/evapo_{date_string}.geojson")
+            tab = tab.clip(nl_landmasses_clip)
             tab.to_postgis('knmi_obs', engine, if_exists='replace', index=True)
             self.db_data = tab
             engine.dispose()
