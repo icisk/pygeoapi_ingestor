@@ -1,16 +1,15 @@
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
-import s3fs
-
-import os
-import xarray as xr
 import datetime
+import logging
+import os
+
 import numpy as np
 import pandas as pd
-from .utils import download_ftp_data, get_latest_forecast, get_data_from_cloud
-import logging
+import s3fs
+import xarray as xr
 from dotenv import load_dotenv, find_dotenv
+from pygeoapi.process.base import BaseProcessor
 
-
+from .utils import download_ftp_data, get_latest_forecast, get_data_from_cloud
 
 LOGGER = logging.getLogger(__name__)
 
@@ -105,9 +104,9 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
         self.otc_key = os.environ.get(key='FSSPEC_S3_KEY')
         self.otc_secret = os.environ.get(key='FSSPEC_S3_SECRET')
         self.otc_endpoint = os.environ.get(key='FSSPEC_S3_ENDPOINT_URL')
-        self.smhi_server = os.environ.get(key='SMHI_FTP_SERVER', default='ftp.smhi.se')
-        self.smhi_user = os.environ.get(key='SMHI_FTP_USER', default='icisk')
-        self.smhi_passwd = os.environ.get(key='SMHI_FTP_PASSWORD')
+        self.smhi_server = os.environ.get(key='FTP_HOST', default='ftp.smhi.se')
+        self.smhi_user = os.environ.get(key='FTP_USER', default='icisk')
+        self.smhi_passwd = os.environ.get(key='FTP_PASS')
         self.smhi_fc_root = 'living_labs/netherlands/gridded_seasonal_forecast'
         self.alternate_root = None
 
@@ -126,8 +125,8 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
         data = pd.read_csv(csv)
         return float(data['value'][data['x'] == f'{d}-{m}'].values[0])
 
-    def calc_delta_PET(Ta, p, date):
-        Re = get_Re(date)
+    def calc_delta_PET(self, Ta, p, date):
+        Re = self.get_Re(date)
         kc = 1
         lam = 2.501 - (0.002361 * Ta)
         rho = 1000
@@ -166,9 +165,9 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
         t_vals = forecast_xr[vars[0]].values
         p_vals = forecast_xr[vars[1]].values
 
-        res = [calc_delta_PET(forecast_xr.isel(time=i).tasAdjust,
+        res = [self.calc_delta_PET(forecast_xr.isel(time=i).tasAdjust,
                               forecast_xr.isel(time=i).prAdjust,
-                              get_date(t)) for i, t in enumerate(forecast_xr['time'].values)]
+                              self.get_date(t)) for i, t in enumerate(forecast_xr['time'].values)]
 
         res_arr = [ds.expand_dims(time=[forecast_xr['time'].values[i]]) for i, ds in enumerate(res)]
         res_res = xr.merge(res_arr)
