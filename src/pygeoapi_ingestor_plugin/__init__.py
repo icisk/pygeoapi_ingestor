@@ -7,5 +7,6 @@ from .ingestor_creaf_tif_forecast import IngestorCREAFFORECASTProcessProcessor
 from .ingestor_creaf_tif_historic import IngestorCREAFHISTORICProcessProcessor
 from .ingestor_knmi_evapo import IngestorKNMIProcessProcessor
 from .ingestor_ll_gpkg_process import IngestorLLGPKGProcessProcessor
+from .data_prep_knmi_evapo_forecast import RIJNLAND_evapo_dataprep_SMHI
 from .utils import write_config, read_config, download_source, cleanup_data_temp
 import S3GeoJSONProvider
