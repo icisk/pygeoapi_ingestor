@@ -1,6 +1,7 @@
 import datetime
 import logging
 import os
+import subprocess
 
 import numpy as np
 import pandas as pd
@@ -120,7 +121,7 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
 
         self.online_fc_data = None
 
-    def get_Re(self, date, csv='/pygeoapi/tab_Re.csv'):
+    def get_Re(self, date, csv='/pygeoapi/secondary_process_data/tab_Re.csv'):
         y, m, d = date
         data = pd.read_csv(csv)
         return float(data['value'][data['x'] == f'{d}-{m}'].values[0])
@@ -137,12 +138,17 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
 
         return PET - p
 
-    def get_date(time):
+    def get_date(self, time):
         day = datetime.datetime.fromtimestamp(time.astype('datetime64[s]').astype(int)).day
         month = datetime.datetime.fromtimestamp(time.astype('datetime64[s]').astype(int)).month
         year = datetime.datetime.fromtimestamp(time.astype('datetime64[s]').astype(int)).year
 
         return (year, month, day)
+
+    def add_leading_zeros(self, fc_path):
+        script_path = './secondary_process_data/add_leading_zero.sh'
+        subprocess.run([script_path, fc_path], capture_output=True, text=True)
+
 
     def download_and_process(self, latest_fc_path):
         download_ftp_data(self.smhi_server,
@@ -150,8 +156,11 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
                           self.smhi_passwd,
                           latest_fc_path,
                           self.fc_save_path)
+        LOGGER.info("data downloaded")
         # read all forecast files and merge them then merge the 2 variables
         fc_data_path = os.path.join(self.fc_save_path, latest_fc_path)
+        self.add_leading_zeros(fc_data_path)
+        LOGGER.debug("added zeros to filenames")
         tas_files = [os.path.join(fc_data_path, p) for p in sorted(os.listdir(fc_data_path)) if
                      p.startswith('tas') and p.endswith('.nc')]
         pr_files = [os.path.join(fc_data_path, p) for p in sorted(os.listdir(fc_data_path)) if
@@ -161,9 +170,7 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
         pr_ds = [xr.open_dataset(f).expand_dims(epoches=[i]) for i, f in enumerate(pr_files)]
         pr = xr.merge(pr_ds)
         forecast_xr = xr.merge([tas, pr])
-        vars = list(forecast_xr.data_vars)
-        t_vals = forecast_xr[vars[0]].values
-        p_vals = forecast_xr[vars[1]].values
+        LOGGER.debug('data merged')
 
         res = [self.calc_delta_PET(forecast_xr.isel(time=i).tasAdjust,
                               forecast_xr.isel(time=i).prAdjust,
