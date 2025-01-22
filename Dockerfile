@@ -1,6 +1,7 @@
 FROM geopython/pygeoapi:latest
 
 ENV PYGEOAPI_CONFIG=config.yml
+ENV WSGI_WORKER_TIMEOUT=289067349086745908673459
 
 RUN apt-get update \
     && apt-get upgrade -y \
