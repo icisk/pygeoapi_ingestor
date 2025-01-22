@@ -2,6 +2,7 @@
 # sync with setup.py
 #
 cdsapi
+dask==2024.11.2
 filelock
 Flask-Cors==5.0.0
 geojson
@@ -11,8 +12,9 @@ netcdf4
 numpy==1.24.0
 pygeoapi
 python-dotenv
+rioxarray==0.18.2
 s3fs
 shyaml
 tifffile
-xarray==2024.1.0
+xarray==2024.7.0
 zarr
