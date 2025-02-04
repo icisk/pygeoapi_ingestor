@@ -346,7 +346,7 @@ class IngestorKNMIobsforecastProcessProcessor(BaseProcessor):
 
         final_xr = final_xr.to_dataset(name="p_def_q20")
         final_xr['p_def_q50'] = (('time', 'lat', 'lon'), p_def_50)
-        final_xr['p_def_q50'] = (('time', 'lat', 'lon'), p_def_80)
+        final_xr['p_def_q80'] = (('time', 'lat', 'lon'), p_def_80)
 
         LOGGER.info(f"upload to '{self.fc_zarr_out}'")
         final_xr.to_zarr(store, consolidated=True, mode='w')
