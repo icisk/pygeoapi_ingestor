@@ -216,7 +216,8 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
                 download_fc = True
             else:
                 LOGGER.debug(f'no new fc available')
-                download_fc = False
+                #TODO: set back to false !!!!!!!!
+                download_fc = True
         else:
             LOGGER.debug(f'no forecast in otc')
             download_fc = True
