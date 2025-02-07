@@ -30,6 +30,13 @@
 import os
 import logging, time
 import datetime
+from dateutil.relativedelta import relativedelta
+import tempfile
+
+import xarray as xr
+import pygrib
+
+import cdsapi
 
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
@@ -137,11 +144,23 @@ class IngestorCDSSPICalculationProcessor(BaseProcessor):
 
         super().__init__(processor_def, PROCESS_METADATA)
         
+        self.cds_client = cdsapi.Client(
+            url = 'https://cds.climate.copernicus.eu/api',
+            key = os.getenv('CDSAPI_KEY')
+        )
+        
+        self.reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 31)) # REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
+        
+        self.temp_dir = os.path.join(tempfile.gettempdir(), 'IngestorCDSSPICalculationProcessor_data')
+        if not os.path.exists(self.temp_dir):
+            os.makedirs(self.temp_dir, exist_ok=True)
+        
         
     def validate_parameters(self, data):
         """
         Validate request parameters
         """
+        
         lat_range = data.get('lat_range', None)
         long_range = data.get('long_range', None)
         period_of_interest = data.get('period_of_interest', None)
@@ -199,7 +218,115 @@ class IngestorCDSSPICalculationProcessor(BaseProcessor):
         return lat_range, long_range, period_of_interest, spi_ts, out_format
         
         
+    def read_ref_cds_data(self, lat_range, long_range):   
+        """
+        Read reference data from S3. 
+        Slice them in the bbox range and a default reference period.
         
+        REF: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-monthly-means
+        """
+        
+        cds_ref_data = None # TODO: Read netcdf dataset from S3
+        cds_ref_data = cds_ref_data.sel(
+            lat = slice(*lat_range),
+            lon = slice(*long_range),
+            time = slice(*self.reference_period)
+        )
+        return cds_ref_data
+    
+    
+    def query_poi_cds_data(self, lat_range, long_range, period_of_interest, spi_ts):
+        """
+        Query data from CDS API based on bbox range, period of interest and time scale.
+        
+        REF: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land
+        """
+        
+        # Get (Years, Years-Months) couple for the CDS api query. (We can query just one month at time)
+        spi_start_date = period_of_interest + relativedelta(months=-spi_ts)
+        spi_years_range = list(range(spi_start_date.year, period_of_interest.year+1))
+        spi_month_range = []
+        for iy,year in enumerate(range(spi_years_range[0], spi_years_range[-1]+1)):
+            if iy==0 and len(spi_years_range)==1:
+                spi_month_range.append([month for month in range(spi_start_date.month, period_of_interest.month+1)])
+            elif iy==0 and len(spi_years_range)>1:
+                spi_month_range.append([month for month in range(spi_start_date.month, 13)])
+            elif iy>0 and iy==len(spi_years_range)-1:
+                spi_month_range.append([month for month in range(1, period_of_interest.month+1)])
+            else:
+                spi_month_range.append([month for month in range(1, 13)])
+        
+        # Build CDS query response filepath
+        def build_cds_hourly_data_filepath(year, month):
+            dataset_part = 'reanalysis_era5_land__total_precipitation__hourly'
+            bbox_part = f'{long_range[0]}_{lat_range[0]}_{long_range[1]}_{lat_range[1]}'
+            time_part = f'{year}-{month[0]:02d}_{year}-{month[-1]:02d}'
+            filename = f'{dataset_part}__{bbox_part}__{time_part}.grib'
+            filedir = os.path.join(self.temp_dir, dataset_part)
+            if not os.path.exists(filedir):
+                os.makedirs(filedir, exist_ok=True)
+            filepath = os.path.join(filedir, filename)
+            return filepath
+        
+        # CDS API query    
+        cds_poi_data_filepaths = []    
+        for year,year_months in zip(spi_years_range, spi_month_range):
+            cds_poi_data_filepath = build_cds_hourly_data_filepath(year, year_months)       
+            cds_dataset = 'reanalysis-era5-land'
+            cds_query =  {
+                'variable': 'total_precipitation',
+                'year': [str(year)],
+                'month': [f'{month:02d}' for month in year_months],
+                'day': [f'{day:02d}' for day in range(1, 32)],
+                'time': [f'{hour:02d}:00' for hour in range(0, 24)],
+                'area': [
+                    lat_range[1],   # N
+                    long_range[0],  # W
+                    lat_range[0],   # S
+                    long_range[1]   # E
+                ],
+                "data_format": "grib",
+                "download_format": "unarchived"
+            }
+            self.cds_client.retrieve(cds_dataset, cds_query, cds_poi_data_filepath)
+            cds_poi_data_filepaths.append(cds_poi_data_filepath)
+           
+        # Convert grib files to xarray dataset 
+        def grib2xr(grib_filename, grib_var_name, xr_var_name=None):
+            grib_ds = pygrib.open(grib_filename)
+            grib_ds_msgs = [msg for msg in list(grib_ds) if msg.name==grib_var_name]
+            lat_range = grib_ds_msgs[0].data()[1][:,0]
+            lon_range = grib_ds_msgs[0].data()[2][0,:]
+            var_data = []
+            times_range = []
+            for i,msg in enumerate(grib_ds_msgs):
+                values, _, _ = msg.data()
+                data = np.stack(values)
+                var_data.append(data)
+                times_range.append(msg.validDate)
+            var_dataset = np.stack(var_data)
+            xr_var_name = grib_var_name.replace(' ','_').lower() if xr_var_name is None else xr_var_name
+            xr_dataset = xr.Dataset(
+                {
+                    xr_var_name: (["time", "lat", "lon"], var_dataset)
+                },
+                coords={
+                    "time": times_range,
+                    "lat": lat_range,
+                    "lon": lon_range
+                }
+            )
+            return xr_dataset
+           
+        # Merge all the grib files in a single xarray dataset 
+        cds_poi_datasets = []
+        for cds_poi_data_filepath in cds_poi_data_filepaths:
+            cds_poi_dataset = grib2xr(cds_poi_data_filepath, grib_var_name='Total precipitation', xr_var_name='tot_prec')
+            cds_poi_datasets.append(cds_poi_dataset)
+        cds_poi_data = xr.concat(cds_poi_datasets, dim='time')
+        cds_poi_data = cds_poi_data.sortby(['time', 'lat', 'lon'])
+        
+        return cds_poi_data        
         
 
     def execute(self, data):
@@ -210,6 +337,12 @@ class IngestorCDSSPICalculationProcessor(BaseProcessor):
             
             # Validate request params
             lat_range, long_range, period_of_interest, spi_ts, out_format = self.validate_parameters(data)
+            
+            # Gather needed data (Ref + PoI)
+            ref_dataset = self.read_ref_cds_data(lat_range, long_range)
+            poi_dataset = self.query_poi_cds_data(lat_range, long_range, period_of_interest, spi_ts)
+            
+            
             
             
             outputs = {
