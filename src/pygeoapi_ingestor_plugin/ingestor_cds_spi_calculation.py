@@ -29,6 +29,8 @@
 
 import os
 import logging, time
+import datetime
+
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 LOGGER = logging.getLogger(__name__)
@@ -78,7 +80,7 @@ PROCESS_METADATA = {
         },
         'out_format': {
             'title': 'Return format type',
-            'description': 'The return format type. It could be netcdf, tif, zarr',
+            'description': 'The return format type.',
             'schema': {
             }
         }, 
@@ -134,12 +136,82 @@ class IngestorCDSSPICalculationProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
+        
+        
+    def validate_parameters(self, data):
+        """
+        Validate request parameters
+        """
+        lat_range = data.get('lat_range', None)
+        long_range = data.get('long_range', None)
+        period_of_interest = data.get('period_of_interest', None)
+        spi_ts = data.get('spi_ts', None)
+        out_format = data.get('out_format', None)
+        
+        if lat_range is None:
+            raise ProcessorExecuteError('Cannot process without a lat_range')
+        if type(lat_range) is not list or len(lat_range) != 2:
+            raise ProcessorExecuteError('lat_range must be a list of 2 elements')
+        if type(lat_range[0]) not in [int, float] or type(lat_range[1]) not in [int, float]:
+            raise ProcessorExecuteError('lat_range elements must be float')
+        if lat_range[0] < -90 or lat_range[0] > 90 or lat_range[1] < -90 or lat_range[1] > 90:
+            raise ProcessorExecuteError('lat_range elements must be in the range [-90, 90]')
+        if lat_range[0] > lat_range[1]:
+            raise ProcessorExecuteError('lat_range[0] must be less than lat_range[1]')
+        
+        if long_range is None:
+            raise ProcessorExecuteError('Cannot process without a long_range')
+        if type(long_range) is not list or len(long_range) != 2:
+            raise ProcessorExecuteError('long_range must be a list of 2 elements')
+        if type(long_range[0]) not in [int, float] or type(long_range[1]) not in [int, float]:
+            raise ProcessorExecuteError('long_range elements must be float')
+        if long_range[0] < -180 or long_range[0] > 180 or long_range[1] < -180 or long_range[1] > 180:
+            raise ProcessorExecuteError('long_range elements must be in the range [-180, 180]')
+        if long_range[0] > long_range[1]:
+            raise ProcessorExecuteError('long_range[0] must be less than long_range[1]')
+        
+        if period_of_interest is None:
+            raise ProcessorExecuteError('Cannot process without a period_of_interest valued')
+        if type(period_of_interest) is not str:
+            raise ProcessorExecuteError('period_of_interest must be a string')
+        if type(period_of_interest) is str:
+            try:
+                period_of_interest = datetime.datetime.fromisoformat(period_of_interest)
+                if period_of_interest.strftime("%Y-%m") >= datetime.datetime.now().strftime("%Y-%m"):
+                    raise ProcessorExecuteError('period_of_interest must be a date before current date month')                
+            except ValueError:
+                raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
+            
+        if spi_ts is None:
+            raise ProcessorExecuteError('Cannot process without a spi_ts valued')
+        if type(spi_ts) is not int:
+            raise ProcessorExecuteError('spi_ts must be an integer')
+        if spi_ts not in [1,3,6,12,24,48]:
+            raise ProcessorExecuteError('spi_ts must be 1,3,6,12,24,48')
+        
+        if out_format is None:
+            out_format = 'netcdf'
+        if type(out_format) is not str:
+            raise ProcessorExecuteError('out_format must be a string or null')
+        if out_format not in ['netcdf', 'json', 'dataframe', 'tif', 'zarr']:
+            raise ProcessorExecuteError('out_format must be one of ["netcdf", "json", "dataframe", "tif", "zarr"]')
+        
+        return lat_range, long_range, period_of_interest, spi_ts, out_format
+        
+        
+        
+        
 
     def execute(self, data):
 
         mimetype = 'application/json'
-
+        
         try:
+            
+            # Validate request params
+            lat_range, long_range, period_of_interest, spi_ts, out_format = self.validate_parameters(data)
+            
+            
             outputs = {
                 'status': 'OK'
             }
