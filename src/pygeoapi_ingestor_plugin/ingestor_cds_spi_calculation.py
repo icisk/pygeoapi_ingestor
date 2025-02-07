@@ -30,9 +30,12 @@
 import os
 import logging, time
 import math
+import json
+import shutil
 import datetime
 from dateutil.relativedelta import relativedelta
 import tempfile
+
 
 import numpy as np
 import pandas as pd
@@ -408,6 +411,34 @@ class IngestorCDSSPICalculationProcessor(BaseProcessor):
         )
         
         return spi_coverage
+    
+    
+    def coverage_to_out_format(self, coverage_ds, out_format):
+        """
+        Convert SPI coverage in the requested output format
+        """
+        
+        if out_format == 'netcdf':
+            return str(coverage_ds.to_netcdf())
+        if out_format == 'json':
+            return json.loads(coverage_ds.to_dataframe().reset_index().to_json(orient='records'))
+        if out_format == 'dataframe':
+            return coverage_ds.to_dataframe().reset_index().to_csv(sep=';', index=False, header=True)
+        if out_format == 'tif':
+            coverage_tif_filepath = os.path.join(self.temp_dir, 'spi_coverage.tif')
+            coverage_ds.rio.write_crs("EPSG:4326", inplace=True)
+            coverage_ds.rio.to_raster(coverage_tif_filepath)
+            with open(coverage_tif_filepath, "rb") as f:
+                tif_bytes = f.read()
+            return tif_bytes
+        if out_format == 'zarr':
+            coverage_zarr_filepath = os.path.join(self.temp_dir, 'spi_coverage.zarr')
+            coverage_zarr_zip_filepath = os.path.join(self.temp_dir, 'spi_coverage_zarr')
+            coverage_ds.to_zarr(coverage_zarr_filepath, mode="w")
+            shutil.make_archive(coverage_zarr_zip_filepath, "zip", coverage_zarr_filepath)  # Comprimo in .zip per trasmetterlo come byte
+            with open(coverage_zarr_zip_filepath, "rb") as f:
+                zarr_bytes = f.read()
+            return zarr_bytes
         
 
     def execute(self, data):
@@ -433,11 +464,13 @@ class IngestorCDSSPICalculationProcessor(BaseProcessor):
             # TODO: Save SPI coverage to collection
             
             # Convert SPI coverage in the requested output format
-            # TODO: Convert SPI coverage in the requested output format
+            out_spi_coverage = self.coverage_to_out_format(spi_coverage, out_format)
             
             outputs = {
-                'status': 'OK'
+                'status': 'OK',
+                'spi_coverage': out_spi_coverage
             }
+            
         except Exception as err:
             outputs = {
                 'status': 'KO',
