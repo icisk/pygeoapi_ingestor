@@ -29,9 +29,16 @@
 
 import os
 import logging, time
+import math
 import datetime
 from dateutil.relativedelta import relativedelta
 import tempfile
+
+import numpy as np
+import pandas as pd
+
+import scipy.stats as stats
+from scipy.special import gammainc, gamma
 
 import xarray as xr
 import pygrib
@@ -321,12 +328,86 @@ class IngestorCDSSPICalculationProcessor(BaseProcessor):
         # Merge all the grib files in a single xarray dataset 
         cds_poi_datasets = []
         for cds_poi_data_filepath in cds_poi_data_filepaths:
-            cds_poi_dataset = grib2xr(cds_poi_data_filepath, grib_var_name='Total precipitation', xr_var_name='tot_prec')
+            cds_poi_dataset = grib2xr(cds_poi_data_filepath, grib_var_name='Total precipitation', xr_var_name='tp')
             cds_poi_datasets.append(cds_poi_dataset)
         cds_poi_data = xr.concat(cds_poi_datasets, dim='time')
         cds_poi_data = cds_poi_data.sortby(['time', 'lat', 'lon'])
         
         return cds_poi_data        
+    
+    
+    def compute_timeseries_spi(monthly_data, t_scale, nt_return=1):
+        """
+        Compute SPI index for a time series of monthly data
+        
+        REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
+        REF: https://mountainscholar.org/items/842b69e8-a465-4aeb-b7ec-021703baa6af [ page 18 to 24 ]
+        """
+        
+        df = pd.DataFrame({'monthly_data': monthly_data})
+
+        # Totalled data over t_scale rolling windows
+        t_scaled_monthly_data = df.rolling(t_scale).sum().monthly_data.iloc[t_scale:]
+
+        # Gamma fitted params
+        a, _, b = stats.gamma.fit(t_scaled_monthly_data, floc=0)
+
+        # Distribuzione probabilità cumulata
+        G = lambda x: stats.gamma.cdf(x, a=a, loc=0, scale=b)
+
+        m = (t_scaled_monthly_data==0).sum()
+        n = len(t_scaled_monthly_data)
+        q = m / n # zero prob
+
+        H = lambda x: q + (1-q) * G(x) # zero correction
+
+        t = lambda Hx: math.sqrt(
+            math.log(1 /
+            (math.pow(Hx, 2) if 0<Hx<=0.5 else math.pow(1-Hx, 2))
+        ))
+
+        c0, c1, c2 = 2.515517, 0.802853, 0.010328
+        d1, d2, d3 = 1.432788, 0.189269, 0.001308
+        
+        Hxs = t_scaled_monthly_data[-t_scale:].apply(H)
+        txs = Hxs.apply(t)
+
+        Z = lambda Hx, tx: ( tx - ((c0 + c1*tx + c2*math.pow(tx,2)) / (1 + d1*tx + d2*math.pow(tx,2) + d3*math.pow(tx,3) )) ) * (-1 if 0<Hx<=0.5 else 1)
+
+        spi_t_indexes = pd.DataFrame(zip(Hxs, txs), columns=['H','t']).apply(lambda x: Z(x.H, x.t), axis=1).to_list()
+        
+        return np.array(spi_t_indexes[-nt_return]) if nt_return==1 else np.array(spi_t_indexes[-nt_return:])
+    
+    
+    def compute_coverage_spi(self, ref_dataset, poi_dataset, spi_ts):
+        """
+        Compute SPI index for each tile in a lat-lon grid datasets.
+        """
+        
+        def preprocess_ref_dataset(ref_dataset):
+            ref_dataset = ref_dataset * ref_dataset['time'].dt.days_in_month                        # Convert total precipitation to monthly total precipitation
+            return ref_dataset
+        
+        def preprocess_poi_dataset(poi_dataset):
+            poi_dataset = poi_dataset.resample(time='1M').sum()                                     # Resample to monthly total data
+            poi_dataset = poi_dataset.assign_coords(time=poi_dataset.time.dt.strftime('%Y-%m-01'))  # Set month day to 01
+            poi_dataset = poi_dataset.assign_coords(time=pd.to_datetime(poi_dataset.time))
+            poi_dataset['tp'] = poi_dataset['tp'] / 12                                              # Convert total precipitation to monthly average precipitation 
+            return poi_dataset        
+        
+        ref_dataset = preprocess_ref_dataset(ref_dataset)
+        poi_dataset = preprocess_poi_dataset(poi_dataset)
+        
+        cov_ts_dataset = xr.concat([ref_dataset, poi_dataset], dim='time')
+        cov_ts_dataset = cov_ts_dataset.drop_duplicates(dim='time').sortby(['time', 'lat', 'lon'])
+        
+        spi_coverage = xr.apply_ufunc(
+            lambda tile_timeseries: self.compute_timeseries_spi(tile_timeseries, t_scale=spi_ts, nt_return=1), cov_ts_dataset.tot_prec.sortby('time'),
+            input_core_dims = [['time']],
+            vectorize = True
+        )
+        
+        return spi_coverage
         
 
     def execute(self, data):
@@ -342,8 +423,17 @@ class IngestorCDSSPICalculationProcessor(BaseProcessor):
             ref_dataset = self.read_ref_cds_data(lat_range, long_range)
             poi_dataset = self.query_poi_cds_data(lat_range, long_range, period_of_interest, spi_ts)
             
+            # Compute SPI coverage
+            spi_coverage = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
+            # Save SPI coverage to file
+            # TODO: Save SPI coverage to S3
             
+            # Savet SPI coverage to collection
+            # TODO: Save SPI coverage to collection
+            
+            # Convert SPI coverage in the requested output format
+            # TODO: Convert SPI coverage in the requested output format
             
             outputs = {
                 'status': 'OK'
