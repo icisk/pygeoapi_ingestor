@@ -181,7 +181,7 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
         res_res = res_res.rename({'prAdjust': 'delta_precip_def'})
         percentiles = res_res.quantile([0.2, 0.5, 0.8], dim=["epoches"])
 
-        return(percentiles)
+        return(percentiles, res_res)
 
     def execute(self, data):
         mimetype = 'application/json'
@@ -223,7 +223,10 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
 
         if download_fc:
             LOGGER.debug(f'download from ftp')
-            forecast_xr = self.download_and_process(latest_fc_path)
+            #TODO: remove sj data from here and return in func download and process
+            forecast_xr, s_j_data = self.download_and_process(latest_fc_path)
+            store2 = s3fs.S3Map(root="s3://52n-i-cisk/data-ingestor/sj_data.zarr", s3=s3, check=False)
+            s_j_data.to_zarr(store=store2, consolidated=True, mode='w')
 
 
             LOGGER.debug(f'upload to otc')
