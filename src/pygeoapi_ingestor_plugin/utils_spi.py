@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from rasterio.enums import Resampling
+
 import scipy.stats as stats
 from scipy.special import gammainc, gamma
 
@@ -273,7 +275,15 @@ def save_coverage_to_s3(coverage_ds, coverage_uri):
     coverage_tif_filepath = os.path.join(_temp_dir, coverage_tif_filename)
     coverage_ds.rio.write_crs("EPSG:4326", inplace=True)
     coverage_ds.rio.set_spatial_dims(x_dim='lon', y_dim='lat', inplace=True)
-    coverage_ds.rio.to_raster(coverage_tif_filepath)
+    coverage_ds.rio.to_raster(
+        raster_path = coverage_tif_filepath,
+        driver = "COG",
+        compress = "DEFLATE",
+        dtype = "float32",
+        tiled = True,
+        blocksize = 256,
+        overview_resampling = Resampling.average
+    )
     
     save_s3_status = s3_utils.s3_upload(
         filename = coverage_tif_filepath,
@@ -300,7 +310,15 @@ def coverage_to_out_format(coverage_ds, out_format):
         coverage_tif_filepath = os.path.join(_temp_dir, 'spi_coverage.tif')
         coverage_ds.rio.write_crs("EPSG:4326", inplace=True)
         coverage_ds.rio.set_spatial_dims(x_dim='lon', y_dim='lat', inplace=True)
-        coverage_ds.rio.to_raster(coverage_tif_filepath)
+        coverage_ds.rio.to_raster(
+            raster_path = coverage_tif_filepath,
+            driver = "COG",
+            compress = "DEFLATE",
+            dtype = "float32",
+            tiled = True,
+            blocksize = 256,
+            overview_resampling = Resampling.average
+        )
         with open(coverage_tif_filepath, "rb") as f:
             tif_bytes = f.read()
         coverage_out = str(tif_bytes)
