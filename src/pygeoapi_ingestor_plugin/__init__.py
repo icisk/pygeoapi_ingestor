@@ -9,4 +9,5 @@ from .ingestor_knmi_evapo_fc import IngestorKNMIobsforecastProcessProcessor
 from .ingestor_ll_gpkg_process import IngestorLLGPKGProcessProcessor
 from .ingestor_smhi_process import IngestorSMHIProcessProcessor
 from .ingestor_smhi_process_vector import IngestorSMHIVectorProcessProcessor
+from .ingestor_cds_spi_historic_process import IngestorCDSSPIHistoricProcessProcessor
 from .utils import write_config, read_config, download_source, cleanup_data_temp
