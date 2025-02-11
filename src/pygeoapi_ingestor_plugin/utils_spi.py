@@ -92,7 +92,7 @@ def validate_parameters(data, data_type):
     def validate_period_of_interest_historic(period_of_interest):
         if period_of_interest is None:
             raise ProcessorExecuteError('Cannot process without a period_of_interest valued')
-        if type(period_of_interest) not in  str:
+        if type(period_of_interest) is not str:
             raise ProcessorExecuteError('period_of_interest must be a string')
         if type(period_of_interest) is str:
             try:
