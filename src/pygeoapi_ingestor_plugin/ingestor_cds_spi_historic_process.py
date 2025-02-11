@@ -465,7 +465,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             return poi_dataset        
         
         ref_dataset = preprocess_ref_dataset(ref_dataset)
-        poi_dataset = preprocess_poi_dataset(poi_dataset).interp(lat=ref_dataset.lat, lon=ref_dataset.lon)
+        poi_dataset = preprocess_poi_dataset(poi_dataset).interp(lat=ref_dataset.lat, lon=ref_dataset.lon, method='linear')
         
         cov_ts_dataset = xr.concat([ref_dataset, poi_dataset], dim='time')
         cov_ts_dataset = cov_ts_dataset.drop_duplicates(dim='time').sortby(['time', 'lat', 'lon'])
@@ -557,7 +557,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             ref_dataset = self.read_ref_cds_data(living_lab, lat_range, long_range)
             poi_dataset = self.query_poi_cds_data(living_lab, lat_range, long_range, period_of_interest, spi_ts)
             
-            # # Compute SPI coverage
+            # Compute SPI coverage
             spi_coverage = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
             # Save SPI coverage to file
