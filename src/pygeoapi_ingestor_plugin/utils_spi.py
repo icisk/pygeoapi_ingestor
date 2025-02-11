@@ -9,6 +9,7 @@ import tempfile
 import numpy as np
 import pandas as pd
 import xarray as xr
+import pygrib
 
 from rasterio.enums import Resampling
 
@@ -163,6 +164,34 @@ def validate_parameters(data, data_type):
     
     LOGGER.debug('parameters validated')
     return living_lab, lat_range, long_range, period_of_interest, spi_ts, out_format
+
+
+
+def grib2xr(grib_filename, grib_var_name, xr_var_name=None):
+    grib_ds = pygrib.open(grib_filename)
+    grib_ds_msgs = [msg for msg in list(grib_ds) if msg.name==grib_var_name]
+    lat_range = grib_ds_msgs[0].data()[1][:,0]
+    lon_range = grib_ds_msgs[0].data()[2][0,:]
+    var_data = []
+    times_range = []
+    for i,msg in enumerate(grib_ds_msgs):
+        values, _, _ = msg.data()
+        data = np.stack(values)
+        var_data.append(data)
+        times_range.append(msg.validDate)
+    var_dataset = np.stack(var_data)
+    xr_var_name = grib_var_name.replace(' ','_').lower() if xr_var_name is None else xr_var_name
+    xr_dataset = xr.Dataset(
+        {
+            xr_var_name: (["time", "lat", "lon"], var_dataset)
+        },
+        coords={
+            "time": times_range,
+            "lat": lat_range,
+            "lon": lon_range
+        }
+    )
+    return xr_dataset
 
 
 

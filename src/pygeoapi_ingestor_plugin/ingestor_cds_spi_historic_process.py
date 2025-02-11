@@ -257,37 +257,10 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             LOGGER.debug(f'{q_idx+1}/{len(spi_years_range)} - CDS API query completed')            
             cds_poi_data_filepaths.append(cds_poi_data_filepath)
            
-        # Convert grib files to xarray dataset 
-        def grib2xr(grib_filename, grib_var_name, xr_var_name=None):
-            grib_ds = pygrib.open(grib_filename)
-            grib_ds_msgs = [msg for msg in list(grib_ds) if msg.name==grib_var_name]
-            lat_range = grib_ds_msgs[0].data()[1][:,0]
-            lon_range = grib_ds_msgs[0].data()[2][0,:]
-            var_data = []
-            times_range = []
-            for i,msg in enumerate(grib_ds_msgs):
-                values, _, _ = msg.data()
-                data = np.stack(values)
-                var_data.append(data)
-                times_range.append(msg.validDate)
-            var_dataset = np.stack(var_data)
-            xr_var_name = grib_var_name.replace(' ','_').lower() if xr_var_name is None else xr_var_name
-            xr_dataset = xr.Dataset(
-                {
-                    xr_var_name: (["time", "lat", "lon"], var_dataset)
-                },
-                coords={
-                    "time": times_range,
-                    "lat": lat_range,
-                    "lon": lon_range
-                }
-            )
-            return xr_dataset
-           
         # Merge all the grib files in a single xarray dataset 
         cds_poi_datasets = []
         for cds_poi_data_filepath in cds_poi_data_filepaths:
-            cds_poi_dataset = grib2xr(cds_poi_data_filepath, grib_var_name='Total precipitation', xr_var_name='tp')
+            cds_poi_dataset = spi_utils.grib2xr(cds_poi_data_filepath, grib_var_name='Total precipitation', xr_var_name='tp')
             cds_poi_datasets.append(cds_poi_dataset)
         cds_poi_data = xr.concat(cds_poi_datasets, dim='time')
         cds_poi_data = cds_poi_data.sortby(['time', 'lat', 'lon'])
