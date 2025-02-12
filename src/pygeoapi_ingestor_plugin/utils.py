@@ -1,4 +1,5 @@
 import datetime
+from calendar import monthrange
 import fcntl
 from ftplib import FTP
 import fsspec
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 # ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 # logger.addHandler(ch)
 
+
+def days_in_month(date):
+    return monthrange(date.year, date.month)[1]
 
 # Create a representer for NumPy arrays
 def numpy_array_representer(dumper, data):
