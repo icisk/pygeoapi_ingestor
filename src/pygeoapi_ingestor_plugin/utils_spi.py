@@ -19,6 +19,7 @@ from scipy.special import gammainc, gamma
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
+import pygeoapi_ingestor_plugin.utils as utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -104,6 +105,21 @@ def validate_parameters(data, data_type):
                     raise ProcessorExecuteError('period_of_interest must be a date before current date month')                
             except ValueError:
                 raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
+        if type(period_of_interest) is list:
+            if len(period_of_interest) != 2:
+                raise ProcessorExecuteError('period_of_interest list must have 2 elements')
+            for poi in period_of_interest:
+                try:
+                    poi = datetime.datetime.fromisoformat(poi)
+                    if poi.strftime("%Y-%m") >= datetime.datetime.now().strftime("%Y-%m"):
+                        raise ProcessorExecuteError('period_of_interest must be a date before current date month')                
+                except ValueError:
+                    raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
+            period_of_interest = [datetime.datetime.fromisoformat(poi) for poi in period_of_interest]
+            if period_of_interest[0] >= period_of_interest[1]:
+                raise ProcessorExecuteError('period_of_interest[0] must be less than period_of_interest[1]')
+            if period_of_interest[0].strftime("%Y-%m") == period_of_interest[1].strftime("%Y-%m"):
+                raise ProcessorExecuteError('period_of_interest[0] and period_of_interest[1] must be in different months')
         return period_of_interest
     
     def validate_period_of_interest_forecast(period_of_interest):
@@ -166,6 +182,23 @@ def validate_parameters(data, data_type):
     
     LOGGER.debug('parameters validated')
     return living_lab, lat_range, long_range, period_of_interest, spi_ts, out_format
+
+
+
+def format_params_for_poi_cds_query(living_lab, lat_range, long_range, period_of_interest):
+    lat_range = lat_range if lat_range is not None else [_living_lab_bbox[living_lab][1], _living_lab_bbox[living_lab][3]]
+    long_range = long_range if long_range is not None else [_living_lab_bbox[living_lab][0], _living_lab_bbox[living_lab][2]]
+    if len(period_of_interest) == 1:
+        period_of_interest = [
+            period_of_interest[0].date().replace(day=1),
+            period_of_interest[0].date().replace(day=utils.days_in_month(period_of_interest[0]))
+        ]
+    else:
+        period_of_interest = [
+            period_of_interest[0].date().replace(day=1),
+            period_of_interest[1].date().replace(day=utils.days_in_month(period_of_interest[1]))
+        ]
+    return lat_range, long_range, period_of_interest
 
 
 
@@ -277,7 +310,13 @@ def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
         
         return np.array(spi_t_indexes[-nt_return]) if nt_return==1 else np.array(spi_t_indexes[-nt_return:])
     
-    
+
+
+def build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts):
+    s3_uris = []
+    for period_of_interest in periods_of_interest:
+        s3_uris.append(build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_ts, data_type='forecast'))
+    return s3_uris
     
 def build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_ts, data_type):
     lat_range = lat_range if lat_range is not None else [_living_lab_bbox[living_lab][1], _living_lab_bbox[living_lab][3]]
@@ -297,6 +336,10 @@ def build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_
     return s3_uri 
 
 
+
+def save_coverages_to_s3(coverages, s3_uris):
+    for coverage, s3_uri in zip(coverages, s3_uris):
+        _ = save_coverage_to_s3(coverage, s3_uri)
 
 def save_coverage_to_s3(coverage_ds, coverage_uri):
     """
@@ -322,6 +365,14 @@ def save_coverage_to_s3(coverage_ds, coverage_uri):
         uri = coverage_uri
     )
     return save_s3_status
+
+
+
+def coverages_to_out_format(coverages, out_format):
+    out_coverages = []
+    for coverage in coverages:
+        out_coverages.append(coverage_to_out_format(coverage, out_format))
+    return out_coverages
 
 def coverage_to_out_format(coverage_ds, out_format):
     """
@@ -365,3 +416,20 @@ def coverage_to_out_format(coverage_ds, out_format):
     return coverage_out
     
     
+    
+def build_output_response(periods_of_interest, out_spi_coverages, spi_coverage_s3_uris):
+    return {
+        'spi_coverage_info': [
+            {
+                'period_of_interest': period_of_interest.strftime('%Y-%m'),
+                'spi_coverage_s3_uri': spi_coverage_s3_uri,
+                'spi_coverage_data': out_spi_coverage
+            } 
+            for period_of_interest, out_spi_coverage, spi_coverage_s3_uri 
+            in zip(
+                periods_of_interest,
+                out_spi_coverages,
+                spi_coverage_s3_uris
+            )
+        ]
+    }

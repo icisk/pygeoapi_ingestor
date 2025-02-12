@@ -52,6 +52,7 @@ from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
 import pygeoapi_ingestor_plugin.utils_spi as spi_utils
+import pygeoapi_ingestor_plugin.utils as utils
 
 
 LOGGER = logging.getLogger(__name__)
@@ -185,21 +186,8 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         REF: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land
         """
         
-        days_in_month = lambda date: monthrange(date.year, date.month)[1]
-        
-        lat_range = lat_range if lat_range is not None else [spi_utils._living_lab_bbox[living_lab][1], spi_utils._living_lab_bbox[living_lab][3]]
-        long_range = long_range if long_range is not None else [spi_utils._living_lab_bbox[living_lab][0], spi_utils._living_lab_bbox[living_lab][2]]
-        
-        if len(period_of_interest) == 1:
-            period_of_interest = [
-                period_of_interest[0].date().replace(day=1),
-                period_of_interest[0].date().replace(day=days_in_month(period_of_interest[0]))
-            ]
-        else:
-            period_of_interest = [
-                period_of_interest[0].date().replace(day=1),
-                period_of_interest[1].date().replace(day=days_in_month(period_of_interest[1]))
-            ]
+        # Format params for CDS API query
+        lat_range, long_range, period_of_interest = spi_utils.format_params_for_poi_cds_query(lat_range, long_range, period_of_interest)    
         
         # Build CDS query response filepath
         def build_cds_hourly_data_filepath(start_year, start_month, end_year, end_month):            
@@ -306,26 +294,6 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         
         LOGGER.debug('SPI coverage computed')
         return periods_of_interest, month_spi_coverages  
-    
-    
-    def build_spi_s3_uris(self, living_lab, lat_range, long_range, periods_of_interest, spi_ts):
-        s3_uris = []
-        for period_of_interest in periods_of_interest:
-            s3_uris.append(spi_utils.build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_ts, data_type='forecast'))
-        return s3_uris
-    
-    
-    def save_coverages_to_s3(self, coverages, s3_uris):
-        for coverage, s3_uri in zip(coverages, s3_uris):
-            _ = spi_utils.save_coverage_to_s3(coverage, s3_uri)
-            
-    
-    def coverages_to_out_format(self, coverages, out_format):
-        out_coverages = []
-        for coverage in coverages:
-            out_coverages.append(spi_utils.coverage_to_out_format(coverage, out_format))
-        return out_coverages
-        
         
     
     def execute(self, data):
@@ -343,30 +311,22 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             # Compute SPI coverage
             periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
-            # # INFO: just for test
-            # for p,c in zip(periods_of_interest, month_spi_coverages):
-            #     c.to_netcdf(os.path.join(spi_utils._temp_dir, f'{p}.nc'))
-            
             # Save SPI coverage to file
-            spi_coverage_s3_uris = self.build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts)
-            self.save_coverages_to_s3(month_spi_coverages, spi_coverage_s3_uris)
+            spi_coverage_s3_uris = spi_utils.build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts)
+            spi_utils.save_coverages_to_s3(month_spi_coverages, spi_coverage_s3_uris)
             
             # Save SPI coverage to collection
             # TODO: (Maybe) Save SPI coverage to collection
             
             # Convert SPI coverage in the requested output format
-            out_spi_coverages = self.coverages_to_out_format(month_spi_coverages, out_format)
+            out_spi_coverages = spi_utils.coverages_to_out_format(month_spi_coverages, out_format)
+            
+            # Build output response with spi coverage data infos
+            spi_coverage_response_info = spi_utils.build_output_response(periods_of_interest, out_spi_coverages, spi_coverage_s3_uris)
             
             outputs = {
                 'status': 'OK',
-                'spi_coverage_info': [
-                    {
-                        'period_of_interest': period_of_interest.strftime('%Y-%m'),
-                        'spi_coverage_s3_uri': spi_coverage_s3_uris[poi_idx],
-                        'spi_coverage_data': out_spi_coverages[poi_idx]
-                    } 
-                    for poi_idx, period_of_interest in enumerate(periods_of_interest)
-                ]
+                ** spi_coverage_response_info
             }
             
         except Exception as err:
