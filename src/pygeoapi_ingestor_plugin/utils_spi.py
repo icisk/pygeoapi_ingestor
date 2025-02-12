@@ -25,6 +25,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 _temp_dir = os.path.join(tempfile.gettempdir(), 'IngestorCDSSPIProcessProcessor')
+if not os.path.exists(_temp_dir):
+    os.makedirs(_temp_dir, exist_ok=True)
 
 _reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 31))  # REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
 
@@ -93,8 +95,8 @@ def validate_parameters(data, data_type):
     def validate_period_of_interest_historic(period_of_interest):
         if period_of_interest is None:
             raise ProcessorExecuteError('Cannot process without a period_of_interest valued')
-        if type(period_of_interest) is not str:
-            raise ProcessorExecuteError('period_of_interest must be a string')
+        if type(period_of_interest) not in [str, list]:
+            raise ProcessorExecuteError('period_of_interest must be a string or a list')
         if type(period_of_interest) is str:
             try:
                 period_of_interest = datetime.datetime.fromisoformat(period_of_interest)
@@ -152,8 +154,8 @@ def validate_parameters(data, data_type):
         raise ProcessorExecuteError('Cannot process without a spi_ts valued')
     if type(spi_ts) is not int:
         raise ProcessorExecuteError('spi_ts must be an integer')
-    if spi_ts not in [1,3,6,12,24,48]:
-        raise ProcessorExecuteError('spi_ts must be 1,3,6,12,24,48')
+    if spi_ts not in [1]: # TODO: timescales [3,6,12,24,48] to be implemented
+        raise ProcessorExecuteError('spi_ts must be 1. Other values are not supported yet')
     
     if out_format is None:
         out_format = 'netcdf'
@@ -243,7 +245,8 @@ def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
         df = pd.DataFrame({'monthly_data': monthly_data})
 
         # Totalled data over t_scale rolling windows
-        t_scaled_monthly_data = df.rolling(spi_ts).sum().monthly_data.iloc[spi_ts:]
+        if spi_ts > 1:
+            t_scaled_monthly_data = df.rolling(spi_ts).sum().monthly_data.iloc[spi_ts:]
 
         # Gamma fitted params
         a, _, b = stats.gamma.fit(t_scaled_monthly_data, floc=0)
@@ -320,15 +323,13 @@ def save_coverage_to_s3(coverage_ds, coverage_uri):
     )
     return save_s3_status
 
-
-
 def coverage_to_out_format(coverage_ds, out_format):
     """
     Convert SPI coverage in the requested output format
     """
     
     coverage_out = None
-    
+
     if out_format == 'netcdf':
         coverage_out = str(coverage_ds.to_netcdf())
     if out_format == 'json':

@@ -43,6 +43,8 @@ setuptools.setup(
         "shyaml",
         "tifffile",
         "xarray==2024.1.0",
-        "zarr"
+        "zarr",
+        "pygrib",
+        "boto3"
     ]
 )

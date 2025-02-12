@@ -4,28 +4,37 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ./config.yml:/pygeoapi/local.config.yml
+      - ./config.k8s.yml:/pygeoapi/local.config.yml
     ports:
       - "5000:80"
     environment:
-      - DEFAULT_BUCKET=
-      - DEFAULT_REMOTE_DIR=
-      - FSSPEC_S3_ENDPOINT_URL=
-      - FSSPEC_S3_KEY=
-      - FSSPEC_S3_SECRET=
+      - FSSPEC_S3_ENDPOINT_URL=https://s3.us-east-1.amazonaws.com
+      - FSSPEC_S3_KEY=AKIA5D4NBVNJSASKWGCC
+      - FSSPEC_S3_SECRET=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
+      - DEFAULT_BUCKET=saferplaces.co
+      - DEFAULT_REMOTE_DIR=test/icisk/
+      - S3_ANON_ACCESS=False
+      - CDSAPI_KEY=d08c3547-5017-4630-820f-57bb784f4973
+      - FTP_HOST=ftp.smhi.se
+      - FTP_DIR=living_labs
+      - FTP_USER=icisk
+      - FTP_PASS=cDiV2WJH4NT1Agip
+      - API_ROOT=http://localhost:5000/
       - INT_API_TOKEN=token
       - PYGEOAPI_CONFIG=/pygeoapi/local.config.yml
       - PYGEOAPI_SERV_CONFIG=/pygeoapi/local.config.yml
-  trigger_test:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    entrypoint:
-      - "/bin/bash"
-    command: |
-      -c 'python3 /pygeoapi/src/invoke/invoke_ingestor.py /invoke-input.json'
-    environment:
-      - API_ROOT=http://pygeoapi/
-      - INT_API_TOKEN=token
-    volumes:
-    - ./creaf-ingest-input.json:/invoke-input.json
+      - AWS_ACCESS_KEY_ID=AKIA5D4NBVNJSASKWGCC
+      - AWS_SECRET_ACCESS_KEY=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
+  # trigger_test:
+    # build:
+      # context: .
+      # dockerfile: Dockerfile
+    # entrypoint:
+      # - "/bin/bash"
+    # command: |
+      # -c 'python3 /pygeoapi/src/invoke/invoke_ingestor.py /invoke-input.json'
+    # environment:
+      # - API_ROOT=http://pygeoapi/
+      # - INT_API_TOKEN=token
+    # volumes:
+    # - ./creaf-ingest-input.json:/invoke-input.json
