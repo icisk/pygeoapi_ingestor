@@ -177,20 +177,6 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         )
         
         
-        # spi_utils._living_lab_bbox = {
-        #     'georgia': [45.196243, 41.120975, 46.736885, 42.115760]
-        # }
-        
-        # spi_utils._s3_bucket = f's3://saferplaces.co/test/icisk/spi/'
-        # spi_utils._living_lab_s3_ref_data = {
-        #     'georgia': os.path.join(spi_utils._s3_bucket, 'reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2025.nc')
-        # }
-        
-        # self.reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 31)) # REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
-        
-        # spi_utils._temp_dir = os.path.join(tempfile.gettempdir(), 'IngestorCDSSPIProcessProcessor')
-        
-        
             
     def query_poi_cds_data(self, living_lab, lat_range, long_range, period_of_interest, spi_ts):
         """
