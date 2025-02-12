@@ -99,9 +99,9 @@ PROCESS_METADATA = {
             'schema': {
             }
         },
-        'spi_ts': {
+        'spi_ts': { # TODO: to be implemented in future timescales greater than 1 month
             'title': 'SPI timescale',
-            'description': 'Time scale for the SPI calculation (SPI is calculated for each month with a moving window of selected time-length). It could be 1,3,6,12,24,48 months',
+            'description': 'Time scale for the SPI calculation (SPI is calculated for each month with a moving window of selected time-length). "1" for 1 month. Greater timescales are not yet implemented.',
             'schema': {
             }
         },
@@ -176,22 +176,6 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             url = 'https://cds.climate.copernicus.eu/api',
             key = 'b6c439dd-22d4-4b39-bbf7-9e6e57d9ae0d' # TODO: os.getenv('CDSAPI_KEY')
         )
-        
-        
-        self.living_lab_bbox = {
-            'georgia': [45.196243, 41.120975, 46.736885, 42.115760]
-        }
-        
-        self.s3_bucket = f's3://saferplaces.co/test/icisk/spi/'
-        self.living_lab_s3_ref_data = {
-            'georgia': os.path.join(self.s3_bucket, 'reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2025.nc')
-        }
-        
-        self.reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 31)) # REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
-        
-        self.temp_dir = os.path.join(tempfile.gettempdir(), 'IngestorCDSSPIProcessProcessor')
-        if not os.path.exists(self.temp_dir):
-            os.makedirs(self.temp_dir, exist_ok=True)
             
             
     def query_poi_cds_data(self, living_lab, lat_range, long_range, period_of_interest, spi_ts):
@@ -203,8 +187,8 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         
         days_in_month = lambda date: monthrange(date.year, date.month)[1]
         
-        lat_range = lat_range if lat_range is not None else [self.living_lab_bbox[living_lab][1], self.living_lab_bbox[living_lab][3]]
-        long_range = long_range if long_range is not None else [self.living_lab_bbox[living_lab][0], self.living_lab_bbox[living_lab][2]]
+        lat_range = lat_range if lat_range is not None else [spi_utils._living_lab_bbox[living_lab][1], spi_utils._living_lab_bbox[living_lab][3]]
+        long_range = long_range if long_range is not None else [spi_utils._living_lab_bbox[living_lab][0], spi_utils._living_lab_bbox[living_lab][2]]
         
         if len(period_of_interest) == 1:
             period_of_interest = [
@@ -358,6 +342,10 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             
             # Compute SPI coverage
             periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
+            
+            # # INFO: just for test
+            # for p,c in zip(periods_of_interest, month_spi_coverages):
+            #     c.to_netcdf(os.path.join(spi_utils._temp_dir, f'{p}.nc'))
             
             # Save SPI coverage to file
             spi_coverage_s3_uris = self.build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts)

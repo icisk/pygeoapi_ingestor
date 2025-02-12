@@ -38,7 +38,7 @@ server:
     bind:
         host: 0.0.0.0
         port: 80
-    url: https://i-cisk.dev.52north.org/data/
+    url: http://localhost:5000/ # https://i-cisk.dev.52north.org/data/
     mimetype: application/json; charset=UTF-8
     encoding: utf-8
     gzip: false
@@ -127,3 +127,13 @@ resources:
   #   processor:
   #     name: pygeoapi_ingestor_plugin.IngestorPlanetaryProcessProcessor
   #   type: process
+
+  ingestor-cds-spi-historic-process:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorCDSSPIHistoricProcessProcessor
+    type: process
+
+  ingestor-cds-spi-forecast-process:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorCDSSPIForecastProcessProcessor
+    type: process

@@ -177,20 +177,19 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         )
         
         
-        self.living_lab_bbox = {
-            'georgia': [45.196243, 41.120975, 46.736885, 42.115760]
-        }
+        # spi_utils._living_lab_bbox = {
+        #     'georgia': [45.196243, 41.120975, 46.736885, 42.115760]
+        # }
         
-        self.s3_bucket = f's3://saferplaces.co/test/icisk/spi/'
-        self.living_lab_s3_ref_data = {
-            'georgia': os.path.join(self.s3_bucket, 'reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2025.nc')
-        }
+        # spi_utils._s3_bucket = f's3://saferplaces.co/test/icisk/spi/'
+        # spi_utils._living_lab_s3_ref_data = {
+        #     'georgia': os.path.join(spi_utils._s3_bucket, 'reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2025.nc')
+        # }
         
-        self.reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 31)) # REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
+        # self.reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 31)) # REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
         
-        self.temp_dir = os.path.join(tempfile.gettempdir(), 'IngestorCDSSPIProcessProcessor')
-        if not os.path.exists(self.temp_dir):
-            os.makedirs(self.temp_dir, exist_ok=True)
+        # spi_utils._temp_dir = os.path.join(tempfile.gettempdir(), 'IngestorCDSSPIProcessProcessor')
+        
         
             
     def query_poi_cds_data(self, living_lab, lat_range, long_range, period_of_interest, spi_ts):
@@ -200,8 +199,8 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         REF: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land
         """
         
-        lat_range = lat_range if lat_range is not None else [self.living_lab_bbox[living_lab][1], self.living_lab_bbox[living_lab][3]]
-        long_range = long_range if long_range is not None else [self.living_lab_bbox[living_lab][0], self.living_lab_bbox[living_lab][2]]
+        lat_range = lat_range if lat_range is not None else [spi_utils._living_lab_bbox[living_lab][1], spi_utils._living_lab_bbox[living_lab][3]]
+        long_range = long_range if long_range is not None else [spi_utils._living_lab_bbox[living_lab][0], spi_utils._living_lab_bbox[living_lab][2]]
         
         
         # Get (Years, Years-Months) couple for the CDS api query. (We can query just one month at time)
@@ -221,10 +220,10 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         # Build CDS query response filepath
         def build_cds_hourly_data_filepath(year, month):
             dataset_part = 'reanalysis_era5_land__total_precipitation__hourly'
-            bbox_part = f'{long_range[0]}_{lat_range[0]}_{long_range[1]}_{lat_range[1]}' if [long_range[0],lat_range[0],long_range[1],lat_range[1]] != self.living_lab_bbox[living_lab] else f'{living_lab}'
+            bbox_part = f'{long_range[0]}_{lat_range[0]}_{long_range[1]}_{lat_range[1]}' if [long_range[0],lat_range[0],long_range[1],lat_range[1]] != spi_utils._living_lab_bbox[living_lab] else f'{living_lab}'
             time_part = f'{year}-{month[0]:02d}_{year}-{month[-1]:02d}'
             filename = f'{dataset_part}__{bbox_part}__{time_part}.grib'
-            filedir = os.path.join(self.temp_dir, dataset_part)
+            filedir = os.path.join(spi_utils._temp_dir, dataset_part)
             if not os.path.exists(filedir):
                 os.makedirs(filedir, exist_ok=True)
             filepath = os.path.join(filedir, filename)

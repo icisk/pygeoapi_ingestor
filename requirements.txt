@@ -18,3 +18,5 @@ shyaml
 tifffile
 xarray==2024.7.0
 zarr
+pygrib
+boto3
