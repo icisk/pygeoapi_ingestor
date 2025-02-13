@@ -187,7 +187,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         """
         
         # Format params for CDS API query
-        lat_range, long_range, period_of_interest = spi_utils.format_params_for_poi_cds_query(lat_range, long_range, period_of_interest)    
+        lat_range, long_range, period_of_interest = spi_utils.format_params_for_poi_cds_query(living_lab, lat_range, long_range, period_of_interest)    
         
         # Build CDS query response filepath
         def build_cds_hourly_data_filepath(start_year, start_month, end_year, end_month):            
@@ -202,9 +202,9 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             return filepath
         
         # CDS API query    
-        init_date = datetime.datetime.now()
-        start_hour = max(24, (period_of_interest[0] - init_date.date()).days*24)
-        end_hour = min(5160, (period_of_interest[1] - period_of_interest[0]).days*24)
+        init_date = datetime.datetime.now().date().replace(day=1)
+        start_hour = max(24, (period_of_interest[0] - init_date).days*24)
+        end_hour = min(5160, (period_of_interest[1] - period_of_interest[0]).days*24 + start_hour)
 
         cds_poi_data_filepath = build_cds_hourly_data_filepath(period_of_interest[0].year, period_of_interest[0].month, period_of_interest[1].year, period_of_interest[1].month)       
                 
@@ -242,6 +242,8 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
                 'lon': cds_poi_data.longitude.values
             }
         )
+        cds_poi_data = cds_poi_data.sortby(['time', 'lat', 'lon'])
+        cds_poi_data = cds_poi_data.sel(time=(cds_poi_data.time.dt.date>=period_of_interest[0]) & (cds_poi_data.time.dt.date<=period_of_interest[1]))
         
         LOGGER.debug('period of interest data read')
         return cds_poi_data      
@@ -312,7 +314,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
             # Save SPI coverage to file
-            spi_coverage_s3_uris = spi_utils.build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts)
+            spi_coverage_s3_uris = spi_utils.build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts, data_type='forecast')
             spi_utils.save_coverages_to_s3(month_spi_coverages, spi_coverage_s3_uris)
             
             # Save SPI coverage to collection
