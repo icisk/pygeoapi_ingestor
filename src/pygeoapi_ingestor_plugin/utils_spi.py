@@ -105,7 +105,8 @@ def validate_parameters(data, data_type):
                     raise ProcessorExecuteError('period_of_interest must be a date before current date month')                
             except ValueError:
                 raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
-        if type(period_of_interest) is list:
+            period_of_interest = [period_of_interest]
+        elif type(period_of_interest) is list:
             if len(period_of_interest) != 2:
                 raise ProcessorExecuteError('period_of_interest list must have 2 elements')
             for poi in period_of_interest:
@@ -137,7 +138,8 @@ def validate_parameters(data, data_type):
                     raise ProcessorExecuteError('period_of_interest must be within 6 months from current date')              
             except ValueError:
                 raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
-        if type(period_of_interest) is list:
+            period_of_interest = [period_of_interest]
+        elif type(period_of_interest) is list:
             if len(period_of_interest) != 2:
                 raise ProcessorExecuteError('period_of_interest list must have 2 elements')
             for poi in period_of_interest:
@@ -280,6 +282,8 @@ def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
         # Totalled data over t_scale rolling windows
         if spi_ts > 1:
             t_scaled_monthly_data = df.rolling(spi_ts).sum().monthly_data.iloc[spi_ts:]
+        else:
+            t_scaled_monthly_data = df.monthly_data
 
         # Gamma fitted params
         a, _, b = stats.gamma.fit(t_scaled_monthly_data, floc=0)
@@ -312,10 +316,10 @@ def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
     
 
 
-def build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts):
+def build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts, data_type):
     s3_uris = []
     for period_of_interest in periods_of_interest:
-        s3_uris.append(build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_ts, data_type='forecast'))
+        s3_uris.append(build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_ts, data_type))
     return s3_uris
     
 def build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_ts, data_type):
