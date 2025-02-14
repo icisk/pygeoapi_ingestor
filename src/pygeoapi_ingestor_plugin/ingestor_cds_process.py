@@ -38,6 +38,7 @@ from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 import os
 import s3fs
 from datetime import datetime, timedelta, timezone
+from pygeoapi_ingestor_plugin.utils_azure import upload_file_to_azure
 import xarray as xr
 import json
 import tempfile
@@ -175,7 +176,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         mimetype = 'application/json'
 
         # Extract parameters
-        service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval = self._extract_parameters(data)
+        service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab = self._extract_parameters(data)
 
         # Validate input
         self._validate_inputs(service, dataset, query, self.token)
@@ -185,7 +186,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         logger.info(f"Using anon S3 access? '{s3_is_anon_access}'")
 
         # Set up output paths
-        zarr_out, s3_save = self._setup_output_paths(zarr_out, s3_save, dataset)
+        zarr_out, s3_save = self._setup_output_paths(zarr_out, s3_save, dataset, living_lab)
 
         # Check if S3 path already exists
         msg = self._check_s3_path_exists(zarr_out, dataset, s3_is_anon_access)
@@ -198,7 +199,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if data is None:
             return mimetype, {'id': self.id, 'value': f'Error data for {dataset} not found'} 
         # Save the data
-        self._store_data(data, zarr_out, s3_save)
+        self._store_data(data, zarr_out, s3_save, living_lab)
 
         # Update config and handle errors
         self._update_config_with_error_handling(data, dataset, zarr_out, s3_is_anon_access)
@@ -319,6 +320,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         self.token = data.get('token')
         interval = data.get('interval', None)
         cron_invocation = data.get('cron_invocation')
+        living_lab = data.get('living_lab', None)
         variable = query['variable']
         if isinstance(variable, list):
             # if variable is a list, take all the elements and join them with '-'
@@ -332,7 +334,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}.zarr"   
 
-        return service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval
+        return service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab
 
     def _validate_inputs(self, service, dataset, query, token):
         """Validate input parameters."""
@@ -354,7 +356,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True')
         return s3_is_anon_access == 'True'
 
-    def _setup_output_paths(self, zarr_out, s3_save, dataset):
+    def _setup_output_paths(self, zarr_out, s3_save, dataset, living_lab):
         """Set up file paths based on S3 configuration and dataset information."""
         if zarr_out and zarr_out.startswith('s3://'):
             s3_save = True
@@ -362,10 +364,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             if s3_save:
                 bucket_name = os.environ.get("DEFAULT_BUCKET")
                 remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
-                zarr_out = f's3://{bucket_name}/{remote_path}{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
+                zarr_out = f's3://{bucket_name}/{remote_path}{dataset}_{living_lab}_cds_{int(datetime.now().timestamp())}.zarr'
             else:
                 if not zarr_out:
-                    zarr_out = f'/pygeoapi/cds_data/{dataset}_cds_{int(datetime.now().timestamp())}.zarr'
+                    zarr_out = f'/pygeoapi/cds_data/{dataset}_{living_lab}_cds_{int(datetime.now().timestamp())}.zarr'
         return zarr_out, s3_save
 
     def _check_s3_path_exists(self, zarr_out, dataset, s3_is_anon_access):
@@ -505,8 +507,14 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             elif interval == 'year':
                 current_date = current_date.replace(year=current_date.year + 1, month=1, day=1)
 
-    def _store_data(self, data, zarr_out, s3_save):
+    def _store_data(self, data, zarr_out, s3_save, living_lab):
         """Store the fetched data either in S3 or locally."""
+        if living_lab == "lesotho":
+            # create file nc from data
+            nc_out_local = os.path.basename(zarr_out.split('.zarr')[0]+'.nc')
+            logger.debug(f"Saving data to Lesotho Azure Blob Storage: {nc_out_local}")
+            data.to_netcdf(nc_out_local)
+            upload_file_to_azure(nc_out_local, sub_folder="cds")
         if s3_save:
             s3 = s3fs.S3FileSystem()
             store = s3fs.S3Map(root=zarr_out, s3=s3, check=False)

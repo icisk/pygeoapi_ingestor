@@ -5,6 +5,7 @@ import os
 import numpy as np
 import s3fs
 from datetime import datetime
+from pygeoapi_ingestor_plugin.utils_azure import upload_file_to_azure
 import xarray as xr
 from geojson import Feature, Point, FeatureCollection
 import geopandas as gpd
@@ -196,7 +197,7 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         datetime_range = self._calculate_time_range(features)
 
         # Write the feature collection to the appropriate location (S3 or local)
-        self._write_feature_collection(file_out, feature_collection)
+        self._write_feature_collection(file_out, feature_collection, living_lab)
 
         self._update_config(living_lab, issue_date, file_out, bbox, datetime_range, s3_save)
         
@@ -375,8 +376,14 @@ class IngestorSMHIVectorProcessProcessor(BaseProcessor):
         datetime_objects = [datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S") for f in features for date_str in f['properties']['time']]
         return min(datetime_objects), max(datetime_objects)
 
-    def _write_feature_collection(self, file_out, feature_collection):
+    def _write_feature_collection(self, file_out, feature_collection, living_lab):
         """Write the feature collection to S3 or local file."""
+        if living_lab == 'lesotho':
+            logger.debug(f"Saving data to Lesotho Azure Blob Storage: {file_out}")
+            local_file_out = os.path.basename(file_out)
+            with open(local_file_out, 'w') as f:
+                f.write(str(feature_collection))
+                upload_file_to_azure(local_file_out,sub_folder="smhi")
         if file_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             with s3.open(file_out, 'w') as f:
