@@ -50,7 +50,8 @@ import logging
 import sys
 from pygeoapi_ingestor_plugin.utils import write_config, read_config
 import cftime
-
+import itertools
+import pandas as pd
 logger = logging.getLogger(__name__)
 
 # Define constants for all days and all months
@@ -189,7 +190,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         zarr_out, s3_save = self._setup_output_paths(zarr_out, s3_save, dataset, living_lab)
 
         # Check if S3 path already exists
-        msg = self._check_s3_path_exists(zarr_out, dataset, s3_is_anon_access)
+        msg = self._check_s3_path_exists(zarr_out, dataset, s3_is_anon_access, living_lab)
         if msg:
             return mimetype, {'id': self.id, 'value': msg}
 
@@ -199,10 +200,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if data is None:
             return mimetype, {'id': self.id, 'value': f'Error data for {dataset} not found'} 
         # Save the data
-        self._store_data(data, zarr_out, s3_save, living_lab)
+        self._store_data(data, zarr_out, s3_save, living_lab, dataset)
 
         # Update config and handle errors
-        self._update_config_with_error_handling(data, dataset, zarr_out, s3_is_anon_access)
+        self._update_config_with_error_handling(data, dataset, zarr_out, s3_is_anon_access, living_lab)
 
         # Return outputs
         outputs = {
@@ -211,7 +212,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         }
         return mimetype, outputs
 
-    def update_config(self, data, dataset, zarr_out, config_file, s3_is_anon_access):
+    def update_config(self, data, dataset, file_out, config_file, s3_is_anon_access, living_lab):
         # Get variable name
         variable_name = list(data.data_vars)[0]
 
@@ -233,8 +234,9 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             max_time = data.coords['forecast_period'].values.max()
 
         # convert np.datetime64 to datetime object
-        datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
-        datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
+        datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc).strftime("%Y%m")
+        datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc).strftime("%Y%m")
+
 
         logger.debug(f"datetime_min: {datetime_min}, datetime_max: {datetime_max}")
 
@@ -244,65 +246,106 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with lock:
             config = read_config(config_file)
 
-            dataset_pygeoapi_identifier = f"{dataset}_{variable_name}_{datetime_min.date()}_{datetime_max.date()}_[{min_x},{min_y},{max_x},{max_y}]"
+            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min}_{living_lab}"
+            if file_out.endswith('.zarr'):
+                zarr_out = file_out
 
-            logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
-            if dataset == "cems-glofas-seasonal":
-                time_field = "forecast_period"
-            else:
-                time_field = "time"
-            dataset_definition = {
-                'type': 'collection',
-                'title': dataset_pygeoapi_identifier,
-                'description': f'CDS {dataset} variable {variable_name} data from {datetime_min.date()} to {datetime_max.date()} for area [{min_x},{min_y},{max_x},{max_y}]',
-                'keywords': ['country'],
-                'extents': {
-                    'spatial': {
-                        'bbox': [min_x, min_y, max_x, max_y],
-                        'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+                logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
+                if dataset == "cems-glofas-seasonal":
+                    time_field = "forecast_period"
+                else:
+                    time_field = "time"
+                dataset_definition = {
+                    'type': 'collection',
+                    'title': dataset_pygeoapi_identifier,
+                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min} to {datetime_max} for area [{min_x},{min_y},{max_x},{max_y}]',
+                    'keywords': ['country'],
+                    'extents': {
+                        'spatial': {
+                            'bbox': [min_x, min_y, max_x, max_y],
+                            'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+                        },
+                        'temporal': {
+                            'begin': datetime_min,
+                            'end': datetime_max
+                        }
                     },
-                    'temporal': {
-                        'begin': datetime_min,
-                        'end': datetime_max
+                    'providers': [
+                        {
+                            'type': 'edr',
+                            'name': 'xarray-edr',
+                            'data': zarr_out,
+                            'x_field': 'longitude',
+                            'y_field': 'latitude',
+                            'time_field': time_field,
+                            'format': {'name': 'zarr', 'mimetype': 'application/zip'}
+                        }
+                    ]
+                }
+
+                logger.info(f"dataset definition to add: '{dataset_definition}'")
+
+                config['resources'][dataset_pygeoapi_identifier] = dataset_definition
+
+                endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
+                alternate_root = zarr_out.split("s3://")[1]
+
+                if s3_is_anon_access:
+                    config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                        's3': {
+                            'anon': True,
+                            'requester_pays': False
+                        }
                     }
-                },
-                'providers': [
-                    {
-                        'type': 'edr',
-                        'name': 'xarray-edr',
-                        'data': zarr_out,
-                        'x_field': 'longitude',
-                        'y_field': 'latitude',
-                        'time_field': time_field,
-                        'format': {'name': 'zarr', 'mimetype': 'application/zip'}
+                else:
+                    config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                        's3': {
+                            'anon': False,
+                            'alternate_root': alternate_root,
+                            'endpoint_url': endpoint_url,
+                            'requester_pays': False
+                        }
                     }
-                ]
-            }
-
-            logger.info(f"dataset definition to add: '{dataset_definition}'")
-
-            config['resources'][dataset_pygeoapi_identifier] = dataset_definition
-
-            endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
-            alternate_root = zarr_out.split("s3://")[1]
-
-            if s3_is_anon_access:
-                config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+            # if dataset == "cems-glofas-seasonal":
+            elif file_out.endswith('.geojson'):
+                # file_out = zarr_out.split('.zarr')[0]+'.geojson'
+                resource_key = f"{dataset_pygeoapi_identifier}_stations"
+                config['resources'][resource_key] = {
+                    'type': 'collection',
+                    'title': resource_key,
+                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min} to {datetime_max} for area [{min_x},{min_y},{max_x},{max_y}]',
+                    'keywords': [
+                        living_lab,
+                        'country',
+                        'discharge',
+                        'forecast',
+                        'cds',
+                        'seasonal'
+                    ],
+                    'extents': {
+                        'spatial': {
+                            'bbox': [min_x, min_y, max_x, max_y],
+                            'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+                        },
+                        'temporal': {
+                            'begin': datetime_min,
+                            'end': datetime_max
+                        }
+                    },
+                    'providers': [{
+                        'type': 'feature',
+                        'name': 'S3GeoJSONProvider.S3GeoJSONProvider',
+                        'data': file_out,
+                        'id_field': 'id'
+                    }]
+                }
+                
+                config['resources'][resource_key]['providers'][0]['options'] = {
                     's3': {
                         'anon': True,
                         'requester_pays': False
                     }
                 }
-            else:
-                config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
-                    's3': {
-                        'anon': False,
-                        'alternate_root': alternate_root,
-                        'endpoint_url': endpoint_url,
-                        'requester_pays': False
-                    }
-                }
-
             write_config(config_path=config_file, config_out=config)
 
 
@@ -370,7 +413,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     zarr_out = f'/pygeoapi/cds_data/{dataset}_{living_lab}_cds_{int(datetime.now().timestamp())}.zarr'
         return zarr_out, s3_save
 
-    def _check_s3_path_exists(self, zarr_out, dataset, s3_is_anon_access):
+    def _check_s3_path_exists(self, zarr_out, dataset, s3_is_anon_access, living_lab):
         """Check if the S3 path already exists."""
         msg = None
         if zarr_out.startswith('s3://'):
@@ -380,8 +423,17 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     msg = f"Path {zarr_out} already exists in bucket and config"
                 else:
                     data = xr.open_zarr(zarr_out)
-                    self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access)
-                    msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'"
+                    self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
+                    msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'."
+            if dataset == "cems-glofas-seasonal":
+                geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
+                if s3.exists(geojson_out):
+                    if geojson_out in str(read_config(self.config_file)['resources']):
+                        msg = msg+f" Path {geojson_out} already exists in bucket and config"
+                    else:
+                        # self.upload_geojson(geojson_out, data)
+                        data = xr.open_zarr(zarr_out)
+                        self.update_config(data, dataset, geojson_out, self.config_file, s3_is_anon_access, living_lab)
         return msg
 
     def _fetch_data(self, service, dataset, query, file_out, engine, start_date, end_date,interval):
@@ -507,7 +559,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             elif interval == 'year':
                 current_date = current_date.replace(year=current_date.year + 1, month=1, day=1)
 
-    def _store_data(self, data, zarr_out, s3_save, living_lab):
+    def _store_data(self, data, zarr_out, s3_save, living_lab, dataset):
         """Store the fetched data either in S3 or locally."""
         if living_lab == "lesotho":
             # create file nc from data
@@ -522,6 +574,18 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             store = zarr_out
         logger.info(f"Storing data to {store}, data type: {type(data)}")
         data.to_zarr(store=store, consolidated=True, mode='w')
+        if dataset == "cems-glofas-seasonal":
+            geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
+            # upload data as geojson
+            self.upload_geojson(geojson_out, data)
+            
+    def upload_geojson(self, geojson_out, data):
+        geojson_data = self.create_geojson(data)
+        if geojson_out.startswith('s3://'):
+            s3 = s3fs.S3FileSystem()
+            with s3.open(geojson_out, 'w') as f:
+                f.write(str(geojson_data))
+                logger.info(f"Geojson data saved to {geojson_out}")
 
     def adjust_query(self, query, date, interval):
         if interval == 'day':
@@ -602,10 +666,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         return data
 
-    def _update_config_with_error_handling(self, data, dataset, zarr_out, s3_is_anon_access):
+    def _update_config_with_error_handling(self, data, dataset, zarr_out, s3_is_anon_access, living_lab):
         """Update the config file and handle errors."""
         try:
-            self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access)
+            geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
+            self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
+            self.update_config(data, dataset, geojson_out, self.config_file, s3_is_anon_access, living_lab)
         except Exception as e:
             logger.error(f"Error updating config: {e}")
 
@@ -644,6 +710,80 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         new_data = new_data.drop_vars('number')
         return new_data
 
+    def read_georgia_stations(self):
+        stations_df = None
+        try:
+            stations_df = pd.read_csv('data/stations.csv')
+        except FileNotFoundError:
+            logger.debug("Error: 'stations.csv' not found. Please check the file path.")
+        except pd.errors.EmptyDataError:
+            logger.debug("Error: 'stations.csv' is empty.")
+        except pd.errors.ParserError:
+            logger.debug("Error: Unable to parse 'stations.csv'. Check the file format.")
+        return stations_df
+    
+    def normalize_timestamp(self, value):
+        """Convert large timestamps to seconds-based Unix epoch format."""
+        try:
+            if value > 10**13:  # Nanoseconds to seconds
+                value /= 10**9
+            elif value > 10**10:  # Milliseconds to seconds
+                value /= 10**3
+            return datetime.utcfromtimestamp(value).strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, TypeError):
+            return None  # Handle invalid timestamps
+
+    def create_geojson(self, ds):
+        features = []
+
+        stations_df = self.read_georgia_stations()
+        for key, item in stations_df.iterrows():
+            x_coord = item['x']
+            y_coord = item['y']
+            station_id = item['N']
+
+            # Select data from xarray dataset based on nearest x, y
+            selected_data = ds.sel(longitude=x_coord, latitude=y_coord, method='nearest')
+
+            # Convert xarray dataset to dictionary with formatted datetime
+            properties = {}
+            for var in selected_data.variables:
+                values = selected_data[var].values.tolist()
+                
+                # Flatten the list if it's a list of lists
+                if isinstance(values, list) and any(isinstance(i, list) for i in values):
+                    values = list(itertools.chain.from_iterable(values))
+
+                properties[var] = values
+                
+                # Convert timestamps safely
+                if var in ["forecast_period", "forecast_reference_time", "valid_time"]:
+                    if isinstance(values, list):
+                        properties[var] = [self.normalize_timestamp(v) for v in values if v is not None]
+                    else:
+                        properties[var] = self.normalize_timestamp(values)
+                else:
+                    properties[var] = values
+            
+            properties['id'] = int(station_id)
+
+            feature = {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [x_coord, y_coord]
+                },
+                "properties": properties
+            }
+
+            features.append(feature)
+
+        geojson = {
+            "type": "FeatureCollection",
+            "features": features
+        }
+
+        return json.dumps(geojson, indent=4)
 
     def __repr__(self):
         return f'<IngestorCDSProcessProcessor> {self.name}'

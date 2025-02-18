@@ -3,12 +3,14 @@
     "payload": {
         "inputs": {
             "cron_invocation": true,
+            "living_lab": "georgia",
             "dataset": "cems-glofas-seasonal",
             "async": true,
             "service": "EWDS",
             "file_out": "/tmp/cems-glofas-seasonal.netcdf4.zip",
             "interval": "month",
             "query": {
+                "system_version": ["operational"],
                 "hydrological_model": [
                     "lisflood",
                     "htessel_lisflood"
@@ -242,10 +244,10 @@
                 "download_format": "zip",
                 "data_format": "netcdf",
                 "area": [
-                    41.120975,
-                    45.196243,
-                    43.115761,
-                    46.736885
+                    42.355, 
+                    44.90, 
+                    41.35, 
+                    46.487
                 ]
             },
             "zarr_out": "s3://52n-i-cisk/data-ingestor/georgia/seasonal_timeseries/cds_georgia.zarr"

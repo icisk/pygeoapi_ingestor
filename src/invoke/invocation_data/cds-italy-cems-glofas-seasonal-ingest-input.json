@@ -3,6 +3,7 @@
     "payload": {
         "inputs": {
             "cron_invocation": true,
+            "living_lab": "italy",
             "dataset": "cems-glofas-seasonal",
             "async": true,
             "service": "EWDS",
