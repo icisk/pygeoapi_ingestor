@@ -45,7 +45,7 @@ _living_lab_s3_ref_data = {
     'georgia': os.path.join(_s3_bucket, 'reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2025.nc')
 }
 _s3_spi_forecast_zarr_uri = {
-    'georgia': os.path.join(_s3_bucket, 'spi_data/forecast/spi_forecast_georgia_test_07.zarr')
+    'georgia': os.path.join(_s3_bucket, 'spi_data/forecast/spi_forecast_georgia_test_11.zarr')
 }
 
 
