@@ -179,6 +179,9 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             key = 'b6c439dd-22d4-4b39-bbf7-9e6e57d9ae0d' # TODO: os.getenv('CDSAPI_KEY')
         )
         self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
+        self.dataset_pygeoapi_identifiers = {
+            'georgia': 'georgia_spi_forecast'
+        }
             
             
     def query_poi_cds_data(self, living_lab, lat_range, long_range, period_of_interest, spi_ts):
@@ -312,109 +315,140 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             ds = ds.drop_dims(['r'])    
             return ds    
         
-        def update_s3_collection_data(living_lab, dataset):
+        def update_s3_collection_data(living_lab, ds):
             s3_spi_forecast_zarr_uri = spi_utils._s3_spi_forecast_zarr_uri[living_lab]
             s3 = s3fs.S3FileSystem()
-            store = s3fs.S3Map(root=s3_spi_forecast_zarr_uri, s3=s3, check=False)
-            dataset.to_zarr(store=store, consolidated=True, mode='a') # ! TODO: ok appendere ma bisogna fare slice  corretta rispetto a quello che c'è già e quello che va aggiornato e/o appeso
-                  
-        ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)
-        update_s3_collection_data(living_lab, ds)
-        
-        self.update_config(living_lab, ds)
-        return True
-    
-    
-    def update_config(self, living_lab, dataset):
-        
-        min_x, max_x = dataset.lon.values.min().item(), dataset.lon.values.max().item()
-        min_y, max_y = dataset.lat.values.min().item(), dataset.lat.values.max().item()
-        min_dt, max_dt = datetime.datetime.fromtimestamp(dataset.time.values.min().item() / 1e9), datetime.datetime.fromtimestamp(dataset.time.values.max().item() / 1e9)
-        
-        data_src = spi_utils._s3_spi_forecast_zarr_uri[living_lab]
-
-        # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
-        lock = FileLock(f"{self.config_file}.lock", thread_local=False)
-        with lock:
+            s3_store = s3fs.S3Map(root=s3_spi_forecast_zarr_uri, s3=s3, check=False)
+            
+            min_x, max_x = ds.lon.values.min().item(), ds.lon.values.max().item()
+            min_y, max_y = ds.lat.values.min().item(), ds.lat.values.max().item()
+            min_dt, max_dt = datetime.datetime.fromtimestamp(ds.time.values.min().item() / 1e9), datetime.datetime.fromtimestamp(ds.time.values.max().item() / 1e9)
+            
             config = utils.read_config(self.config_file)
-
-            dataset_pygeoapi_identifier = f'{living_lab}_spi_forecast' # TODO: maybe a better name for collection
+            dataset_pygeoapi_identifier = self.dataset_pygeoapi_identifiers[living_lab]
             
             existing_collection = config['resources'].get(dataset_pygeoapi_identifier, None)
             if existing_collection:
-                curr_bbox = existing_collection['extents']['spatial']['bbox']
-                curr_min_x, curr_min_y, curr_max_x, curr_max_y = curr_bbox
-                curr_temporal = existing_collection['extents']['temporal']
-                curr_min_dt = curr_temporal['begin']
-                curr_max_dt = curr_temporal['end']
-                
+                curr_min_x, curr_min_y, curr_max_x, curr_max_y = existing_collection['extents']['spatial']['bbox']
+                curr_min_dt = existing_collection['extents']['temporal']['begin']
+                curr_max_dt = existing_collection['extents']['temporal']['end']
+
+                # INFO: We assume and handle only the case of dataset with more recent datetime with an eventual overlap between last(s) dt of existing dataset and first(s) dt of new dataset
+                if min_dt <= curr_max_dt:
+                    # There is an overlap
+                    curr_months_delta = ((curr_max_dt.year - curr_min_dt.year) * 12 + (curr_max_dt.month - curr_min_dt.month)) + 1
+                    months_overlap = ((curr_max_dt.year - min_dt.year) * 12 + (curr_max_dt.month - min_dt.month)) + 1
+                    if months_overlap == len(ds.time):
+                        # New dataset is a complete overlap of the latest part of the existing dataset
+                        ds.drop_vars(['spatial_ref']).to_zarr(store=s3_store, consolidated=True, mode='a', region={
+                            'time': slice(curr_months_delta-months_overlap, curr_months_delta),
+                            'lat': slice(0, len(ds.lat)),
+                            'lon': slice(0, len(ds.lon))
+                        })
+                    else:
+                        # New dataset is a partial overlap of the latest part of the existing dataset
+                        ds.isel(time=[t for t in range(months_overlap)]).drop_vars(['spatial_ref']).to_zarr(store=s3_store, consolidated=True, mode='a', region={
+                            'time': slice(curr_months_delta-months_overlap, curr_months_delta),
+                            'lat': slice(0, len(ds.lat)),
+                            'lon': slice(0, len(ds.lon))
+                        })
+                        ds.isel(time=[t for t in range(months_overlap, len(ds.time))]).to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
+                else:
+                    # No overlap
+                    ds.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
+                    
                 min_x = min(min_x, curr_min_x)
                 min_y = min(min_y, curr_min_y)
                 max_x = max(max_x, curr_max_x)
                 max_y = max(max_y, curr_max_y)
                 min_dt = min(min_dt, curr_min_dt)
                 max_dt = max(max_dt, curr_max_dt)
+            else:
+                # Collection does not exist yet, we will create it so we write all data
+                ds.to_zarr(store=s3_store, consolidated=True, mode='a')
+            
+            updated_collection_params = {
+                'bbox': [min_x, min_y, max_x, max_y],
+                'time': {
+                    'begin': min_dt,
+                    'end': max_dt
+                }
+            }
+            return updated_collection_params
+        
+        def update_config(living_lab, updated_collection_params):
+            data_src = spi_utils._s3_spi_forecast_zarr_uri[living_lab]
 
-            LOGGER.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
-            dataset_definition = {
-                'type': 'collection',
-                'title': dataset_pygeoapi_identifier,
-                'description': f'SPI {living_lab}', #TODO: maybe more info on bbox and time extents
-                'keywords': ['country'],
-                'extents': {
-                    'spatial': {
-                        'bbox': [min_x, min_y, max_x, max_y],
-                        'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+            # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
+            lock = FileLock(f"{self.config_file}.lock", thread_local=False)
+            with lock:
+                config = utils.read_config(self.config_file)
+
+                dataset_pygeoapi_identifier = self.dataset_pygeoapi_identifiers[living_lab]
+                
+                LOGGER.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
+                dataset_definition = {
+                    'type': 'collection',
+                    'title': dataset_pygeoapi_identifier,
+                    'description': f'SPI for {living_lab}', #TODO: maybe more info on bbox and time extents
+                    'keywords': ['country'],
+                    'extents': {
+                        'spatial': {
+                            'bbox': updated_collection_params['bbox'],
+                            'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+                        },
+                        'temporal': {
+                            'begin': updated_collection_params['time']['begin'],
+                            'end': updated_collection_params['time']['end']
+                        }
                     },
-                    'temporal': {
-                        'begin': min_dt,
-                        'end': max_dt
-                    }
-                },
-                'providers': [
-                    {
-                        'type': 'edr',
-                        'name': 'xarray-edr',
-                        'data': data_src,
-                        'x_field': 'lon',
-                        'y_field': 'lat',
-                        'time_field': 'time',
-                        'format': {
-                            'name': 'zarr', 
-                            'mimetype': 'application/zip'
+                    'providers': [
+                        {
+                            'type': 'edr',
+                            'name': 'xarray-edr',
+                            'data': data_src,
+                            'x_field': 'lon',
+                            'y_field': 'lat',
+                            'time_field': 'time',
+                            'format': {
+                                'name': 'zarr', 
+                                'mimetype': 'application/zip'
+                            }
+                        }
+                    ]
+                }
+
+                config['resources'][dataset_pygeoapi_identifier] = dataset_definition
+
+                s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True') == 'True'
+                endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
+                alternate_root = data_src.split("s3://")[1]
+                if s3_is_anon_access:
+                    config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                        's3': {
+                            'anon': True,
+                            'requester_pays': False
                         }
                     }
-                ]
-            }
-
-            config['resources'][dataset_pygeoapi_identifier] = dataset_definition
-
-            s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True') == 'True'
-            endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
-            alternate_root = data_src.split("s3://")[1]
-            if s3_is_anon_access:
-                config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
-                    's3': {
-                        'anon': True,
-                        'requester_pays': False
+                else:
+                    config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                        's3': {
+                            'anon': False,
+                            'alternate_root': alternate_root,
+                            'endpoint_url': endpoint_url,
+                            'requester_pays': False
+                        }
                     }
-                }
-            else:
-                config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
-                    's3': {
-                        'anon': False,
-                        'alternate_root': alternate_root,
-                        'endpoint_url': endpoint_url,
-                        'requester_pays': False
-                    }
-                }
+                
+                LOGGER.info(f"dataset definition to add: '{dataset_definition}'")
+
+                utils.write_config(config_path=self.config_file, config_out=config)
             
-            LOGGER.info(f"dataset definition to add: '{dataset_definition}'")
-
-            utils.write_config(config_path=self.config_file, config_out=config)
-    
-    
-    
+            
+        ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)        
+        updated_collection_params = update_s3_collection_data(living_lab, ds)
+        update_config(living_lab, updated_collection_params)
+        return True
         
     
     def execute(self, data):
