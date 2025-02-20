@@ -472,7 +472,6 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             
             # Save SPI coverage to collection
             self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
-            # TODO: (Maybe) Save SPI coverage to collection
             
             # Convert SPI coverage in the requested output format
             out_spi_coverages = spi_utils.coverages_to_out_format(month_spi_coverages, out_format)
