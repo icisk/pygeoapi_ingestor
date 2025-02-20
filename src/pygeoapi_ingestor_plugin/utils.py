@@ -11,6 +11,7 @@ import shutil
 import yaml
 import zipfile
 import time
+import math
 import numpy as np
 import xarray as xr
 
@@ -21,6 +22,14 @@ logger = logging.getLogger(__name__)
 # ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 # logger.addHandler(ch)
 
+
+def floor_decimals(number, decimals=0):
+    factor = 10 ** decimals
+    return math.floor(number * factor) / factor
+
+def ceil_decimals(number, decimals=0):
+    factor = 10 ** decimals
+    return math.ceil(number * factor) / factor
 
 def days_in_month(date):
     return monthrange(date.year, date.month)[1]

@@ -83,18 +83,6 @@ PROCESS_METADATA = {
             "schema": {
             },
         },
-        'lat_range': {
-            'title': 'latitude range',
-            'description': 'The latitude range',
-            'schema': {
-            }
-        },
-        'long_range': {
-            'title': 'longitude range',
-            'description': 'The longitude range',
-            'schema': {
-            }
-        },
         'period_of_interest': {
             'title': 'period of interest',
             'description': 'Reference (range of) date(s) on which to calculate the index',
@@ -144,8 +132,6 @@ PROCESS_METADATA = {
         "inputs": {
             "debug": True,
             "living_lab": "georgia",
-            "lat_range": [ 41.120975, 42.115760 ],
-            "long_range": [ 45.196243, 46.736885 ],
             "period_of_interest": "2025-01-31T00:00:00.000",
             "spi_ts": 1,
             "out_format": "netcdf"
@@ -181,7 +167,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         
         
             
-    def query_poi_cds_data(self, living_lab, lat_range, long_range, period_of_interest, spi_ts):
+    def query_poi_cds_data(self, living_lab, period_of_interest, spi_ts):
         """
         Query data from CDS API based on bbox range, period of interest and time scale.
         
@@ -189,7 +175,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         """
         
         # Format params for CDS API query    
-        lat_range, long_range, period_of_interest = spi_utils.format_params_for_poi_cds_query(living_lab, lat_range, long_range, period_of_interest)    
+        period_of_interest = spi_utils.format_params_for_poi_cds_query(period_of_interest)    
         
         # Get (Years, Years-Months) couple for the CDS api query. (We can query just one month at time)
         spi_start_date = period_of_interest[0] - relativedelta(months=spi_ts-1)
@@ -208,9 +194,8 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         # Build CDS query response filepath
         def build_cds_hourly_data_filepath(year, month):
             dataset_part = 'reanalysis_era5_land__total_precipitation__hourly'
-            bbox_part = f'{long_range[0]}_{lat_range[0]}_{long_range[1]}_{lat_range[1]}' if [long_range[0],lat_range[0],long_range[1],lat_range[1]] != spi_utils._living_lab_bbox[living_lab] else f'{living_lab}'
             time_part = f'{year}-{month[0]:02d}_{year}-{month[-1]:02d}'
-            filename = f'{dataset_part}__{bbox_part}__{time_part}.grib'
+            filename = f'{dataset_part}__{living_lab}__{time_part}.grib'
             filedir = os.path.join(spi_utils._temp_dir, dataset_part)
             if not os.path.exists(filedir):
                 os.makedirs(filedir, exist_ok=True)
@@ -231,10 +216,10 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
                     'day': [f'{day:02d}' for day in range(1, 32)],
                     'time': [f'{hour:02d}:00' for hour in range(0, 24)],
                     'area': [
-                        lat_range[1],   # N
-                        long_range[0],  # W
-                        lat_range[0],   # S
-                        long_range[1]   # E
+                        utils.ceil_decimals(spi_utils._living_lab_bbox[living_lab]['max_y'], 1),    # N
+                        utils.floor_decimals(spi_utils._living_lab_bbox[living_lab]['min_x'], 1),   # W
+                        utils.floor_decimals(spi_utils._living_lab_bbox[living_lab]['min_y'], 1),   # S
+                        utils.ceil_decimals(spi_utils._living_lab_bbox[living_lab]['max_x'], 1),    # E
                     ],
                     "data_format": "grib",
                     "download_format": "unarchived"
@@ -323,17 +308,17 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         try:
             
             # Validate request params
-            living_lab, lat_range, long_range, period_of_interest, spi_ts, out_format = spi_utils.validate_parameters(data, data_type='historic')
+            living_lab, period_of_interest, spi_ts, out_format = spi_utils.validate_parameters(data, data_type='historic')
             
             # Gather needed data (Ref + PoI)
-            ref_dataset = spi_utils.read_ref_cds_data(living_lab, lat_range, long_range)
-            poi_dataset = self.query_poi_cds_data(living_lab, lat_range, long_range, period_of_interest, spi_ts)
+            ref_dataset = spi_utils.read_ref_cds_data(living_lab)
+            poi_dataset = self.query_poi_cds_data(living_lab, period_of_interest, spi_ts)
             
             # Compute SPI coverage
             periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
             # Save SPI coverage to file
-            spi_coverage_s3_uris = spi_utils.build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts, data_type='historic')
+            spi_coverage_s3_uris = spi_utils.build_spi_s3_uris(living_lab, periods_of_interest, spi_ts, data_type='historic')
             spi_utils.save_coverages_to_s3(month_spi_coverages, spi_coverage_s3_uris)
             
             # Save SPI coverage to collection

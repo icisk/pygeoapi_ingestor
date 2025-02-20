@@ -38,22 +38,22 @@ _config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', 
 _reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 31))  # REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
 
 _living_lab_bbox = {
-    'georgia': [
-        45.196243,
-        41.120975,
-        46.736885,
-        42.115760
-    ]
+    'georgia': {
+        'min_x': 44.9,  # W
+        'min_y': 41.1,  # S
+        'max_x': 46.8,  # E
+        'max_y': 42.3   # N
+    }
 }
 
 _s3_bucket = f's3://saferplaces.co/test/icisk/spi/'
 _s3_living_lab_ref_data = {
-    'georgia': os.path.join(_s3_bucket, 'reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2025.nc')
+    'georgia': os.path.join(_s3_bucket, 'reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2024.nc')
 }
 _s3_spi_collection_zarr_uris = {
     'georgia': {
-        'historic': os.path.join(_s3_bucket, 'spi_data/historic/spi_historic_georgia_test_00.zarr'),
-        'forecast': os.path.join(_s3_bucket, 'spi_data/forecast/spi_forecast_georgia_test_11.zarr')
+        'historic': os.path.join(_s3_bucket, 'spi_data/historic/spi_historic_georgia_test_02.zarr'),
+        'forecast': os.path.join(_s3_bucket, 'spi_data/forecast/spi_forecast_georgia_test_12.zarr')
     }
 }
 _collection_pygeoapi_identifiers = {
@@ -72,8 +72,6 @@ def validate_parameters(data, data_type):
     """
     
     living_lab = data.get('living_lab', None)
-    lat_range = data.get('lat_range', None)
-    long_range = data.get('long_range', None)
     period_of_interest = data.get('period_of_interest', None)
     spi_ts = data.get('spi_ts', None)
     out_format = data.get('out_format', None)
@@ -84,32 +82,6 @@ def validate_parameters(data, data_type):
         raise ProcessorExecuteError('living_lab must be a string')
     if living_lab not in _living_lab_bbox.keys():
         raise ProcessorExecuteError(f'living_lab must be one of {[f"{ll}" for ll in list(_living_lab_bbox.keys())]})')
-    
-    if lat_range is not None:
-        if type(lat_range) is not list or len(lat_range) != 2:
-            raise ProcessorExecuteError('lat_range must be a list of 2 elements')
-        if type(lat_range[0]) not in [int, float] or type(lat_range[1]) not in [int, float]:
-            raise ProcessorExecuteError('lat_range elements must be float')
-        if lat_range[0] < -90 or lat_range[0] > 90 or lat_range[1] < -90 or lat_range[1] > 90:
-            raise ProcessorExecuteError('lat_range elements must be in the range [-90, 90]')
-        if lat_range[0] > lat_range[1]:
-            raise ProcessorExecuteError('lat_range[0] must be less than lat_range[1]')
-        if lat_range[0] < _living_lab_bbox[living_lab][1] or lat_range[0] > _living_lab_bbox[living_lab][3] or \
-            lat_range[1] < _living_lab_bbox[living_lab][1] or lat_range[1] > _living_lab_bbox[living_lab][3]:
-            raise ProcessorExecuteError(f'lat_range must be in the living_lab bbox range: [{_living_lab_bbox[living_lab][1]} ; {_living_lab_bbox[living_lab][3]}]')
-    
-    if long_range is not None:
-        if type(long_range) is not list or len(long_range) != 2:
-            raise ProcessorExecuteError('long_range must be a list of 2 elements')
-        if type(long_range[0]) not in [int, float] or type(long_range[1]) not in [int, float]:
-            raise ProcessorExecuteError('long_range elements must be float')
-        if long_range[0] < -180 or long_range[0] > 180 or long_range[1] < -180 or long_range[1] > 180:
-            raise ProcessorExecuteError('long_range elements must be in the range [-180, 180]')
-        if long_range[0] > long_range[1]:
-            raise ProcessorExecuteError('long_range[0] must be less than long_range[1]')
-        if long_range[0] < _living_lab_bbox[living_lab][0] or long_range[0] > _living_lab_bbox[living_lab][2] or \
-            long_range[1] < _living_lab_bbox[living_lab][0] or long_range[1] > _living_lab_bbox[living_lab][2]:
-            raise ProcessorExecuteError(f'long_range must be in the living_lab bbox range: [{_living_lab_bbox[living_lab][0]} ; {_living_lab_bbox[living_lab][2]}]')
     
     def validate_period_of_interest_historic(period_of_interest):
         if period_of_interest is None:
@@ -201,13 +173,11 @@ def validate_parameters(data, data_type):
         raise ProcessorExecuteError('out_format must be one of ["netcdf", "json", "dataframe", "tif", "zarr"]')
     
     LOGGER.debug('parameters validated')
-    return living_lab, lat_range, long_range, period_of_interest, spi_ts, out_format
+    return living_lab, period_of_interest, spi_ts, out_format
 
 
 
-def format_params_for_poi_cds_query(living_lab, lat_range, long_range, period_of_interest):
-    lat_range = lat_range if lat_range is not None else [_living_lab_bbox[living_lab][1], _living_lab_bbox[living_lab][3]]
-    long_range = long_range if long_range is not None else [_living_lab_bbox[living_lab][0], _living_lab_bbox[living_lab][2]]
+def format_params_for_poi_cds_query(period_of_interest):
     if len(period_of_interest) == 1:
         period_of_interest = [
             period_of_interest[0].date().replace(day=1),
@@ -218,7 +188,7 @@ def format_params_for_poi_cds_query(living_lab, lat_range, long_range, period_of
             period_of_interest[0].date().replace(day=1),
             period_of_interest[1].date().replace(day=utils.days_in_month(period_of_interest[1]))
         ]
-    return lat_range, long_range, period_of_interest
+    return period_of_interest
 
 
 
@@ -250,7 +220,7 @@ def grib2xr(grib_filename, grib_var_name, xr_var_name=None):
 
 
 
-def read_ref_cds_data(living_lab, lat_range, long_range):   
+def read_ref_cds_data(living_lab):   
     """
     Read reference data from S3. 
     Slice them in the bbox range and a default reference period.
@@ -265,11 +235,7 @@ def read_ref_cds_data(living_lab, lat_range, long_range):
     
     cds_ref_data = xr.open_dataset(cds_ref_data_filepath) 
     cds_ref_data = cds_ref_data.sortby(['time', 'lat', 'lon'])
-    cds_ref_data = cds_ref_data.sel(
-        lat = slice(*lat_range if lat_range is not None else (None, None)),
-        lon = slice(*long_range if long_range is not None else (None, None)),
-        time = slice(*_reference_period)
-    )
+    cds_ref_data = cds_ref_data.sel(time = slice(*_reference_period))
     
     LOGGER.debug('reference data read')
     return cds_ref_data
@@ -467,20 +433,16 @@ def update_config(living_lab, updated_collection_params, data_type):
 
 
 
-def build_spi_s3_uris(living_lab, lat_range, long_range, periods_of_interest, spi_ts, data_type):
+def build_spi_s3_uris(living_lab, periods_of_interest, spi_ts, data_type):
     s3_uris = []
     for period_of_interest in periods_of_interest:
-        s3_uris.append(build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_ts, data_type))
+        s3_uris.append(build_spi_s3_uri(living_lab, period_of_interest, spi_ts, data_type))
     return s3_uris
     
-def build_spi_s3_uri(living_lab, lat_range, long_range, period_of_interest, spi_ts, data_type):
-    lat_range = lat_range if lat_range is not None else [_living_lab_bbox[living_lab][1], _living_lab_bbox[living_lab][3]]
-    long_range = long_range if long_range is not None else [_living_lab_bbox[living_lab][0], _living_lab_bbox[living_lab][2]]
-    
-    bbox_part = f'{long_range[0]}_{lat_range[0]}_{long_range[1]}_{lat_range[1]}' if [long_range[0],lat_range[0],long_range[1],lat_range[1]] != _living_lab_bbox[living_lab] else f'{living_lab}'
+def build_spi_s3_uri(living_lab, period_of_interest, spi_ts, data_type):
     spi_part = f'spi-{spi_ts}'
     time_part = f'{period_of_interest.year}-{period_of_interest.month:02d}'
-    coverage_tif_filename = f'{spi_part}__{bbox_part}__{time_part}.tif'
+    coverage_tif_filename = f'{spi_part}__{living_lab}__{time_part}.tif'
     
     if data_type == 'historic':
         s3_uri = os.path.join(_s3_bucket, 'spi_data', 'historic', coverage_tif_filename)
