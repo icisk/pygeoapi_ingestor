@@ -61,7 +61,7 @@ PROCESS_METADATA = {
     'version': '0.2.0',
     'id': 'cds-ingestor-process',
     'title': {
-        'en': 'CDS Ingestor Process',
+        'en': 'SPI Historic Calculator Process',
     },
     'description': {
         'en': 'Ingestor process for Copernicus Climate Data Store (CDS) data',},
