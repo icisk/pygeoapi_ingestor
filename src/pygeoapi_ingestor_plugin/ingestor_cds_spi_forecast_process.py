@@ -36,6 +36,7 @@ import datetime
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange
 import tempfile
+from filelock import FileLock
 
 import numpy as np
 import pandas as pd
@@ -44,8 +45,8 @@ import scipy.stats as stats
 from scipy.special import gammainc, gamma
 
 import xarray as xr
-import pygrib
 
+import s3fs
 import cdsapi
 
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
@@ -177,6 +178,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             url = 'https://cds.climate.copernicus.eu/api',
             key = 'b6c439dd-22d4-4b39-bbf7-9e6e57d9ae0d' # TODO: os.getenv('CDSAPI_KEY')
         )
+        self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
             
             
     def query_poi_cds_data(self, living_lab, lat_range, long_range, period_of_interest, spi_ts):
@@ -221,10 +223,10 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
                 "day": ["01"],
                 "leadtime_hour": [str(h) for h in range(start_hour, end_hour+24, 24)],
                 "area": [
-                    math.ceil(lat_range[1]),   # N
+                    math.ceil(lat_range[1]),    # N
                     math.floor(long_range[0]),  # W
                     math.floor(lat_range[0]),   # S
-                    math.ceil(long_range[1])   # E
+                    math.ceil(long_range[1])    # E
                 ],
                 "data_format": "netcdf",
             }
@@ -298,6 +300,123 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         return periods_of_interest, month_spi_coverages  
         
     
+    # Save data to collection
+    def save_spi_coverage_to_collection(self, living_lab, spi_ts, periods_of_interest, month_spi_coverages):
+        
+        def build_data(spi_ts, periods_of_interest, month_spi_coverages):
+            ds = xr.concat(month_spi_coverages, dim="time")
+            ds = ds.assign_coords(time = [datetime.datetime.fromisoformat(p.isoformat()) for p in periods_of_interest])
+            ds = ds.to_dataset()
+            for r in ds.r.values.tolist():
+                ds[f'spi{spi_ts}_r{r}'] = ds.sel(r=r).tp
+            ds = ds.drop_dims(['r'])    
+            return ds    
+        
+        def update_s3_collection_data(living_lab, dataset):
+            s3_spi_forecast_zarr_uri = spi_utils._s3_spi_forecast_zarr_uri[living_lab]
+            s3 = s3fs.S3FileSystem()
+            store = s3fs.S3Map(root=s3_spi_forecast_zarr_uri, s3=s3, check=False)
+            dataset.to_zarr(store=store, consolidated=True, mode='a') # ! TODO: ok appendere ma bisogna fare slice  corretta rispetto a quello che c'è già e quello che va aggiornato e/o appeso
+                  
+        ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)
+        update_s3_collection_data(living_lab, ds)
+        
+        self.update_config(living_lab, ds)
+        return True
+    
+    
+    def update_config(self, living_lab, dataset):
+        
+        min_x, max_x = dataset.lon.values.min().item(), dataset.lon.values.max().item()
+        min_y, max_y = dataset.lat.values.min().item(), dataset.lat.values.max().item()
+        min_dt, max_dt = datetime.datetime.fromtimestamp(dataset.time.values.min().item() / 1e9), datetime.datetime.fromtimestamp(dataset.time.values.max().item() / 1e9)
+        
+        data_src = spi_utils._s3_spi_forecast_zarr_uri[living_lab]
+
+        # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
+        lock = FileLock(f"{self.config_file}.lock", thread_local=False)
+        with lock:
+            config = utils.read_config(self.config_file)
+
+            dataset_pygeoapi_identifier = f'{living_lab}_spi_forecast' # TODO: maybe a better name for collection
+            
+            existing_collection = config['resources'].get(dataset_pygeoapi_identifier, None)
+            if existing_collection:
+                curr_bbox = existing_collection['extents']['spatial']['bbox']
+                curr_min_x, curr_min_y, curr_max_x, curr_max_y = curr_bbox
+                curr_temporal = existing_collection['extents']['temporal']
+                curr_min_dt = curr_temporal['begin']
+                curr_max_dt = curr_temporal['end']
+                
+                min_x = min(min_x, curr_min_x)
+                min_y = min(min_y, curr_min_y)
+                max_x = max(max_x, curr_max_x)
+                max_y = max(max_y, curr_max_y)
+                min_dt = min(min_dt, curr_min_dt)
+                max_dt = max(max_dt, curr_max_dt)
+
+            LOGGER.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
+            dataset_definition = {
+                'type': 'collection',
+                'title': dataset_pygeoapi_identifier,
+                'description': f'SPI {living_lab}', #TODO: maybe more info on bbox and time extents
+                'keywords': ['country'],
+                'extents': {
+                    'spatial': {
+                        'bbox': [min_x, min_y, max_x, max_y],
+                        'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+                    },
+                    'temporal': {
+                        'begin': min_dt,
+                        'end': max_dt
+                    }
+                },
+                'providers': [
+                    {
+                        'type': 'edr',
+                        'name': 'xarray-edr',
+                        'data': data_src,
+                        'x_field': 'lon',
+                        'y_field': 'lat',
+                        'time_field': 'time',
+                        'format': {
+                            'name': 'zarr', 
+                            'mimetype': 'application/zip'
+                        }
+                    }
+                ]
+            }
+
+            config['resources'][dataset_pygeoapi_identifier] = dataset_definition
+
+            s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True') == 'True'
+            endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
+            alternate_root = data_src.split("s3://")[1]
+            if s3_is_anon_access:
+                config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                    's3': {
+                        'anon': True,
+                        'requester_pays': False
+                    }
+                }
+            else:
+                config['resources'][dataset_pygeoapi_identifier]['providers'][0]['options'] = {
+                    's3': {
+                        'anon': False,
+                        'alternate_root': alternate_root,
+                        'endpoint_url': endpoint_url,
+                        'requester_pays': False
+                    }
+                }
+            
+            LOGGER.info(f"dataset definition to add: '{dataset_definition}'")
+
+            utils.write_config(config_path=self.config_file, config_out=config)
+    
+    
+    
+        
+    
     def execute(self, data):
 
         mimetype = 'application/json'
@@ -318,6 +437,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             spi_utils.save_coverages_to_s3(month_spi_coverages, spi_coverage_s3_uris)
             
             # Save SPI coverage to collection
+            self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
             # TODO: (Maybe) Save SPI coverage to collection
             
             # Convert SPI coverage in the requested output format
