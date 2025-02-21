@@ -317,10 +317,6 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             # Compute SPI coverage
             periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
-            # Save SPI coverage to file
-            spi_coverage_s3_uris = spi_utils.build_spi_s3_uris(living_lab, periods_of_interest, spi_ts, data_type='historic')
-            spi_utils.save_coverages_to_s3(month_spi_coverages, spi_coverage_s3_uris)
-            
             # Save SPI coverage to collection
             self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
             
@@ -328,7 +324,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             out_spi_coverages = spi_utils.coverages_to_out_format(month_spi_coverages, out_format)
             
             # Build output response with spi coverage data infos
-            spi_coverage_response_info = spi_utils.build_output_response(periods_of_interest, out_spi_coverages, spi_coverage_s3_uris)
+            spi_coverage_response_info = spi_utils.build_output_response(periods_of_interest, out_spi_coverages)
             
             outputs = {
                 'status': 'OK',

@@ -325,19 +325,25 @@ def update_s3_collection_data(living_lab, ds, data_type):
             months_overlap = ((curr_max_dt.year - min_dt.year) * 12 + (curr_max_dt.month - min_dt.month)) + 1
             if months_overlap == len(ds.time):
                 # New dataset is a complete overlap of the latest part of the existing dataset
-                ds.drop_vars(['spatial_ref']).to_zarr(store=s3_store, consolidated=True, mode='a', region={
+                if 'spatial_ref' in ds:
+                    ds = ds.drop_vars(['spatial_ref'])
+                ds.to_zarr(store=s3_store, consolidated=True, mode='a', region={
                     'time': slice(curr_months_delta-months_overlap, curr_months_delta),
                     'lat': slice(0, len(ds.lat)),
                     'lon': slice(0, len(ds.lon))
                 })
             else:
                 # New dataset is a partial overlap of the latest part of the existing dataset
-                ds.isel(time=[t for t in range(months_overlap)]).drop_vars(['spatial_ref']).to_zarr(store=s3_store, consolidated=True, mode='a', region={
+                ds_overlap = ds.isel(time=[t for t in range(months_overlap)])
+                if 'spatial_ref' in ds_overlap:
+                    ds_overlap = ds_overlap.drop_vars(['spatial_ref'])
+                ds_overlap.to_zarr(store=s3_store, consolidated=True, mode='a', region={
                     'time': slice(curr_months_delta-months_overlap, curr_months_delta),
-                    'lat': slice(0, len(ds.lat)),
-                    'lon': slice(0, len(ds.lon))
+                    'lat': slice(0, len(ds_overlap.lat)),
+                    'lon': slice(0, len(ds_overlap.lon))
                 })
-                ds.isel(time=[t for t in range(months_overlap, len(ds.time))]).to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
+                ds_exceed = ds.isel(time=[t for t in range(months_overlap, len(ds.time))])
+                ds_exceed.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
         else:
             # No overlap
             ds.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
@@ -453,38 +459,6 @@ def build_spi_s3_uri(living_lab, period_of_interest, spi_ts, data_type):
     return s3_uri 
 
 
-
-def save_coverages_to_s3(coverages, s3_uris):
-    for coverage, s3_uri in zip(coverages, s3_uris):
-        _ = save_coverage_to_s3(coverage, s3_uri)
-
-def save_coverage_to_s3(coverage_ds, coverage_uri):
-    """
-    Save SPI coverage to S3
-    """
-    
-    coverage_tif_filename = os.path.basename(coverage_uri)
-    coverage_tif_filepath = os.path.join(_temp_dir, coverage_tif_filename)
-    coverage_ds.rio.write_crs("EPSG:4326", inplace=True)
-    coverage_ds.rio.set_spatial_dims(x_dim='lon', y_dim='lat', inplace=True)
-    coverage_ds.rio.to_raster(
-        raster_path = coverage_tif_filepath,
-        driver = "COG",
-        compress = "DEFLATE",
-        dtype = "float32",
-        tiled = True,
-        blocksize = 256,
-        overview_resampling = Resampling.average
-    )
-    
-    save_s3_status = s3_utils.s3_upload(
-        filename = coverage_tif_filepath,
-        uri = coverage_uri
-    )
-    return save_s3_status
-
-
-
 def coverages_to_out_format(coverages, out_format):
     out_coverages = []
     for coverage in coverages:
@@ -534,19 +508,17 @@ def coverage_to_out_format(coverage_ds, out_format):
     
     
     
-def build_output_response(periods_of_interest, out_spi_coverages, spi_coverage_s3_uris):
+def build_output_response(periods_of_interest, out_spi_coverages):
     return {
         'spi_coverage_info': [
             {
                 'period_of_interest': period_of_interest.strftime('%Y-%m'),
-                'spi_coverage_s3_uri': spi_coverage_s3_uri,
                 'spi_coverage_data': out_spi_coverage
             } 
-            for period_of_interest, out_spi_coverage, spi_coverage_s3_uri 
+            for period_of_interest, out_spi_coverage 
             in zip(
                 periods_of_interest,
-                out_spi_coverages,
-                spi_coverage_s3_uris
+                out_spi_coverages
             )
         ]
     }
