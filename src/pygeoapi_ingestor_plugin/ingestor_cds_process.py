@@ -669,9 +669,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
     def _update_config_with_error_handling(self, data, dataset, zarr_out, s3_is_anon_access, living_lab):
         """Update the config file and handle errors."""
         try:
-            geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
             self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
-            self.update_config(data, dataset, geojson_out, self.config_file, s3_is_anon_access, living_lab)
+            if dataset == "cems-glofas-seasonal":
+                geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
+                self.update_config(data, dataset, geojson_out, self.config_file, s3_is_anon_access, living_lab)
         except Exception as e:
             logger.error(f"Error updating config: {e}")
 
