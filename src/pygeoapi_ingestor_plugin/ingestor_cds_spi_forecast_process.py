@@ -162,7 +162,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         
         self.cds_client = cdsapi.Client(
             url = 'https://cds.climate.copernicus.eu/api',
-            key = 'b6c439dd-22d4-4b39-bbf7-9e6e57d9ae0d' # TODO: os.getenv('CDSAPI_KEY')
+            key = os.getenv('CDSAPI_KEY')
         )
             
             
