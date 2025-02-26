@@ -6,4 +6,3 @@ docker-compose_cred.yml
 test.*
 test/*
 *__pycache__/
-docker-compose.yml
