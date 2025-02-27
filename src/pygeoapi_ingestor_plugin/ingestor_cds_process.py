@@ -27,31 +27,28 @@
 #
 # =================================================================
 
+import itertools
+import json
+import logging
+import os
+import tempfile
+import time
+import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
+
+import cdsapi
+import pandas as pd
+import s3fs
+import xarray as xr
+from dotenv import load_dotenv, find_dotenv
 # curl -X POST -H "Content-Type: application/json" -d "{\"inputs\":{\"name\":\"valerio\"}}" http://localhost:5000/processes/ingestor-process/execution
 # curl -X POST -H "Content-Type: application/json" -d "{\"inputs\":{\"name\":\"gdalinfo\"}}" http://localhost:5000/processes/k8s-process/execution
 from filelock import FileLock
-from ftplib import FTP
-import logging, time
-import yaml
-import fsspec
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
-import os
-import s3fs
-from datetime import datetime, timedelta, timezone
-from pygeoapi_ingestor_plugin.utils_azure import upload_file_to_azure
-import xarray as xr
-import json
-import tempfile
-from dotenv import load_dotenv, find_dotenv
-import cdsapi
-import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import logging
-import sys
 from pygeoapi_ingestor_plugin.utils import write_config, read_config
-import cftime
-import itertools
-import pandas as pd
+from pygeoapi_ingestor_plugin.utils_azure import upload_file_to_azure
+
 logger = logging.getLogger(__name__)
 
 # Define constants for all days and all months
@@ -175,6 +172,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
     def execute(self, data):
         mimetype = 'application/json'
+        logger.info(f"|||  INFO LOG ||| \n {data} \n ||||||||||")
 
         # Extract parameters
         service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab = self._extract_parameters(data)
@@ -212,33 +210,52 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         }
         return mimetype, outputs
 
+    def get_coordinates_name(self, data):
+        lat_names = {"latitude", "lat", "y"}
+        lon_names = {"longitude", "lon", "x"}
+        lat_name = next((name for name in data.coords if name.lower() in lat_names), None)
+        lon_name = next((name for name in data.coords if name.lower() in lon_names), None)
+        return lat_name, lon_name
+
+    def get_timevar_name(self, data):
+        time_names = {'time', 'valid_time', 'forecast_period'}
+        time_name = next((name for name in data.coords if name.lower() in time_names), None)
+        return time_name
+
+
     def update_config(self, data, dataset, file_out, config_file, s3_is_anon_access, living_lab):
         # Get variable name
         variable_name = list(data.data_vars)[0]
 
+        LAT, LON = self.get_coordinates_name(data)
+        TIME = self.get_timevar_name(data)
+
         # get min/max values for longitude, latitude and time
-        min_x = float(data.coords['longitude'].min().values)
-        max_x = float(data.coords['longitude'].max().values)
-        min_y = float(data.coords['latitude'].min().values)
-        max_y = float(data.coords['latitude'].max().values)
+        min_x = float(data.coords[LON].min().values)
+        max_x = float(data.coords[LON].max().values)
+        min_y = float(data.coords[LAT].min().values)
+        max_y = float(data.coords[LAT].max().values)
 
         logger.debug(f"min_x: {min_x}, max_x: {max_x}, min_y: {min_y}, max_y: {max_y}")
 
-        try:
-                
-            min_time = data.coords['valid_time'].values.min()
-            max_time = data.coords['valid_time'].values.max()
-        except Exception as e:
-            logger.error(f"Error getting min/max time: {e}")
-            min_time = data.coords['forecast_period'].values.min()
-            max_time = data.coords['forecast_period'].values.max()
+        # try:
+        #     min_time = data.coords['valid_time'].values.min()
+        #     max_time = data.coords['valid_time'].values.max()
+        # except Exception as e:
+        #     logger.error(f"Error getting min/max time: {e}")
+        #     min_time = data.coords['forecast_period'].values.min()
+        #     max_time = data.coords['forecast_period'].values.max()
 
-        # convert np.datetime64 to datetime object
-        datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc).strftime("%Y%m")
-        datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc).strftime("%Y%m")
+        min_time = data.coords[TIME].values.min()
+        max_time = data.coords[TIME].values.max()
 
 
-        logger.debug(f"datetime_min: {datetime_min}, datetime_max: {datetime_max}")
+        # convert np.datetime64 to datetime object .strftime("%Y%m")
+        datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
+        datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
+
+
+        logger.info(f"datetime_min: {datetime_min}, datetime_max: {datetime_max}")
 
         # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
         lock = FileLock(f"{self.config_file}.lock", thread_local=False)
@@ -275,8 +292,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                             'type': 'edr',
                             'name': 'xarray-edr',
                             'data': zarr_out,
-                            'x_field': 'longitude',
-                            'y_field': 'latitude',
+                            'x_field': LON,
+                            'y_field': LAT,
                             'time_field': time_field,
                             'format': {'name': 'zarr', 'mimetype': 'application/zip'}
                         }
