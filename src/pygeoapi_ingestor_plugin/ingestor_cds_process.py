@@ -263,7 +263,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with lock:
             config = read_config(config_file)
 
-            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min}_{living_lab}"
+            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min}_{living_lab}_{variable_name}"
             if file_out.endswith('.zarr'):
                 zarr_out = file_out
 
