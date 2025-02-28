@@ -225,7 +225,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
     def update_config(self, data, dataset, file_out, config_file, s3_is_anon_access, living_lab):
         # Get variable name
-        variable_name = list(data.data_vars)[0]
+        variable_name = [s for s in list(data.data_vars) if 'time' not in s][0]
 
         LAT, LON = self.get_coordinates_name(data)
         TIME = self.get_timevar_name(data)
