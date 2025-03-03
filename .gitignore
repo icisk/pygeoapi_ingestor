@@ -5,3 +5,5 @@ docker-compose_cred.yml
 .idea/
 test.*
 *__pycache__/
+
+docker-compose.yml
