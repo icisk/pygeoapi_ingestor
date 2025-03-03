@@ -52,6 +52,8 @@ from pygeoapi_ingestor_plugin.utils import write_config, read_config
 import cftime
 import itertools
 import pandas as pd
+from enum import Enum
+
 logger = logging.getLogger(__name__)
 
 # Define constants for all days and all months
@@ -154,6 +156,10 @@ PROCESS_METADATA = {
         }
     }
 }
+
+class Stations(Enum):
+    GEORGIA = "data/georgia_stations.csv"
+    ITALY = "data/italy_stations.csv"
 
 
 class IngestorCDSProcessProcessor(BaseProcessor):
@@ -577,10 +583,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if dataset == "cems-glofas-seasonal":
             geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
             # upload data as geojson
-            self.upload_geojson(geojson_out, data)
+            self.upload_geojson(geojson_out, data, living_lab)
             
-    def upload_geojson(self, geojson_out, data):
-        geojson_data = self.create_geojson(data)
+    def upload_geojson(self, geojson_out, data, living_lab):
+        geojson_data = self.create_geojson(data,living_lab)
         if geojson_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             with s3.open(geojson_out, 'w') as f:
@@ -711,16 +717,17 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         new_data = new_data.drop_vars('number')
         return new_data
 
-    def read_georgia_stations(self):
+    def read_stations(self, living_lab):
         stations_df = None
         try:
-            stations_df = pd.read_csv('data/stations.csv')
+            living_lab = living_lab.upper()
+            stations_df = pd.read_csv(Stations[living_lab].value)  # pd.read_csv('data/georgia_stations.csv')
         except FileNotFoundError:
-            logger.debug("Error: 'stations.csv' not found. Please check the file path.")
+            logger.debug("Error: 'georgia_stations.csv' not found. Please check the file path.")
         except pd.errors.EmptyDataError:
-            logger.debug("Error: 'stations.csv' is empty.")
+            logger.debug("Error: 'georgia_stations.csv' is empty.")
         except pd.errors.ParserError:
-            logger.debug("Error: Unable to parse 'stations.csv'. Check the file format.")
+            logger.debug("Error: Unable to parse 'georgia_stations.csv'. Check the file format.")
         return stations_df
     
     def normalize_timestamp(self, value):
@@ -734,10 +741,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         except (ValueError, TypeError):
             return None  # Handle invalid timestamps
 
-    def create_geojson(self, ds):
+    def create_geojson(self, ds, living_lab):
         features = []
 
-        stations_df = self.read_georgia_stations()
+        stations_df = self.read_stations(living_lab)
         for key, item in stations_df.iterrows():
             x_coord = item['x']
             y_coord = item['y']
