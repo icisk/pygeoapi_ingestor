@@ -79,7 +79,7 @@ resources:
       name: pygeoapi_ingestor_plugin.IngestorSMHIVectorProcessProcessor
     type: process
 
-  bias-correction-process:
+  bias-correction-cds-process:
     processor:
-      name: pygeoapi_ingestor_plugin.BiasCorrectionProcessor
+      name: pygeoapi_ingestor_plugin.BiasCorrectionCDSProcessor
     type: process

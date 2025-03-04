@@ -10,5 +10,5 @@ from .ingestor_ll_gpkg_process import IngestorLLGPKGProcessProcessor
 from .ingestor_maps_api import IngestorAPIMAPSProcessProcessor
 from .ingestor_smhi_process import IngestorSMHIProcessProcessor
 from .ingestor_smhi_process_vector import IngestorSMHIVectorProcessProcessor
-from .bias_correction_process import BiasCorrectionProcessor
+from .bias_correction_cds_process import BiasCorrectionCDSProcessor
 from .utils import write_config, read_config, download_source, cleanup_data_temp

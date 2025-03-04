@@ -39,6 +39,8 @@ setuptools.setup(
         "python-dotenv",
         "rasterio",
         "rioxarray",
+        "scipy",
+        "boto3",
         "s3fs",
         "shyaml",
         "tifffile",
