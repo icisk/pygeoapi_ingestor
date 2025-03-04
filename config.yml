@@ -1,0 +1,76 @@
+logging:
+  level: INFO
+metadata:
+  contact:
+    address: Martin-Luther-King-Weg 24
+    city: "M\xFCnster"
+    country: Germany
+    email: e.h.juerrens+i-cisk-cloud-ops@52north.org
+    fax: +49-251-396371-11
+    hours: Mo-Fr 09:00-16:00 CE(S)T
+    instructions: During hours of service.  Off on weekends.
+    name: "J\xFCrrens, Eike Hinderk"
+    phone: +49-251-396371-0
+    position: Operator
+    postalcode: 48155
+    role: pointOfContact
+    stateorprovince: NRW
+    url: https://52north.org/about-us/contact-us/
+  identification:
+    description: pygeoapi provides an API to geospatial data
+    keywords:
+    - geospatial
+    - data
+    - api
+    - living-labs
+    - i-cisk
+    - 52north
+    - gecko
+    keywords_type: theme
+    terms_of_service: 'FIXME: https://icisk.eu/about-icisk/'
+    title: pygeoapi icisk
+    url: localhost:5000
+  license:
+    name: 'FIXME: TBD, maybe CC-BY 4.0 license'
+    url: https://creativecommons.org/licenses/by/4.0/
+  provider:
+    name: "52\xB0North I-Cisk Team"
+    url: https://52north.org/solutions/i-cisk/
+resources:
+  api_maps:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorAPIMAPSProcessProcessor
+    type: process
+  cds_ingest:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorCDSProcessProcessor
+    type: process
+  ll_gpkg:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorLLGPKGProcessProcessor
+    type: process
+  pheno:
+    processor:
+      name: pygeoapi_ingestor_plugin.IngestorCDSPHENOLOGYProcessProcessor
+    type: process
+server:
+  bind:
+    host: 0.0.0.0
+    port: 80
+  cors: true
+  encoding: utf-8
+  gzip: false
+  language: en-US
+  limit: 10
+  manager:
+    connection: /tmp/pygeoapi-process-manager.db
+    name: TinyDB
+    output_dir: /tmp/
+  map:
+    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap
+      contributors</a>'
+    url: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+  mimetype: application/json; charset=UTF-8
+  ogc_schemas_location: /schemas.opengis.net
+  pretty_print: true
+  url: http://localhost:5000
