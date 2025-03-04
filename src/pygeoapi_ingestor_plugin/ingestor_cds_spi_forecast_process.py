@@ -138,6 +138,7 @@ PROCESS_METADATA = {
     'example': {
         "inputs": {
             "debug": True,
+            "token": "ABC123XYZ666",
             "living_lab": "georgia",
             "period_of_interest": "2025-01-31T00:00:00.000",
             "spi_ts": 1,
