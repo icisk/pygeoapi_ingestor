@@ -52,14 +52,14 @@ _s3_living_lab_ref_data = {
 }
 _s3_spi_collection_zarr_uris = {
     'georgia': {
-        'historic': os.path.join(_s3_bucket, 'spi_data/historic/spi_historic_georgia_test_02.zarr'),
-        'forecast': os.path.join(_s3_bucket, 'spi_data/forecast/spi_forecast_georgia_test_12.zarr')
+        'historic': lambda date: os.path.join(_s3_bucket, f'spi_data/historic/georgia_spi_historic_{date.strftime("%Y-%m")}.zarr'),
+        'forecast': lambda date: os.path.join(_s3_bucket, f'spi_data/forecast/georgia_spi_forecast_{date.strftime("%Y-%m")}.zarr')
     }
 }
 _collection_pygeoapi_identifiers = {
     'georgia': {
-        'historic': 'georgia_spi_historic',
-        'forecast': 'georgia_spi_forecast'
+        'historic': lambda date: f'georgia_spi_historic_{date.strftime("%Y-%m")}',
+        'forecast': lambda date: f'georgia_spi_forecast_{date.strftime("%Y-%m")}'
     }
 }
 
@@ -311,84 +311,105 @@ def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
     
 
 
-def update_s3_collection_data(living_lab, ds, data_type):
-    s3_spi_collection_zarr_uri = _s3_spi_collection_zarr_uris[living_lab][data_type]
+def create_s3_collection_data(living_lab, ds, data_type):
+    collection_date = ds.time.min().dt.date.item()
+    
+    s3_zarr_collection_uri = _s3_spi_collection_zarr_uris[living_lab][data_type](date = collection_date)
     s3 = s3fs.S3FileSystem()
-    s3_store = s3fs.S3Map(root=s3_spi_collection_zarr_uri, s3=s3, check=False)
+    s3_store = s3fs.S3Map(root=s3_zarr_collection_uri, s3=s3, check=False)
     
     min_x, max_x = ds.lon.values.min().item(), ds.lon.values.max().item()
     min_y, max_y = ds.lat.values.min().item(), ds.lat.values.max().item()
-    min_dt, max_dt = datetime.datetime.fromtimestamp(ds.time.values.min().item() / 1e9), datetime.datetime.fromtimestamp(ds.time.values.max().item() / 1e9)
+    min_dt, max_dt = ds.time.min().dt.date.item(), ds.time.max().dt.date.item()
     
-    config = utils.read_config(_config_file)
-    collection_pygeoapi_identifier = _collection_pygeoapi_identifiers[living_lab][data_type]
-    
-    existing_collection = config['resources'].get(collection_pygeoapi_identifier, None)
-    if existing_collection:
-        curr_min_x, curr_min_y, curr_max_x, curr_max_y = existing_collection['extents']['spatial']['bbox']
-        curr_min_dt = existing_collection['extents']['temporal']['begin']
-        curr_max_dt = existing_collection['extents']['temporal']['end']
-
-        # INFO: We assume and handle only the case of dataset with more recent datetime with an eventual overlap between last(s) dt of existing dataset and first(s) dt of new dataset
-        if min_dt <= curr_max_dt:
-            # There is an overlap
-            curr_months_delta = ((curr_max_dt.year - curr_min_dt.year) * 12 + (curr_max_dt.month - curr_min_dt.month)) + 1
-            months_overlap = ((curr_max_dt.year - min_dt.year) * 12 + (curr_max_dt.month - min_dt.month)) + 1
-            if months_overlap == len(ds.time):
-                # New dataset is a complete overlap of the latest part of the existing dataset
-                if 'spatial_ref' in ds:
-                    ds = ds.drop_vars(['spatial_ref'])
-                ds.to_zarr(store=s3_store, consolidated=True, mode='a', region={
-                    'time': slice(curr_months_delta-months_overlap, curr_months_delta),
-                    'lat': slice(0, len(ds.lat)),
-                    'lon': slice(0, len(ds.lon))
-                })
-            else:
-                # New dataset is a partial overlap of the latest part of the existing dataset
-                ds_overlap = ds.isel(time=[t for t in range(months_overlap)])
-                if 'spatial_ref' in ds_overlap:
-                    ds_overlap = ds_overlap.drop_vars(['spatial_ref'])
-                ds_overlap.to_zarr(store=s3_store, consolidated=True, mode='a', region={
-                    'time': slice(curr_months_delta-months_overlap, curr_months_delta),
-                    'lat': slice(0, len(ds_overlap.lat)),
-                    'lon': slice(0, len(ds_overlap.lon))
-                })
-                ds_exceed = ds.isel(time=[t for t in range(months_overlap, len(ds.time))])
-                ds_exceed.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
-        else:
-            # No overlap
-            ds.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
-            
-        min_x = min(min_x, curr_min_x)
-        min_y = min(min_y, curr_min_y)
-        max_x = max(max_x, curr_max_x)
-        max_y = max(max_y, curr_max_y)
-        min_dt = min(min_dt, curr_min_dt)
-        max_dt = max(max_dt, curr_max_dt)
-    else:
-        # Collection does not exist yet, we will create it so we write all data
-        ds.to_zarr(store=s3_store, consolidated=True, mode='a')
-    
-    updated_collection_params = {
+    collection_params = {
+        'data': s3_zarr_collection_uri,
         'bbox': [min_x, min_y, max_x, max_y],
         'time': {
             'begin': min_dt,
             'end': max_dt
-        }
+        },
+        
+        'collection_pygeoapi_id': _collection_pygeoapi_identifiers[living_lab][data_type](date = collection_date)
     }
-    return updated_collection_params
+    
+    ds.to_zarr(store=s3_store, consolidated=True, mode='w')
+    
+    return collection_params
+    
+    # min_x, max_x = ds.lon.values.min().item(), ds.lon.values.max().item()
+    # min_y, max_y = ds.lat.values.min().item(), ds.lat.values.max().item()
+    # min_dt, max_dt = datetime.datetime.fromtimestamp(ds.time.values.min().item() / 1e9), datetime.datetime.fromtimestamp(ds.time.values.max().item() / 1e9)
+    
+    # config = utils.read_config(_config_file)
+    # collection_pygeoapi_identifier = _collection_pygeoapi_identifiers[living_lab][data_type]
+    
+    # existing_collection = config['resources'].get(collection_pygeoapi_identifier, None)
+    # if existing_collection:
+    #     curr_min_x, curr_min_y, curr_max_x, curr_max_y = existing_collection['extents']['spatial']['bbox']
+    #     curr_min_dt = existing_collection['extents']['temporal']['begin']
+    #     curr_max_dt = existing_collection['extents']['temporal']['end']
+
+    #     # INFO: We assume and handle only the case of dataset with more recent datetime with an eventual overlap between last(s) dt of existing dataset and first(s) dt of new dataset
+    #     if min_dt <= curr_max_dt:
+    #         # There is an overlap
+    #         curr_months_delta = ((curr_max_dt.year - curr_min_dt.year) * 12 + (curr_max_dt.month - curr_min_dt.month)) + 1
+    #         months_overlap = ((curr_max_dt.year - min_dt.year) * 12 + (curr_max_dt.month - min_dt.month)) + 1
+    #         if months_overlap == len(ds.time):
+    #             # New dataset is a complete overlap of the latest part of the existing dataset
+    #             if 'spatial_ref' in ds:
+    #                 ds = ds.drop_vars(['spatial_ref'])
+    #             ds.to_zarr(store=s3_store, consolidated=True, mode='a', region={
+    #                 'time': slice(curr_months_delta-months_overlap, curr_months_delta),
+    #                 'lat': slice(0, len(ds.lat)),
+    #                 'lon': slice(0, len(ds.lon))
+    #             })
+    #         else:
+    #             # New dataset is a partial overlap of the latest part of the existing dataset
+    #             ds_overlap = ds.isel(time=[t for t in range(months_overlap)])
+    #             if 'spatial_ref' in ds_overlap:
+    #                 ds_overlap = ds_overlap.drop_vars(['spatial_ref'])
+    #             ds_overlap.to_zarr(store=s3_store, consolidated=True, mode='a', region={
+    #                 'time': slice(curr_months_delta-months_overlap, curr_months_delta),
+    #                 'lat': slice(0, len(ds_overlap.lat)),
+    #                 'lon': slice(0, len(ds_overlap.lon))
+    #             })
+    #             ds_exceed = ds.isel(time=[t for t in range(months_overlap, len(ds.time))])
+    #             ds_exceed.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
+    #     else:
+    #         # No overlap
+    #         ds.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
+            
+    #     min_x = min(min_x, curr_min_x)
+    #     min_y = min(min_y, curr_min_y)
+    #     max_x = max(max_x, curr_max_x)
+    #     max_y = max(max_y, curr_max_y)
+    #     min_dt = min(min_dt, curr_min_dt)
+    #     max_dt = max(max_dt, curr_max_dt)
+    # else:
+    #     # Collection does not exist yet, we will create it so we write all data
+    #     ds.to_zarr(store=s3_store, consolidated=True, mode='a')
+    
+    # updated_collection_params = {
+    #     'bbox': [min_x, min_y, max_x, max_y],
+    #     'time': {
+    #         'begin': min_dt,
+    #         'end': max_dt
+    #     }
+    # }
+    # return updated_collection_params
 
 
 
-def update_config(living_lab, updated_collection_params, data_type):
-    data_src = _s3_spi_collection_zarr_uris[living_lab][data_type]
+def update_config(living_lab, collection_params):
+    data_src = collection_params['data']
 
     # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
     lock = FileLock(f"{_config_file}.lock", thread_local=False)
     with lock:
         config = utils.read_config(_config_file)
 
-        collection_pygeoapi_identifier = _collection_pygeoapi_identifiers[living_lab][data_type]
+        collection_pygeoapi_identifier = collection_params['collection_pygeoapi_id']
         
         LOGGER.info(f"resource identifier and title: '{collection_pygeoapi_identifier}'")
         dataset_definition = {
@@ -398,12 +419,12 @@ def update_config(living_lab, updated_collection_params, data_type):
             'keywords': ['country'],
             'extents': {
                 'spatial': {
-                    'bbox': updated_collection_params['bbox'],
+                    'bbox': collection_params['bbox'],
                     'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
                 },
                 'temporal': {
-                    'begin': updated_collection_params['time']['begin'],
-                    'end': updated_collection_params['time']['end']
+                    'begin': collection_params['time']['begin'],
+                    'end': collection_params['time']['end']
                 }
             },
             'providers': [

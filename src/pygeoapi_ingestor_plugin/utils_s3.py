@@ -1,11 +1,16 @@
+import os
 import hashlib
 from logging import getLogger
 from tempfile import tempdir
+
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
-import os
+
+import pygeoapi_ingestor_plugin.utils as utils
 
 Logger = getLogger(__name__)
+
+
 
 def iss3(filename):
     """
@@ -13,6 +18,7 @@ def iss3(filename):
     """
     return filename and isinstance(filename, str) and \
         (filename.startswith("s3:/") or filename.startswith("/vsis3/"))
+
 
 def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
     """
@@ -52,33 +58,7 @@ def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
         return ETag
     else:
         return ""
-    
-def justfname(pathname):
-    """
-    justfname - returns the basename
-    """
-    return normpath(os.path.basename(normpath(pathname)))
 
-def justpath(pathname, n=1):
-    """
-    justpath
-    """
-    for _ in range(n):
-        pathname, _ = os.path.split(normpath(pathname))
-    if pathname == "":
-        return "."
-    return normpath(pathname)
-
-def normpath(pathname):
-    """
-    normpath
-    """
-    if not pathname:
-        return ""
-    pathname = os.path.normpath(pathname.replace("\\", "/")).replace("\\", "/")
-    # patch for s3:// and http:// https://
-    pathname = pathname.replace(":/", "://")
-    return pathname
 
 def s3_equals(file1, file2, client=None):
     """
@@ -105,16 +85,18 @@ def tempname4S3(uri):
         tmp = uri.replace("/vsis3/", dest_folder + "/")
     else:
         _, path = os.path.splitdrive(uri)
-        tmp = normpath(dest_folder + "/" + path)
+        tmp = utils.normpath(dest_folder + "/" + path)
     
-    os.makedirs(justpath(tmp), exist_ok=True)
+    os.makedirs(utils.justpath(tmp), exist_ok=True)
     return tmp
+
 
 def get_client(client=None):
     """
     get_client
     """
     return client if client else boto3.client('s3', region_name='us-east-1')
+
 
 def get_bucket_name_key(uri):
     """
@@ -140,6 +122,7 @@ def get_bucket_name_key(uri):
         bucket_name, key_name = None, uri
     return bucket_name, key_name
 
+
 def s3_download(uri, fileout=None, remove_src=False, client=None):
     """
     Download a file from an S3 bucket
@@ -156,14 +139,14 @@ def s3_download(uri, fileout=None, remove_src=False, client=None):
                     fileout = tempname4S3(uri)
 
                 if os.path.isdir(fileout):
-                    fileout = f"{fileout}/{justfname(key)}"
+                    fileout = f"{fileout}/{utils.justfname(key)}"
 
                 if os.path.isfile(fileout) and s3_equals(uri, fileout, client):
                     Logger.debug(f"using cached file {fileout}")
                 else:
                     # Download the file
                     Logger.debug(f"downloading {uri} into {fileout}...")
-                    os.makedirs(justpath(fileout), exist_ok=True)
+                    os.makedirs(utils.justpath(fileout), exist_ok=True)
                     client.download_file(
                         Filename=fileout, Bucket=bucket_name, Key=key)
                     if remove_src:

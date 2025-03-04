@@ -152,3 +152,69 @@ resources:
           alternate_root: saferplaces.co/test/icisk/spi/spi_data/forecast/spi_forecast_georgia_test_12.zarr
           endpoint_url: https://s3.us-east-1.amazonaws.com
           requester_pays: false
+  georgia_spi_historic_2024-12:
+    type: collection
+    title: georgia_spi_historic_2024-12
+    description: SPI for georgia
+    keywords:
+    - country
+    extents:
+      spatial:
+        bbox:
+        - 44.9
+        - 41.1
+        - 46.8
+        - 42.3
+        crs: http://www.opengis.net/def/crs/OGC/1.3/CRS84
+      temporal:
+        begin: 2024-12-01
+        end: 2024-12-01
+    providers:
+    - type: edr
+      name: xarray-edr
+      data: s3://saferplaces.co/test/icisk/spi/spi_data/historic/georgia_spi_historic_2024-12.zarr
+      x_field: lon
+      y_field: lat
+      time_field: time
+      format:
+        name: zarr
+        mimetype: application/zip
+      options:
+        s3:
+          anon: false
+          alternate_root: saferplaces.co/test/icisk/spi/spi_data/historic/georgia_spi_historic_2024-12.zarr
+          endpoint_url: https://s3.us-east-1.amazonaws.com
+          requester_pays: false
+  georgia_spi_forecast_2025-02:
+    type: collection
+    title: georgia_spi_forecast_2025-02
+    description: SPI for georgia
+    keywords:
+    - country
+    extents:
+      spatial:
+        bbox:
+        - 44.9
+        - 41.1
+        - 46.8
+        - 42.3
+        crs: http://www.opengis.net/def/crs/OGC/1.3/CRS84
+      temporal:
+        begin: 2025-02-01
+        end: 2025-02-01
+    providers:
+    - type: edr
+      name: xarray-edr
+      data: s3://saferplaces.co/test/icisk/spi/spi_data/forecast/georgia_spi_forecast_2025-02.zarr
+      x_field: lon
+      y_field: lat
+      time_field: time
+      format:
+        name: zarr
+        mimetype: application/zip
+      options:
+        s3:
+          anon: false
+          alternate_root: saferplaces.co/test/icisk/spi/spi_data/forecast/georgia_spi_forecast_2025-02.zarr
+          endpoint_url: https://s3.us-east-1.amazonaws.com
+          requester_pays: false

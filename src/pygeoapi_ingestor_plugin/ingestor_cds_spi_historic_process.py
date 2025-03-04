@@ -304,8 +304,8 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             return ds 
         
         ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)        
-        updated_collection_params = spi_utils.update_s3_collection_data(living_lab, ds, data_type='historic')
-        spi_utils.update_config(living_lab, updated_collection_params, data_type='historic')
+        collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type='historic')
+        spi_utils.update_config(living_lab, collection_params)
         return True
     
     
