@@ -142,7 +142,7 @@ PROCESS_METADATA = {
             "living_lab": "georgia",
             "period_of_interest": "2025-01",
             "spi_ts": 1,
-            "out_format": "netcdf"
+            "out_format": None
         }
     }
 }
@@ -293,31 +293,29 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
                 month_spi_coverage        
             ))
         
-        periods_of_interest = [spi_coverage[0] for spi_coverage in month_spi_coverages]
-        month_spi_coverages = [spi_coverage[1] for spi_coverage in month_spi_coverages]
+        period_of_interest, month_spi_coverage = month_spi_coverages[0]
         
         LOGGER.debug('SPI coverage computed')
-        return periods_of_interest, month_spi_coverages  
+        return period_of_interest, month_spi_coverage  
         
     
     # Save data to collection
-    def save_spi_coverage_to_collection(self, living_lab, spi_ts, periods_of_interest, month_spi_coverages):
+    def save_spi_coverage_to_collection(self, living_lab, spi_ts, period_of_interest, month_spi_coverage):
         
-        def build_data(spi_ts, periods_of_interest, month_spi_coverages):
-            ds = xr.concat(month_spi_coverages, dim="time")
-            ds = ds.assign_coords(time = [datetime.datetime.fromisoformat(p.isoformat()) for p in periods_of_interest])
+        def build_data(spi_ts, period_of_interest, month_spi_coverage):
+            ds = month_spi_coverage.expand_dims({'time': [datetime.datetime.combine(period_of_interest, datetime.time())]})
             ds = ds.to_dataset()
             for r in ds.r.values.tolist():
                 ds[f'spi{spi_ts}_r{r}'] = ds.sel(r=r).tp
             ds = ds.drop_dims(['r'])    
             return ds                
             
-        ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)        
+        ds = build_data(spi_ts, period_of_interest, month_spi_coverage)        
         collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type='forecast')
         spi_utils.update_config(living_lab, collection_params)
         return {
-            'collection_id': collection_params['collection_pygeoapi_id'],
-            'collection_data': collection_params['data']
+            'collection_id': collection_params['pygeoapi_id'],
+            'collection_s3_uri': collection_params['s3_uri']
         }
         
     
@@ -334,21 +332,26 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             poi_dataset = self.query_poi_cds_data(living_lab, period_of_interest, spi_ts)
             
             # Compute SPI coverage
-            periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
+            period_of_interest, month_spi_coverage = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
             # Save SPI coverage to collection
-            collection_info = self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
+            collection_info = self.save_spi_coverage_to_collection(living_lab, spi_ts, period_of_interest, month_spi_coverage)
             
             # Convert SPI coverage in the requested output format
-            out_spi_coverages = spi_utils.coverages_to_out_format(month_spi_coverages, out_format)
-            
-            # Build output response with spi coverage data infos
-            spi_coverage_response_info = spi_utils.build_output_response(periods_of_interest, out_spi_coverages)
+            output_data = {}
+            if out_format is not None:
+                out_spi_coverages = spi_utils.coverage_to_out_format(month_spi_coverage, out_format)
+                output_data = {
+                    'output_data': {
+                        'format': out_format,
+                        'collection_data': out_spi_coverages
+                    }
+                }
             
             outputs = {
-                'status': 'OK',
+                'status' : 'OK',
                 ** collection_info,
-                ** spi_coverage_response_info
+                ** output_data
             }
             
         except Exception as err:

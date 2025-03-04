@@ -149,12 +149,11 @@ def validate_parameters(data, data_type):
     if spi_ts not in [1]: # TODO: timescales [3,6,12,24,48] to be implemented
         raise ProcessorExecuteError('spi_ts must be 1. Other values are not supported yet')
     
-    if out_format is None:
-        out_format = 'netcdf'
-    if type(out_format) is not str:
-        raise ProcessorExecuteError('out_format must be a string or null')
-    if out_format not in ['netcdf', 'json', 'dataframe', 'tif', 'zarr']:
-        raise ProcessorExecuteError('out_format must be one of ["netcdf", "json", "dataframe", "tif", "zarr"]')
+    if out_format is not None:
+        if type(out_format) is not str:
+            raise ProcessorExecuteError('out_format must be a string or null')
+        if out_format not in ['netcdf', 'json', 'dataframe', 'tif', 'zarr']:
+            raise ProcessorExecuteError('out_format must be one of ["netcdf", "json", "dataframe", "tif", "zarr"]')
     
     LOGGER.debug('parameters validated')
     return living_lab, period_of_interest, spi_ts, out_format
@@ -296,14 +295,14 @@ def create_s3_collection_data(living_lab, ds, data_type):
     min_dt, max_dt = ds.time.min().dt.date.item(), ds.time.max().dt.date.item()
     
     collection_params = {
-        'data': s3_zarr_collection_uri,
+        's3_uri': s3_zarr_collection_uri,
         'bbox': [min_x, min_y, max_x, max_y],
         'time': {
             'begin': min_dt,
             'end': max_dt
         },
         
-        'collection_pygeoapi_id': _collection_pygeoapi_identifiers[living_lab][data_type](date = collection_date)
+        'pygeoapi_id': _collection_pygeoapi_identifiers[living_lab][data_type](date = collection_date)
     }
     
     ds.to_zarr(store=s3_store, consolidated=True, mode='w')
@@ -313,14 +312,14 @@ def create_s3_collection_data(living_lab, ds, data_type):
 
 
 def update_config(living_lab, collection_params):
-    data_src = collection_params['data']
+    data_src = collection_params['s3_uri']
 
     # THIS MUST BE THE SAME IN ALL PROCESSES UPDATING THE SERV CONFIG
     lock = FileLock(f"{_config_file}.lock", thread_local=False)
     with lock:
         config = utils.read_config(_config_file)
 
-        collection_pygeoapi_identifier = collection_params['collection_pygeoapi_id']
+        collection_pygeoapi_identifier = collection_params['pygeoapi_id']
         
         LOGGER.info(f"resource identifier and title: '{collection_pygeoapi_identifier}'")
         dataset_definition = {
@@ -429,20 +428,3 @@ def coverage_to_out_format(coverage_ds, out_format):
         
     LOGGER.debug(f'SPI coverage converted in {out_format} format')
     return coverage_out
-    
-    
-    
-def build_output_response(periods_of_interest, out_spi_coverages):
-    return {
-        'spi_coverage_info': [
-            {
-                'period_of_interest': period_of_interest.strftime('%Y-%m'),
-                'spi_coverage_data': out_spi_coverage
-            } 
-            for period_of_interest, out_spi_coverage 
-            in zip(
-                periods_of_interest,
-                out_spi_coverages
-            )
-        ]
-    }
