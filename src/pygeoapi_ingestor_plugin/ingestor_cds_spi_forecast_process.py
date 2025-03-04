@@ -141,8 +141,7 @@ PROCESS_METADATA = {
             "token": "ABC123XYZ666",
             "living_lab": "georgia",
             "period_of_interest": "2025-01",
-            "spi_ts": 1,
-            "out_format": None
+            "spi_ts": 1
         }
     }
 }
