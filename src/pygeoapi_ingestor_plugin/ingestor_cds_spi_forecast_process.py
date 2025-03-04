@@ -188,7 +188,12 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             return filepath
         
         # CDS API query    
-        init_date = datetime.datetime.now().date().replace(day=1)
+        curr_date = datetime.datetime.now().date()
+        if period_of_interest[0].strftime('%Y-%m') >= curr_date.strftime('%Y-%m'):
+            init_date = datetime.datetime.now().date().replace(day=1)
+        else:
+            init_date = period_of_interest[0].replace(day=1)
+        
         start_hour = max(24, (period_of_interest[0] - init_date).days*24)
         end_hour = min(5160, (period_of_interest[1] - period_of_interest[0]).days*24 + start_hour)
 
