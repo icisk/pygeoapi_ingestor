@@ -122,8 +122,10 @@ def validate_parameters(data, data_type):
         if type(period_of_interest) is str:
             try:
                 period_of_interest = datetime.datetime.fromisoformat(period_of_interest)
-                if period_of_interest.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):
-                    raise ProcessorExecuteError('period_of_interest must be a date after current date month') 
+                # if period_of_interest.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):  # INFO: No limitation, after all we are also able to retrieve forecast data of past months
+                #     raise ProcessorExecuteError('period_of_interest must be a date after current date month') 
+                if period_of_interest.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
+                    raise ProcessorExecuteError('period_of_interest in current month is avaliable from day 6 at 12UTC')
                 if diff_months(datetime.datetime.now(), period_of_interest) > 6:
                     raise ProcessorExecuteError('period_of_interest must be within 6 months from current date')              
             except ValueError:
@@ -135,11 +137,13 @@ def validate_parameters(data, data_type):
             for poi in period_of_interest:
                 try:
                     poi = datetime.datetime.fromisoformat(poi)
-                    if poi.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):
-                        raise ProcessorExecuteError('period_of_interest must be a date after current date month')               
+                    # if poi.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):     # INFO: No limitation, after all we are also able to retrieve forecast data of past months
+                    #     raise ProcessorExecuteError('period_of_interest must be a date after current date month')               
                 except ValueError:
                     raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
             period_of_interest = [datetime.datetime.fromisoformat(poi) for poi in period_of_interest]
+            if period_of_interest.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
+                raise ProcessorExecuteError('period_of_interest in current month is avaliable from day 6 at 12UTC')
             if period_of_interest[0] >= period_of_interest[1]:
                 raise ProcessorExecuteError('period_of_interest[0] must be less than period_of_interest[1]')
             if period_of_interest[0].strftime("%Y-%m") == period_of_interest[1].strftime("%Y-%m"):
