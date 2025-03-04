@@ -46,14 +46,15 @@ _living_lab_bbox = {
     }
 }
 
-_s3_bucket = f's3://saferplaces.co/test/icisk/spi/'
+_s3_bucket = os.environ.get("DEFAULT_BUCKET")
+remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
 _s3_living_lab_ref_data = {
-    'georgia': os.path.join(_s3_bucket, 'reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2024.nc')
+    'georgia': os.path.join(f"s3://{_s3_bucket}", f'{remote_path}georgia/spi/reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2024.nc')
 }
 _s3_spi_collection_zarr_uris = {
     'georgia': {
-        'historic': lambda date: os.path.join(_s3_bucket, f'spi_data/historic/georgia_spi_historic_{date.strftime("%Y-%m")}.zarr'),
-        'forecast': lambda date: os.path.join(_s3_bucket, f'spi_data/forecast/georgia_spi_forecast_{date.strftime("%Y-%m")}.zarr')
+        'historic': lambda date: os.path.join(f"s3://{_s3_bucket}", f'{remote_path}georgia/spi/spi_historic_{date.strftime("%Y-%m")}.zarr'),
+        'forecast': lambda date: os.path.join(f"s3://{_s3_bucket}", f'{remote_path}georgia/spi/spi_forecast_{date.strftime("%Y-%m")}.zarr')
     }
 }
 _collection_pygeoapi_identifiers = {
@@ -380,32 +381,12 @@ def update_config(living_lab, collection_params):
         utils.write_config(config_path=_config_file, config_out=config)
 
 
-
-def build_spi_s3_uris(living_lab, periods_of_interest, spi_ts, data_type):
-    s3_uris = []
-    for period_of_interest in periods_of_interest:
-        s3_uris.append(build_spi_s3_uri(living_lab, period_of_interest, spi_ts, data_type))
-    return s3_uris
-    
-def build_spi_s3_uri(living_lab, period_of_interest, spi_ts, data_type):
-    spi_part = f'spi-{spi_ts}'
-    time_part = f'{period_of_interest.year}-{period_of_interest.month:02d}'
-    coverage_tif_filename = f'{spi_part}__{living_lab}__{time_part}.tif'
-    
-    if data_type == 'historic':
-        s3_uri = os.path.join(_s3_bucket, 'spi_data', 'historic', coverage_tif_filename)
-    elif data_type == 'forecast':
-        s3_uri = os.path.join(_s3_bucket, 'spi_data', 'forecast', coverage_tif_filename)
-    else:
-        raise ProcessorExecuteError('data_type must be one of ["forecast", "historic"]')
-    return s3_uri 
-
-
 def coverages_to_out_format(coverages, out_format):
     out_coverages = []
     for coverage in coverages:
         out_coverages.append(coverage_to_out_format(coverage, out_format))
     return out_coverages
+
 
 def coverage_to_out_format(coverage_ds, out_format):
     """
