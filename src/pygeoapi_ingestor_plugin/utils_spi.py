@@ -71,10 +71,17 @@ def validate_parameters(data, data_type):
     Validate request parameters
     """
     
+    token = data.get('token', None)
     living_lab = data.get('living_lab', None)
     period_of_interest = data.get('period_of_interest', None)
     spi_ts = data.get('spi_ts', None)
     out_format = data.get('out_format', None)
+    
+    if token is None:
+        raise ProcessorExecuteError('You must provide an valid token')
+    if token != os.getenv("INT_API_TOKEN", "token"):
+        LOGGER.error(f"WRONG INTERNAL API TOKEN {token} ({type(token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
+        raise ProcessorExecuteError('ACCESS DENIED: wrong token')
     
     if living_lab is None:
         raise ProcessorExecuteError('Cannot process without a living_lab valued')

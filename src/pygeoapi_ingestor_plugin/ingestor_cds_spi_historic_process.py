@@ -77,6 +77,13 @@ PROCESS_METADATA = {
         'hreflang': 'en-US'
     }],
     'inputs': {
+        'token': {
+            'title': 'secret token',
+            'description': 'identify yourself',
+            'schema': {
+                'type': 'string'
+            }
+        },
         "living_lab": {
             "title": "Living Lab",
             "description": "The Living Lab name",
