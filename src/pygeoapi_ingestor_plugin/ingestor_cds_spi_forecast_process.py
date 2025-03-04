@@ -91,8 +91,8 @@ PROCESS_METADATA = {
             },
         },
         'period_of_interest': {
-            'title': 'period of interest',
-            'description': 'Reference (range of) date(s) on which to calculate the index',
+            'title': 'period of interest (YYYY-MM)',
+            'description': 'Init forecast month in which we are interested in calculating the SPI for next 6 month. (Format YYYY-MM)',
             'schema': {
             }
         },
@@ -140,7 +140,7 @@ PROCESS_METADATA = {
             "debug": True,
             "token": "ABC123XYZ666",
             "living_lab": "georgia",
-            "period_of_interest": "2025-01-31T00:00:00.000",
+            "period_of_interest": "2025-01",
             "spi_ts": 1,
             "out_format": "netcdf"
         }
@@ -182,7 +182,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         """
         
         # Format params for CDS API query
-        period_of_interest = spi_utils.format_params_for_poi_cds_query(period_of_interest)    
+        # period_of_interest = spi_utils.format_params_for_poi_cds_query(period_of_interest)    
         
         # Build CDS query response filepath
         def build_cds_hourly_data_filepath(start_year, start_month, end_year, end_month):            
@@ -198,7 +198,10 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         # CDS API query    
         curr_date = datetime.datetime.now().date()
         if period_of_interest[0].strftime('%Y-%m') >= curr_date.strftime('%Y-%m'):
-            init_date = datetime.datetime.now().date().replace(day=1)
+            if curr_date.day > 6: # Data is available from 7th day of the month
+                init_date = datetime.datetime.now().replace(day=1).date()
+            else:  # We can use forecast from previous init month
+                init_date = (datetime.datetime.now() - relativedelta(months=1)).replace(day=1).date()
         else:
             init_date = period_of_interest[0].replace(day=1)
         
@@ -312,7 +315,10 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)        
         collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type='forecast')
         spi_utils.update_config(living_lab, collection_params)
-        return True
+        return {
+            'collection_id': collection_params['collection_pygeoapi_id'],
+            'collection_data': collection_params['data']
+        }
         
     
     def execute(self, data):
@@ -331,7 +337,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
             # Save SPI coverage to collection
-            self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
+            collection_info = self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
             
             # Convert SPI coverage in the requested output format
             out_spi_coverages = spi_utils.coverages_to_out_format(month_spi_coverages, out_format)
@@ -341,6 +347,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             
             outputs = {
                 'status': 'OK',
+                ** collection_info,
                 ** spi_coverage_response_info
             }
             

@@ -91,8 +91,8 @@ PROCESS_METADATA = {
             },
         },
         'period_of_interest': {
-            'title': 'period of interest',
-            'description': 'Reference (range of) date(s) on which to calculate the index',
+            'title': 'period of interest (YYYY-MM)',
+            'description': 'Month in which we are interested in calculating the SPI. (Format YYYY-MM)',
             'schema': {
             }
         },
@@ -140,7 +140,7 @@ PROCESS_METADATA = {
             "debug": True,
             "token": "ABC123XYZ666",
             "living_lab": "georgia",
-            "period_of_interest": "2025-01-31T00:00:00.000",
+            "period_of_interest": "2025-03",
             "spi_ts": 1,
             "out_format": "netcdf"
         }
@@ -183,7 +183,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         """
         
         # Format params for CDS API query    
-        period_of_interest = spi_utils.format_params_for_poi_cds_query(period_of_interest)    
+        # period_of_interest = spi_utils.format_params_for_poi_cds_query(period_of_interest)    
         
         # Get (Years, Years-Months) couple for the CDS api query. (We can query just one month at time)
         spi_start_date = period_of_interest[0] - relativedelta(months=spi_ts-1)
@@ -306,7 +306,10 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)        
         collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type='historic')
         spi_utils.update_config(living_lab, collection_params)
-        return True
+        return {
+            'collection_id': collection_params['collection_pygeoapi_id'],
+            'collection_data': collection_params['data']
+        }
     
     
     def execute(self, data):
@@ -326,7 +329,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
             
             # Save SPI coverage to collection
-            self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
+            collection_info = self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
             
             # Convert SPI coverage in the requested output format
             out_spi_coverages = spi_utils.coverages_to_out_format(month_spi_coverages, out_format)
@@ -336,6 +339,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             
             outputs = {
                 'status': 'OK',
+                ** collection_info,
                 ** spi_coverage_response_info
             }
             

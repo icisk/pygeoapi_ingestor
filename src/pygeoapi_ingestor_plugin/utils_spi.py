@@ -93,74 +93,46 @@ def validate_parameters(data, data_type):
     def validate_period_of_interest_historic(period_of_interest):
         if period_of_interest is None:
             raise ProcessorExecuteError('Cannot process without a period_of_interest valued')
-        if type(period_of_interest) not in [str, list]:
-            raise ProcessorExecuteError('period_of_interest must be a string or a list')
-        if type(period_of_interest) is str:
-            try:
-                period_of_interest = datetime.datetime.fromisoformat(period_of_interest)
-                if period_of_interest.strftime("%Y-%m") >= datetime.datetime.now().strftime("%Y-%m"):
-                    raise ProcessorExecuteError('period_of_interest must be a date before current date month')                
-            except ValueError:
-                raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
-            period_of_interest = [period_of_interest]
-        elif type(period_of_interest) is list:
-            if len(period_of_interest) != 2:
-                raise ProcessorExecuteError('period_of_interest list must have 2 elements')
-            for poi in period_of_interest:
-                try:
-                    poi = datetime.datetime.fromisoformat(poi)
-                    if poi.strftime("%Y-%m") >= datetime.datetime.now().strftime("%Y-%m"):
-                        raise ProcessorExecuteError('period_of_interest must be a date before current date month')                
-                except ValueError:
-                    raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
-            period_of_interest = [datetime.datetime.fromisoformat(poi) for poi in period_of_interest]
-            if period_of_interest[0] >= period_of_interest[1]:
-                raise ProcessorExecuteError('period_of_interest[0] must be less than period_of_interest[1]')
-            if period_of_interest[0].strftime("%Y-%m") == period_of_interest[1].strftime("%Y-%m"):
-                raise ProcessorExecuteError('period_of_interest[0] and period_of_interest[1] must be in different months')
+        if type(period_of_interest) is not str:
+            raise ProcessorExecuteError('period_of_interest must be a string')
+        try:
+            period_of_interest = datetime.datetime.strptime(period_of_interest, "%Y-%m")
+            if period_of_interest.strftime("%Y-%m") >= datetime.datetime.now().strftime("%Y-%m"):
+                raise ProcessorExecuteError('period_of_interest must be a date before current date month')                
+        except ValueError:
+            raise ProcessorExecuteError('period_of_interest must be a valid datetime YYYY-MM string')
+        period_of_interest = [
+            period_of_interest.date(), 
+            period_of_interest.replace(day=utils.days_in_month(period_of_interest)).date()
+        ]
         return period_of_interest
     
     def validate_period_of_interest_forecast(period_of_interest):
         diff_months = lambda date1, date2: (date2.year - date1.year) * 12 + (date2.month - date1.month)
         if period_of_interest is None:
             raise ProcessorExecuteError('Cannot process without a period_of_interest valued')
-        if type(period_of_interest) not in [str, list]:
-            raise ProcessorExecuteError('period_of_interest must be a string or a list')
-        if type(period_of_interest) is str:
-            try:
-                period_of_interest = datetime.datetime.fromisoformat(period_of_interest)
-                # if period_of_interest.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):  # INFO: No limitation, after all we are also able to retrieve forecast data of past months
-                #     raise ProcessorExecuteError('period_of_interest must be a date after current date month') 
-                if period_of_interest.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
-                    raise ProcessorExecuteError('period_of_interest in current month is avaliable from day 6 at 12UTC')
-                if diff_months(datetime.datetime.now(), period_of_interest) > 6:
-                    raise ProcessorExecuteError('period_of_interest must be within 6 months from current date')              
-            except ValueError:
-                raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
-            period_of_interest = [period_of_interest]
-        elif type(period_of_interest) is list:
-            if len(period_of_interest) != 2:
-                raise ProcessorExecuteError('period_of_interest list must have 2 elements')
-            for poi in period_of_interest:
-                try:
-                    poi = datetime.datetime.fromisoformat(poi)
-                    # if poi.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):     # INFO: No limitation, after all we are also able to retrieve forecast data of past months
-                    #     raise ProcessorExecuteError('period_of_interest must be a date after current date month')               
-                except ValueError:
-                    raise ProcessorExecuteError('period_of_interest must be a valid datetime iso-format string')
-            period_of_interest = [datetime.datetime.fromisoformat(poi) for poi in period_of_interest]
-            if period_of_interest.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
-                raise ProcessorExecuteError('period_of_interest in current month is avaliable from day 6 at 12UTC')
-            if period_of_interest[0] >= period_of_interest[1]:
-                raise ProcessorExecuteError('period_of_interest[0] must be less than period_of_interest[1]')
-            if period_of_interest[0].strftime("%Y-%m") == period_of_interest[1].strftime("%Y-%m"):
-                raise ProcessorExecuteError('period_of_interest[0] and period_of_interest[1] must be in different months')
-            if diff_months(datetime.datetime.now(), period_of_interest[0]) > 6:
-                raise ProcessorExecuteError('period_of_interest[0] must be within 6 months from current date')
-            if diff_months(datetime.datetime.now(), period_of_interest[1]) > 6:
-                raise ProcessorExecuteError('period_of_interest[1] must be within 6 months from current date')
-        return period_of_interest
+        if type(period_of_interest) is not str:
+            raise ProcessorExecuteError('period_of_interest must be a string')
+        try:
+            period_of_interest = datetime.datetime.strptime(period_of_interest, "%Y-%m")
             
+            # if period_of_interest.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):  # INFO: No limitation, after all we are also able to retrieve forecast data of past months
+            #     raise ProcessorExecuteError('period_of_interest must be a date after current date month') 
+            
+            # if period_of_interest.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0): # INFO: If requested period of intereset is in the current month or later it will be used last avaliable init month for the forecast data
+            #     raise ProcessorExecuteError('period_of_interest in current month is avaliable from day 6 at 12UTC')
+            if diff_months(datetime.datetime.now(), period_of_interest) > 6:
+                raise ProcessorExecuteError('period_of_interest must be within 6 months from current date')              
+        except ValueError:
+            raise ProcessorExecuteError('period_of_interest must be a valid datetime YYYY-MM string')
+        period_of_interest = [
+            period_of_interest.date(), 
+            period_of_interest.replace(day=utils.days_in_month(period_of_interest)).date()
+            
+            # INFO: Copernicus gives forecast data from the init month to ~7 month (5160 hours) after but we choose to get the data only of the declared month into the period of interest .. if we are interest in other month, pleas send specific requests
+            #  (period_of_interest + datetime.timedelta(hours=5160)).replace(day=1, hour=0).date() # REF: https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download#leadtime_hour
+        ]
+        return period_of_interest            
             
     if data_type == 'historic':            
         period_of_interest = validate_period_of_interest_historic(period_of_interest)
@@ -336,68 +308,6 @@ def create_s3_collection_data(living_lab, ds, data_type):
     ds.to_zarr(store=s3_store, consolidated=True, mode='w')
     
     return collection_params
-    
-    # min_x, max_x = ds.lon.values.min().item(), ds.lon.values.max().item()
-    # min_y, max_y = ds.lat.values.min().item(), ds.lat.values.max().item()
-    # min_dt, max_dt = datetime.datetime.fromtimestamp(ds.time.values.min().item() / 1e9), datetime.datetime.fromtimestamp(ds.time.values.max().item() / 1e9)
-    
-    # config = utils.read_config(_config_file)
-    # collection_pygeoapi_identifier = _collection_pygeoapi_identifiers[living_lab][data_type]
-    
-    # existing_collection = config['resources'].get(collection_pygeoapi_identifier, None)
-    # if existing_collection:
-    #     curr_min_x, curr_min_y, curr_max_x, curr_max_y = existing_collection['extents']['spatial']['bbox']
-    #     curr_min_dt = existing_collection['extents']['temporal']['begin']
-    #     curr_max_dt = existing_collection['extents']['temporal']['end']
-
-    #     # INFO: We assume and handle only the case of dataset with more recent datetime with an eventual overlap between last(s) dt of existing dataset and first(s) dt of new dataset
-    #     if min_dt <= curr_max_dt:
-    #         # There is an overlap
-    #         curr_months_delta = ((curr_max_dt.year - curr_min_dt.year) * 12 + (curr_max_dt.month - curr_min_dt.month)) + 1
-    #         months_overlap = ((curr_max_dt.year - min_dt.year) * 12 + (curr_max_dt.month - min_dt.month)) + 1
-    #         if months_overlap == len(ds.time):
-    #             # New dataset is a complete overlap of the latest part of the existing dataset
-    #             if 'spatial_ref' in ds:
-    #                 ds = ds.drop_vars(['spatial_ref'])
-    #             ds.to_zarr(store=s3_store, consolidated=True, mode='a', region={
-    #                 'time': slice(curr_months_delta-months_overlap, curr_months_delta),
-    #                 'lat': slice(0, len(ds.lat)),
-    #                 'lon': slice(0, len(ds.lon))
-    #             })
-    #         else:
-    #             # New dataset is a partial overlap of the latest part of the existing dataset
-    #             ds_overlap = ds.isel(time=[t for t in range(months_overlap)])
-    #             if 'spatial_ref' in ds_overlap:
-    #                 ds_overlap = ds_overlap.drop_vars(['spatial_ref'])
-    #             ds_overlap.to_zarr(store=s3_store, consolidated=True, mode='a', region={
-    #                 'time': slice(curr_months_delta-months_overlap, curr_months_delta),
-    #                 'lat': slice(0, len(ds_overlap.lat)),
-    #                 'lon': slice(0, len(ds_overlap.lon))
-    #             })
-    #             ds_exceed = ds.isel(time=[t for t in range(months_overlap, len(ds.time))])
-    #             ds_exceed.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
-    #     else:
-    #         # No overlap
-    #         ds.to_zarr(store=s3_store, consolidated=True, mode='a', append_dim='time')
-            
-    #     min_x = min(min_x, curr_min_x)
-    #     min_y = min(min_y, curr_min_y)
-    #     max_x = max(max_x, curr_max_x)
-    #     max_y = max(max_y, curr_max_y)
-    #     min_dt = min(min_dt, curr_min_dt)
-    #     max_dt = max(max_dt, curr_max_dt)
-    # else:
-    #     # Collection does not exist yet, we will create it so we write all data
-    #     ds.to_zarr(store=s3_store, consolidated=True, mode='a')
-    
-    # updated_collection_params = {
-    #     'bbox': [min_x, min_y, max_x, max_y],
-    #     'time': {
-    #         'begin': min_dt,
-    #         'end': max_dt
-    #     }
-    # }
-    # return updated_collection_params
 
 
 
@@ -423,8 +333,8 @@ def update_config(living_lab, collection_params):
                     'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
                 },
                 'temporal': {
-                    'begin': collection_params['time']['begin'],
-                    'end': collection_params['time']['end']
+                    'begin': datetime.datetime.combine(collection_params['time']['begin'], datetime.time()),
+                    'end': datetime.datetime.combine(collection_params['time']['end'], datetime.time())
                 }
             },
             'providers': [
@@ -512,6 +422,7 @@ def coverage_to_out_format(coverage_ds, out_format):
         coverage_out = coverage_ds.to_dataframe().reset_index().to_csv(sep=';', index=False, header=True)
     if out_format == 'tif':
         coverage_tif_filepath = os.path.join(_temp_dir, 'spi_coverage.tif')
+        coverage_ds = coverage_ds.sortby('lat', ascending=False)
         coverage_ds.rio.write_crs("EPSG:4326", inplace=True)
         coverage_ds.rio.set_spatial_dims(x_dim='lon', y_dim='lat', inplace=True)
         coverage_ds.rio.to_raster(
