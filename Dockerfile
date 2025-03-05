@@ -17,8 +17,6 @@ WORKDIR /pygeoapi
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-RUN pip install --upgrade s3fs boto3 botocore
-
 COPY . .
 
 RUN pip install . \

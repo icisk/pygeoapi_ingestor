@@ -40,11 +40,11 @@ setuptools.setup(
         "rasterio",
         "rioxarray",
         "scipy",
-        "boto3",
         "s3fs",
         "shyaml",
         "tifffile",
         "xarray==2024.1.0",
-        "zarr"
+        "zarr",
+        "boto3"
     ]
 )

@@ -14,9 +14,9 @@ pygeoapi
 python-dotenv
 rioxarray==0.18.2
 scipy
-boto3
 s3fs
 shyaml
 tifffile
 xarray==2024.7.0
 zarr
+boto3

@@ -189,7 +189,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             if is_tp_uploaded and is_t2m_uploaded:
                 raise Handle200Exception(Handle200Exception.OK, f"Path {s3_tp_uri} and {s3_t2m_uri} already exists in bucket and config")
             
-        # check_s3_path_exists(start_month) # !!! Need to run `pip install --upgrade s3fs boto3 botocore`
+        check_s3_path_exists(start_month) # !!! Need to run `pip install --upgrade s3fs boto3 botocore`
         
         return start_month
     
