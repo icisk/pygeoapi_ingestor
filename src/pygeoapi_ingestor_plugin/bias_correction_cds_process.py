@@ -4,6 +4,7 @@ import datetime
 import tempfile
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from scipy.interpolate import splev
@@ -111,13 +112,13 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
         
         self.living_lab = 'spain'
         
-        self.bucket_uri = 's3://saferplaces.co/test/icisk/bias_correction'
+        self.bucket_uri = utils.normpath(os.path.join('s3://', os.environ.get("DEFAULT_BUCKET"), os.environ.get("DEFAULT_REMOTE_DIR"), self.living_lab, 'bias_correction'))
         
-        self.process_temp_dir = os.path.join(tempfile.gettempdir(), 'BiasCorrectionCDSProcess')
+        self.process_temp_dir = os.path.join(tempfile.gettempdir(), 'bias_correction_cds_process')
         if not os.path.exists(self.process_temp_dir):
             os.makedirs(self.process_temp_dir, exist_ok=True)
             
-        self.process_data_dir = os.path.join(os.getcwd(), 'BiasCorrectionProcessData')
+        self.process_data_dir = os.path.join(os.getcwd(), 'bias_correction_process_data')
         self.prepare_data()
         
         
@@ -148,7 +149,19 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
         griddes_t2m_path = os.path.join(self.process_data_dir, 'grid_descriptions', 'grid_description_t2m.txt')
         self.grid_file_t2m = griddes_txt2netcdf(griddes_t2m_path)
         
-        self.parameters_dir = os.path.join(self.process_data_dir, 'parameters')
+        def load_parameters():
+            params_dir = os.path.join(self.process_data_dir, 'parameters')
+            param_paths = [os.path.join(params_dir, pf) for pf in os.listdir(params_dir)]
+
+            df_params = pd.DataFrame(param_paths, columns=['path'])
+            df_params['var'] = df_params['path'].apply(lambda p: utils.juststem(p).split('__')[1])
+            df_params['init_month'] = df_params['path'].apply(lambda p: int(utils.juststem(p).split('__')[2].split('_')[1]))
+            df_params['lead_month'] = df_params['path'].apply(lambda p: int(utils.juststem(p).split('__')[3].split('_')[1]))
+            df_params['param'] = df_params['path'].apply(lambda p: np.load(p)['arr_0'])
+            df_params = df_params.drop(columns=['path'])
+            return df_params
+        
+        self.df_params = load_parameters()
 
         
         
@@ -277,107 +290,79 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
         return ds_tp, ds_t2m
         
         
-        
+    
     def bias_correction(self, ds, ds_varname):
         
-        def get_ds_param_couple(ds, r, varname, init_month, lead_month, station_index):
-            
+        def correction_procedure(varname, r, ref_time, lead_month, data, st_idx):
+    
             def load_param_file(varname, init_month, lead_month):
-                param_filename = f'bctf__{varname}__start_{init_month:02d}__lead_{lead_month:02d}.npz'
-                param_filepath = os.path.join(self.parameters_dir, param_filename)
-                param = None
-                if os.path.exists(param_filepath):
-                    param = np.load(param_filepath)['arr_0']
-                return param
+                found_params = self.df_params.query(f'var == "{varname}" and init_month == {init_month} and lead_month == {lead_month}')
+                if found_params.empty:
+                    return None
+                return found_params.iloc[0].param
 
-            def select_ds_param_slice(ds, r, init_month, lead_month, station_index):
-                ds_param = ds.sel(
-                    r = r,
-                    ref_time = (ds.ref_time.dt.month == init_month),
-                    time = (ds.time.dt.month == lead_month),
-                    y = station_index
-                )
-                return ds_param
+            param = load_param_file(varname, ref_time, lead_month)
+
+            d = data.copy()                                         # Reference data ( 1-r, 1-ref_time, N-days-lead_month, 1-st_idx )
             
-            param = load_param_file(varname, init_month, lead_month)
-            ds_param = select_ds_param_slice(ds, r, init_month, lead_month, station_index)
-            return ds_param, param
+            if param is not None:
+                ind_degree = 1                                      # Index of degree of spline fit
+                ind_no_knots = 2                                    # Index where the number of spline knots is saved
+                ind_knots = 3                                       # Index where the knots start
+
+                n = int(param[st_idx, 0, ind_no_knots])             # number of knots
+
+                ind_coeffs = ind_knots + n                          # indices range for coefficients of spline
+
+                ind_dmin = ind_coeffs + n                           # Indices where minimum value for spline fit is stored
+                ind_dmax = ind_dmin + 1                             # Indices where maxmimum value for spline fit is stored
+                ind_ssr_threshold = ind_dmax + 1                    # Index where the wet-day threshold is stored
+
+                k = int(param[st_idx,0,ind_degree])
+                t = param[st_idx,0,ind_knots:ind_coeffs]
+                c = param[st_idx,0,ind_coeffs:ind_dmin]
+                dmin = param[st_idx,0,ind_dmin]
+                dmax = param[st_idx,0,ind_dmax]
+                tck = (t, c, k)                                     # tuple contains the input parameters to the spline method
+
+                tmin = t[k]
+                tmax = t[-k]
+                ssr_threshold = param[st_idx,0,ind_ssr_threshold]   # (???) This is never used
+                n_ts = len(d)                                       # Number of time steps
+
+                for ts in range(0,n_ts):                            # Below or about the spline limits, a constant biasadjustment value is assumed (dmin or dmax)
+                    under_range = d[ts] < tmin
+                    over_range = d[ts] > tmax
+                    if under_range:
+                        d[ts] = d[ts] + dmin
+                    elif over_range:
+                        d[ts] = d[ts] + dmax
+                    else:
+                        d[ts] = splev(d[ts], tck, ext=2)
+                        
+            return d
         
-        
+  
         ds_varname_adj = f'{ds_varname}_adj'
         ds[ds_varname_adj] = ds[ds_varname].copy()
 
-        r_idxs = ds.r.values
-        init_month_idxs = [im for im in list(set(ds.ref_time.dt.month.values))]
-        lead_month_idxs = [lm for lm in list(set(ds.time.dt.month.values))[:-1]] # last forecast month is not complete (only first 3 days)
-        stations_idxs = [s_idx for s_idx in range(len(ds.y))]
+        for lm in list(set(ds.time.dt.month.values)):
+            ds_lm = ds.sel(time=ds.time.dt.month == lm)
+            ds_lm[ds_varname_adj] = xr.apply_ufunc(
+                correction_procedure,
+                ds_varname, ds_lm.r, ds_lm.ref_time.dt.month, lm, ds_lm[ds_varname], ds_lm.y,
+                vectorize=True,
+                input_core_dims=[[], [], [], [], ['time'], []],
+                output_core_dims=[['time']],
+                dask="parallelized"
+            )
+            ds_lm[ds_varname_adj] = ds_lm[ds_varname_adj].transpose('r', 'ref_time', 'time', 'y', 'x')
+            ds[ds_varname_adj].loc[dict(time = ds.time.dt.month == lm)] = ds_lm[ds_varname_adj] 
         
-        for r_idx in r_idxs: # Reduce to test
-
-            for im_idx in init_month_idxs:
-
-                for lm_idx in lead_month_idxs:
-
-                    for st_idx in stations_idxs:
-                        
-                        ds_param, param = get_ds_param_couple(
-                            ds = ds,
-                            r = r_idx,
-                            varname = ds_varname,
-                            init_month = im_idx,
-                            lead_month = lm_idx,
-                            station_index = st_idx
-                        )
-                        
-                        # Prevent correction where no params exist (i.e. lead August for init January)
-                        if param is not None:
-                            d = ds_param[ds_varname].values.ravel()             # Extract measures
-
-                            ind_degree = 1                                      # Index of degree of spline fit
-                            ind_no_knots = 2                                    # Index where the number of spline knots is saved
-                            ind_knots = 3                                       # Index where the knots start
-
-                            n = int(param[st_idx, 0, ind_no_knots])             # number of knots
-
-                            ind_coeffs = ind_knots + n                          # indices range for coefficients of spline
-
-                            ind_dmin = ind_coeffs + n                           # Indices where minimum value for spline fit is stored
-                            ind_dmax = ind_dmin + 1                             # Indices where maxmimum value for spline fit is stored
-                            ind_ssr_threshold = ind_dmax + 1                    # Index where the wet-day threshold is stored
-
-                            k = int(param[st_idx,0,ind_degree])
-                            t = param[st_idx,0,ind_knots:ind_coeffs]
-                            c = param[st_idx,0,ind_coeffs:ind_dmin]
-                            dmin = param[st_idx,0,ind_dmin]
-                            dmax = param[st_idx,0,ind_dmax]
-                            tck = (t, c, k)                                     # tuple contains the input parameters to the spline method
-
-                            tmin = t[k]
-                            tmax = t[-k]
-                            ssr_threshold = param[st_idx,0,ind_ssr_threshold]   # (???) This is never used
-                            n_ts = len(d)                                       # Number of time steps
-
-                            for ts in range(0,n_ts):                            # Below or about the spline limits, a constant biasadjustment value is assumed (dmin or dmax)
-                                under_range = d[ts] < tmin
-                                over_range = d[ts] > tmax
-                                if under_range:
-                                    d[ts] = d[ts] + dmin
-                                elif over_range:
-                                    d[ts] = d[ts] + dmax
-                                else:
-                                    d[ts] = splev(d[ts], tck, ext=2)
-
-                            ds[ds_varname_adj].loc[dict(                        # Save the adjusted values in the dataset
-                                r = r_idx,
-                                ref_time = ds.ref_time.dt.month==im_idx,
-                                time = ds.time.dt.month==lm_idx,
-                                y = st_idx
-                            )] = d[np.newaxis, :, np.newaxis]
-                        
         return ds
-                        
         
-                        
+
+
     def bias_correction_tp(self, ds_tp):
         ds_tp = self.bias_correction(ds_tp, 'tp')
         ds_tp = ds_tp.drop_vars('tp')
@@ -399,7 +384,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
     def save_dataset_to_s3(self, dataset, ds_varname):
         dataset_part = 'ECMWF_51'
         variable_part = f'{ds_varname}-bias_corrected'
-        date_part = dataset.time[0].dt.date.item().strftime('%Y-%m-%d')
+        date_part = dataset.time[0].dt.date.item().strftime('%Y-%m')
         
         basename = f"{dataset_part}__{variable_part}__{date_part}.nc"
         filepath = os.path.join(self.process_temp_dir, basename)
