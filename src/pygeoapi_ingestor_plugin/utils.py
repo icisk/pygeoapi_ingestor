@@ -1,4 +1,5 @@
 import datetime
+from calendar import monthrange
 import fcntl
 from ftplib import FTP
 import fsspec
@@ -10,6 +11,7 @@ import shutil
 import yaml
 import zipfile
 import time
+import math
 import numpy as np
 import xarray as xr
 
@@ -21,6 +23,17 @@ logger = logging.getLogger(__name__)
 # logger.addHandler(ch)
 
 
+def floor_decimals(number, decimals=0):
+    factor = 10 ** decimals
+    return math.floor(number * factor) / factor
+
+def ceil_decimals(number, decimals=0):
+    factor = 10 ** decimals
+    return math.ceil(number * factor) / factor
+
+def days_in_month(date):
+    return monthrange(date.year, date.month)[1]
+
 # Create a representer for NumPy arrays
 def numpy_array_representer(dumper, data):
     # Convert NumPy array to list and add a tag for NumPy array
@@ -30,6 +43,42 @@ def read_config(config_path):
         with open(config_path, 'r') as file:
             logger.info(f"reading config from '{config_path}")
             return(yaml.safe_load(file))
+        
+        
+def justfname(pathname):
+    """
+    justfname - returns the basename
+    """
+    return normpath(os.path.basename(normpath(pathname)))
+
+def justpath(pathname, n=1):
+    """
+    justpath
+    """
+    for _ in range(n):
+        pathname, _ = os.path.split(normpath(pathname))
+    if pathname == "":
+        return "."
+    return normpath(pathname)
+
+def normpath(pathname):
+    """
+    normpath
+    """
+    if not pathname:
+        return ""
+    pathname = os.path.normpath(pathname.replace("\\", "/")).replace("\\", "/")
+    # patch for s3:// and http:// https://
+    pathname = pathname.replace(":/", "://")
+    return pathname
+
+def juststem(pathname):
+    """
+    juststem
+    """
+    pathname = os.path.basename(pathname)
+    root, _ = os.path.splitext(pathname)
+    return root
 
 
 def write_config(config_path, config_out):
