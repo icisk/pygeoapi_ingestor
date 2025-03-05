@@ -1,0 +1,12 @@
+{
+    "process": "bias-correction-cds-process",
+    "payload": {
+        "inputs": {
+            "cron_invocation": true,
+            "async": true,
+            "token": "token",
+            "debug": true,
+            "start_month": "2024-11"
+        }
+    }
+}

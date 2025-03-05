@@ -1,6 +1,6 @@
 FROM geopython/pygeoapi:latest
 
-ENV PYGEOAPI_CONFIG=config.yml
+ENV PYGEOAPI_CONFIG=config.k8s.yml
 ENV WSGI_WORKER_TIMEOUT=289067349086745908673459
 
 RUN apt-get update \
@@ -14,20 +14,9 @@ RUN apt-get update \
 
 WORKDIR /pygeoapi
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
 COPY . .
 
 RUN pip install . \
-        # cdsapi \
-        # h5netcdf \
-        # netcdf4 \
-        # python-dotenv \
-        # shyaml \
-        # geojson \
-        # geopandas \
-        # numpy==1.26.4 \
     && rm -rf ./process
 
 RUN pip install git+https://github.com/icisk/pygeoapi-provider-s3-geojson.git

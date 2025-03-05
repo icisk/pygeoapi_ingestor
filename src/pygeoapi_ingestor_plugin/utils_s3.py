@@ -25,7 +25,6 @@ def is_s3_anon_access():
     s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True')
     return s3_is_anon_access == 'True'
 
-
 def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
     """
     calculates a multipart upload etag for amazon s3
@@ -65,7 +64,6 @@ def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
     else:
         return ""
 
-
 def s3_equals(file1, file2, client=None):
     """
     s3_equals - check if s3 object is equals to local file
@@ -103,7 +101,6 @@ def get_client(client=None):
     """
     return client if client else boto3.client('s3', region_name='us-east-1')
 
-
 def get_bucket_name_key(uri):
     """
     get_bucket_name_key - get bucket name and key name from uri
@@ -127,7 +124,6 @@ def get_bucket_name_key(uri):
     else:
         bucket_name, key_name = None, uri
     return bucket_name, key_name
-
 
 def s3_download(uri, fileout=None, remove_src=False, client=None):
     """

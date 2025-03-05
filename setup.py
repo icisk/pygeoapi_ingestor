@@ -24,9 +24,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        #
-        #   sync with requirements.txt
-        #
         "cdsapi",
         "filelock",
         "Flask-Cors==5.0.0",
@@ -38,13 +35,15 @@ setuptools.setup(
         "pygeoapi",
         "python-dotenv",
         "rasterio",
-        "rioxarray",
+        "rioxarray==0.18.2",
+        "scipy",
         "s3fs",
         "shyaml",
         "tifffile",
-        "xarray==2024.1.0",
+        "xarray==2024.7.0",
         "zarr",
-        "pygrib",
-        "boto3"
+        "boto3==1.28.17",
+        "dask==2024.11.2",
+        "pygrib"
     ]
 )

@@ -13,4 +13,5 @@ from .ingestor_smhi_process import IngestorSMHIProcessProcessor
 from .ingestor_smhi_process_vector import IngestorSMHIVectorProcessProcessor
 from .ingestor_cds_spi_historic_process import IngestorCDSSPIHistoricProcessProcessor
 from .ingestor_cds_spi_forecast_process import IngestorCDSSPIForecastProcessProcessor
+from .bias_correction_cds_process import BiasCorrectionCDSProcessor
 from .utils import write_config, read_config, download_source, cleanup_data_temp
