@@ -184,7 +184,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             s3_t2m_uri, _ = self.build_s3_uri('t2m', start_month)
             s3_tp_uri, _ = self.build_s3_uri('tp', start_month)
             s3 = s3fs.S3FileSystem()
-            is_tp_uploaded = s3_t2m_uri.startswith('s3://') and s3.exists(s3_tp_uri)
+            is_tp_uploaded = s3_tp_uri.startswith('s3://') and s3.exists(s3_tp_uri)
             is_t2m_uploaded = s3_t2m_uri.startswith('s3://') and s3.exists(s3_t2m_uri)
             if is_tp_uploaded and is_t2m_uploaded:
                 raise Handle200Exception(Handle200Exception.OK, f"Path {s3_tp_uri} and {s3_t2m_uri} already exists in bucket and config")
