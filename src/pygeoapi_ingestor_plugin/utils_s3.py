@@ -20,6 +20,12 @@ def iss3(filename):
         (filename.startswith("s3:/") or filename.startswith("/vsis3/"))
 
 
+def is_s3_anon_access():
+    """Determine if S3 access should be anonymous."""
+    s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True')
+    return s3_is_anon_access == 'True'
+
+
 def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
     """
     calculates a multipart upload etag for amazon s3

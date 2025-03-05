@@ -65,6 +65,18 @@ _collection_pygeoapi_identifiers = {
 }
 
 
+class Handle200Exception(Exception):
+    
+    OK = 'OK'
+    SKIPPED = 'SKIPPED'
+    PARTIAL = 'PARTIAL'
+    
+    def __init__(self, status, message):
+        self.status = status
+        self.message = message
+        super().__init__(self.message)
+
+
 
 
 def validate_parameters(data, data_type):
@@ -99,7 +111,7 @@ def validate_parameters(data, data_type):
         try:
             period_of_interest = datetime.datetime.strptime(period_of_interest, "%Y-%m")
             if period_of_interest.strftime("%Y-%m") >= datetime.datetime.now().strftime("%Y-%m"):
-                raise ProcessorExecuteError('period_of_interest must be a date before current date month')                
+                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest must be a date before current date month')                
         except ValueError:
             raise ProcessorExecuteError('period_of_interest must be a valid datetime YYYY-MM string')
         period_of_interest = [
@@ -117,21 +129,25 @@ def validate_parameters(data, data_type):
         try:
             period_of_interest = datetime.datetime.strptime(period_of_interest, "%Y-%m")
             
-            # if period_of_interest.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):  # INFO: No limitation, after all we are also able to retrieve forecast data of past months
+            # INFO: We are able to retrieve forecast data of past months
+            # if period_of_interest.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"): 
             #     raise ProcessorExecuteError('period_of_interest must be a date after current date month') 
             
-            # if period_of_interest.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0): # INFO: If requested period of intereset is in the current month or later it will be used last avaliable init month for the forecast data
-            #     raise ProcessorExecuteError('period_of_interest in current month is avaliable from day 6 at 12UTC')
+            # INFO: If requested period of intereset is in the current month or later it will be used last avaliable init month for the forecast data
+            if period_of_interest.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
+                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest in current month is avaliable from day 6 at 12UTC')
+            
+            # INFO: If requested period is in future months, even if some forecast data are already avaliable, we will not use them. We wait until the init month of the requested period is avaliable
+            if period_of_interest.strftime("%Y-%m") > datetime.datetime.now().strftime("%Y-%m"):
+                raise Handle200Exception(Handle200Exception.SKIPPED, f'period_of_interest of {period_of_interest.strftime("%Y-%m")} will be avaliable from day {period_of_interest.strftime("%Y-%m")}-06 at 12UTC')
+            
             if diff_months(datetime.datetime.now(), period_of_interest) > 6:
-                raise ProcessorExecuteError('period_of_interest must be within 6 months from current date')              
+                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest must be within 6 months from current date')              
         except ValueError:
             raise ProcessorExecuteError('period_of_interest must be a valid datetime YYYY-MM string')
         period_of_interest = [
             period_of_interest.date(), 
-            period_of_interest.replace(day=utils.days_in_month(period_of_interest)).date()
-            
-            # INFO: Copernicus gives forecast data from the init month to ~7 month (5160 hours) after but we choose to get the data only of the declared month into the period of interest .. if we are interest in other month, pleas send specific requests
-            #  (period_of_interest + datetime.timedelta(hours=5160)).replace(day=1, hour=0).date() # REF: https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download#leadtime_hour
+            period_of_interest.replace(day=utils.days_in_month(period_of_interest)).date() # INFO: Copernicus gives forecast data from the init month to ~7 month (5160 hours) after but we choose to get the data only of the declared month into the period of interest .. if we are interest in other month, pleas send specific requests. If we want all the forecast data of the declared month, we can use the following code: `(period_of_interest + datetime.timedelta(hours=5160)).replace(day=1, hour=0).date()` # REF: https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download#leadtime_hour
         ]
         return period_of_interest            
             
@@ -154,6 +170,31 @@ def validate_parameters(data, data_type):
             raise ProcessorExecuteError('out_format must be a string or null')
         if out_format not in ['netcdf', 'json', 'dataframe', 'tif', 'zarr']:
             raise ProcessorExecuteError('out_format must be one of ["netcdf", "json", "dataframe", "tif", "zarr"]')
+        
+    def check_s3_path_exists(living_lab, period_of_interest, data_type):
+        """Check if the S3 path already exists."""
+        s3_zarr_collection_uri = _s3_spi_collection_zarr_uris[living_lab][data_type](date = period_of_interest[0])
+        pygeoapi_collection_id = _collection_pygeoapi_identifiers[living_lab][data_type](date = period_of_interest[0])
+        if s3_zarr_collection_uri.startswith('s3://'):
+            s3 = s3fs.S3FileSystem()
+            if s3.exists(s3_zarr_collection_uri):
+                if pygeoapi_collection_id in utils.read_config(_config_file)['resources']:
+                    raise Handle200Exception(Handle200Exception.OK, f"Path {s3_zarr_collection_uri} already exists in bucket and config")
+                else:
+                    ds = xr.open_zarr(s3_zarr_collection_uri)
+                    collection_params = {
+                        's3_uri': s3_zarr_collection_uri,
+                        'bbox': [ds.lon.values.min().item(), ds.lat.values.min().item(), ds.lon.values.max().item(), ds.lat.values.max().item()],
+                        'time': {
+                            'begin': ds.time.min().dt.date.item(),
+                            'end': ds.time.max().dt.date.item()
+                        },                        
+                        'pygeoapi_id': pygeoapi_collection_id
+                    }                    
+                    update_config(living_lab, collection_params)
+                    raise Handle200Exception(Handle200Exception.PARTIAL, f"Path {s3_zarr_collection_uri} already exists in bucket, updates config at '{_config_file}'")
+    
+    check_s3_path_exists(living_lab, period_of_interest, data_type)
     
     LOGGER.debug('parameters validated')
     return living_lab, period_of_interest, spi_ts, out_format
@@ -355,7 +396,7 @@ def update_config(living_lab, collection_params):
 
         config['resources'][collection_pygeoapi_identifier] = dataset_definition
 
-        s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True') == 'True'
+        s3_is_anon_access = s3_utils.is_s3_anon_access()
         endpoint_url = os.environ.get(default="https://obs.eu-de.otc.t-systems.com", key='FSSPEC_S3_ENDPOINT_URL')
         alternate_root = data_src.split("s3://")[1]
         if s3_is_anon_access:

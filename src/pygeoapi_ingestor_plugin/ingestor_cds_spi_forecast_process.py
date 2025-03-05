@@ -352,12 +352,13 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
                 ** collection_info,
                 ** output_data
             }
-            
-        except Exception as err:
+        
+        except spi_utils.Handle200Exception as err:
             outputs = {
-                'status': 'KO',
+                'status': err.status,
                 'error': str(err)
             }
+        except Exception as err:
             raise ProcessorExecuteError(str(err))
         
         return mimetype, outputs
