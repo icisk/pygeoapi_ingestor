@@ -156,16 +156,16 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
         
         token = data.get('token', None)
         start_month = data.get('start_month', None)
-        
+        cron_invocation = data.get('cron_invocation', False)
+
         if token is None:
             raise ProcessorExecuteError('You must provide an valid token')
         if token != os.getenv("INT_API_TOKEN", "token"):
             LOGGER.error(f"WRONG INTERNAL API TOKEN {token} ({type(token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
             raise Handle200Exception(Handle200Exception.DENIED, 'ACCESS DENIED: wrong token')
         
-        current_date = datetime.datetime.now()
-        
-        if start_month is None:
+        if start_month is None or cron_invocation==True:
+            current_date = datetime.datetime.now()
             start_month = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         else:
             try:
@@ -173,13 +173,13 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             except ValueError:
                 raise ProcessorExecuteError('Invalid start_month parameter. Must be a date in the format YYYY-MM')
             
-            if start_month.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
-                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest in current month is avaliable from day 6 at 12UTC')
-            
-            if start_month.strftime("%Y-%m") > datetime.datetime.now().strftime("%Y-%m"):
-                raise Handle200Exception(Handle200Exception.SKIPPED, f'period_of_interest of {start_month.strftime("%Y-%m")} will be avaliable from day {start_month.strftime("%Y-%m")}-06 at 12UTC')
-            
-            start_month = start_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if start_month.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
+            raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest in current month is avaliable from day 6 at 12UTC')
+        
+        if start_month.strftime("%Y-%m") > datetime.datetime.now().strftime("%Y-%m"):
+            raise Handle200Exception(Handle200Exception.SKIPPED, f'period_of_interest of {start_month.strftime("%Y-%m")} will be avaliable from day {start_month.strftime("%Y-%m")}-06 at 12UTC')
+        
+        start_month = start_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             
         def check_s3_path_exists(start_month):
             s3_t2m_uri, _ = self.build_s3_uri('t2m', start_month)
