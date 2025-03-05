@@ -101,7 +101,8 @@ PROCESS_METADATA = {
     'example': {
         "inputs": {
             "debug": True,
-            "init_month": "2025-01"
+            "token": "ABC123XYZ666",
+            "start_month": "2025-01"
         }
     }
 }
