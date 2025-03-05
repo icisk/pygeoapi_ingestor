@@ -89,7 +89,11 @@ def validate_parameters(data, data_type):
     period_of_interest = data.get('period_of_interest', None)
     spi_ts = data.get('spi_ts', None)
     out_format = data.get('out_format', None)
-    
+    cron_invocation = data.get('cron_invocation', False)
+
+    if cron_invocation:
+        period_of_interest = datetime.datetime.now().strftime("%Y-%m")
+    LOGGER.debug(f"period_of_interest: {period_of_interest}")
     if token is None:
         raise ProcessorExecuteError('You must provide an valid token')
     if token != os.getenv("INT_API_TOKEN", "token"):

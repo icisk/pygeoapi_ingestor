@@ -1,0 +1,12 @@
+{
+    "process": "ingestor-cds-spi-forecast-process",
+    "payload": {
+        "inputs": {
+            "cron_invocation": true,
+            "debug": true,
+            "living_lab": "georgia",
+            "period_of_interest": "2025-01",
+            "spi_ts": 1
+        }
+    }
+}
