@@ -9,6 +9,8 @@ import xarray as xr
 
 from scipy.interpolate import splev
 
+import s3fs
+
 import cdsapi
 
 import logging
@@ -49,6 +51,8 @@ import pygeoapi_ingestor_plugin.utils as utils
 
 LOGGER = logging.getLogger(__name__)
 
+
+
 #: Process metadata and description
 PROCESS_METADATA = {
     'version': '0.2.0',
@@ -62,6 +66,13 @@ PROCESS_METADATA = {
     'jobControlOptions': ['sync-execute', 'async-execute'],
     'keywords': ['safer process'],
     'inputs': {
+        'token': {
+            'title': 'secret token',
+            'description': 'identify yourself',
+            'schema': {
+                'type': 'string'
+            }
+        },
         'start_month': {
             'title': 'init month for forecast data',
             'description': 'Init month (this can\'t be more than actual month unless current date is after the 6th day of the month)',
@@ -96,6 +107,21 @@ PROCESS_METADATA = {
 }
 
 
+
+
+class Handle200Exception(Exception):
+    
+    OK = 'OK'
+    SKIPPED = 'SKIPPED'
+    DENIED = 'DENIED'
+    
+    def __init__(self, status, message):
+        self.status = status
+        self.message = message
+        super().__init__(self.message)
+      
+        
+
 class BiasCorrectionCDSProcessor(BaseProcessor):
     """
     Bias Correction CDS Processor
@@ -110,7 +136,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             key = os.getenv('CDSAPI_KEY')
         )
         
-        self.living_lab = 'spain'
+        self.living_lab = 'spain'   # INFO: This processor is specific for Spain living lab
         
         self.bucket_uri = utils.normpath(os.path.join('s3://', os.environ.get("DEFAULT_BUCKET"), os.environ.get("DEFAULT_REMOTE_DIR"), self.living_lab, 'bias_correction'))
         
@@ -119,11 +145,57 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             os.makedirs(self.process_temp_dir, exist_ok=True)
             
         self.process_data_dir = os.path.join(os.getcwd(), 'bias_correction_process_data')
-        self.prepare_data()
+
         
         
+    def validate_parameters(self, data):
+        """
+        Validate request parameters
+        """
         
-    def prepare_data(self):
+        token = data.get('token', None)
+        start_month = data.get('start_month', None)
+        
+        if token is None:
+            raise ProcessorExecuteError('You must provide an valid token')
+        if token != os.getenv("INT_API_TOKEN", "token"):
+            LOGGER.error(f"WRONG INTERNAL API TOKEN {token} ({type(token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
+            raise Handle200Exception(Handle200Exception.DENIED, 'ACCESS DENIED: wrong token')
+        
+        current_date = datetime.datetime.now()
+        
+        if start_month is None:
+            start_month = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            try:
+                start_month = datetime.datetime.strptime(start_month, '%Y-%m')
+            except ValueError:
+                raise ProcessorExecuteError('Invalid start_month parameter. Must be a date in the format YYYY-MM')
+            
+            if start_month.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
+                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest in current month is avaliable from day 6 at 12UTC')
+            
+            if start_month.strftime("%Y-%m") > datetime.datetime.now().strftime("%Y-%m"):
+                raise Handle200Exception(Handle200Exception.SKIPPED, f'period_of_interest of {start_month.strftime("%Y-%m")} will be avaliable from day {start_month.strftime("%Y-%m")}-06 at 12UTC')
+            
+            start_month = start_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+        def check_s3_path_exists(start_month):
+            s3_t2m_uri, _ = self.build_s3_uri('t2m', start_month)
+            s3_tp_uri, _ = self.build_s3_uri('tp', start_month)
+            s3 = s3fs.S3FileSystem()
+            is_tp_uploaded = s3_t2m_uri.startswith('s3://') and s3.exists(s3_tp_uri)
+            is_t2m_uploaded = s3_t2m_uri.startswith('s3://') and s3.exists(s3_t2m_uri)
+            if is_tp_uploaded and is_t2m_uploaded:
+                raise Handle200Exception(Handle200Exception.OK, f"Path {s3_tp_uri} and {s3_t2m_uri} already exists in bucket and config")
+            
+        # check_s3_path_exists(start_month) # !!! Need to run `pip install --upgrade s3fs boto3 botocore`
+        
+        return start_month
+    
+    
+    
+    def prepare_bias_procedure_data(self):
         
         def griddes_txt2netcdf(griddes_path):
             griddes_nc_filepath = griddes_path.replace('.txt', '.nc')  
@@ -162,42 +234,6 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             return df_params
         
         self.df_params = load_parameters()
-
-        
-        
-    def validate_parameters(self, data):
-        """
-        Validate request parameters
-        """
-        
-        start_month = data.get('start_month', None)
-        out_format = data.get('out_format', None)
-        
-        current_date = datetime.datetime.now()
-        
-        if start_month is None:
-            start_month = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        else:
-            try:
-                start_month = datetime.datetime.strptime(start_month, '%Y-%m')
-            except ValueError:
-                raise ProcessorExecuteError('Invalid start_month parameter. Must be a date in the format YYYY-MM')
-            
-            if start_month.strftime('%Y-%m') == current_date.strftime('%Y-%m') and current_date.day < 7:
-                raise ProcessorExecuteError('Invalid start_month parameter. Must be a date in the past. Data from current month is not available yet')
-            if start_month.strftime('%Y-%m') > current_date.strftime('%Y-%m'):
-                raise ProcessorExecuteError('Invalid start_month parameter. Must be a date in the previous or equal to the current month')
-            
-            start_month = start_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            
-        if out_format is None:
-            out_format = 'netcdf'
-        if type(out_format) is not str:
-            raise ProcessorExecuteError('out_format must be a string or null')
-        if out_format not in ['netcdf', 'json', 'dataframe', 'tif', 'zarr']:
-            raise ProcessorExecuteError('out_format must be one of ["netcdf", "json", "dataframe", "tif", "zarr"]')
-        
-        return start_month, out_format
     
     
     
@@ -327,7 +363,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
 
                 tmin = t[k]
                 tmax = t[-k]
-                ssr_threshold = param[st_idx,0,ind_ssr_threshold]   # (???) This is never used
+                ssr_threshold = param[st_idx,0,ind_ssr_threshold]   # ???: This is never used
                 n_ts = len(d)                                       # Number of time steps
 
                 for ts in range(0,n_ts):                            # Below or about the spline limits, a constant biasadjustment value is assumed (dmin or dmax)
@@ -342,7 +378,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
                         
             return d
         
-  
+
         ds_varname_adj = f'{ds_varname}_adj'
         ds[ds_varname_adj] = ds[ds_varname].copy()
 
@@ -381,36 +417,47 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
     
     
     
-    def save_dataset_to_s3(self, dataset, ds_varname):
+    def build_s3_uri(self, var_name, start_month):
         dataset_part = 'ECMWF_51'
-        variable_part = f'{ds_varname}-bias_corrected'
-        date_part = dataset.time[0].dt.date.item().strftime('%Y-%m')
-        
-        basename = f"{dataset_part}__{variable_part}__{date_part}.nc"
-        filepath = os.path.join(self.process_temp_dir, basename)
+        variable_part = f'{var_name}-bias_corrected'
+        date_part = start_month.strftime('%Y-%m')
+        filename = f"{dataset_part}__{variable_part}__{date_part}.nc"
+        s3_uri = utils.normpath(os.path.join(self.bucket_uri, filename))
+        return s3_uri, filename
+    
+    
+    
+    def save_dataset_to_s3(self, dataset, ds_varname):
+        ds_start_month = dataset.time.min().dt.date.item()
+        s3_uri, filename = self.build_s3_uri(ds_varname, ds_start_month)
+        filepath = os.path.join(self.process_temp_dir, filename)
         dataset.to_netcdf(filepath)
-        
-        s3_uri = os.path.join(self.bucket_uri, basename)
         s3_utils.s3_upload(filepath, s3_uri)
-        
         return s3_uri        
         
         
-
+        
     def execute(self, data):
 
         mimetype = 'application/json'
-
-        start_month, out_format = self.validate_parameters(data)
         
         outputs = {}
         try:
+            # Validate request + check if already done
+            start_month = self.validate_parameters(data)
+            
+            # Load bias-correction parameters
+            self.prepare_bias_procedure_data()
+            
             # Get data from CDS
             cds_dataset_filepath = self.retrieve_cds_data(start_month)
             cds_dataset = xr.open_dataset(cds_dataset_filepath)
             
             # Preprocess operations
             ds_tp, ds_t2m = self.preprocess_cds_dataset(cds_dataset)
+            
+            # !!! Just to test in reasonable time
+            # ds_tp, ds_t2m = ds_tp.isel(r=[0,1]), ds_t2m.isel(r=[0,1]) 
             
             # Bias correction operations
             ds_tp_adj = self.bias_correction_tp(ds_tp)
@@ -427,11 +474,13 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
                     't2m': s3_t2m_adj_uri
                 }
             }
-        except Exception as err:
+            
+        except Handle200Exception as err:
             outputs = {
-                'status': 'KO',
-                'error': str(err)
+                'status': err.status,
+                'message': str(err)
             }
+        except Exception as err:
             raise ProcessorExecuteError(str(err))
         
         return mimetype, outputs
