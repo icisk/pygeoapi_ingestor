@@ -3,9 +3,7 @@ venv
 build
 docker-compose_cred.yml
 .idea/
-test/
 test.*
 test/*
 *__pycache__/
-docker-compose.yml
 src/invoke/invocation_data/TEST*
