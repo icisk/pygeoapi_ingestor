@@ -7,3 +7,4 @@ test.*
 test/*
 *__pycache__/
 src/invoke/invocation_data/TEST*
+docker-compose.yml
