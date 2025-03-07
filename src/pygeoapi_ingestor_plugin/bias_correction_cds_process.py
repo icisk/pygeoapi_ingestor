@@ -188,9 +188,9 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             is_tp_uploaded = s3_tp_uri.startswith('s3://') and s3.exists(s3_tp_uri)
             is_t2m_uploaded = s3_t2m_uri.startswith('s3://') and s3.exists(s3_t2m_uri)
             if is_tp_uploaded and is_t2m_uploaded:
-                raise Handle200Exception(Handle200Exception.OK, f"Path {s3_tp_uri} and {s3_t2m_uri} already exists in bucket and config")
+                raise Handle200Exception(Handle200Exception.OK, f"Path {s3_tp_uri} and {s3_t2m_uri} already exists in bucket")
             
-        check_s3_path_exists(start_month) # !!! Need to run `pip install --upgrade s3fs boto3 botocore`
+        check_s3_path_exists(start_month)
         
         return start_month
     
@@ -457,8 +457,8 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             # Preprocess operations
             ds_tp, ds_t2m = self.preprocess_cds_dataset(cds_dataset)
             
-            # !!! Just to test in reasonable time
-            # ds_tp, ds_t2m = ds_tp.isel(r=[0,1]), ds_t2m.isel(r=[0,1]) 
+            # !!!: Just to test in reasonable time
+            ds_tp, ds_t2m = ds_tp.isel(r=[0,1]), ds_t2m.isel(r=[0,1]) 
             
             # Bias correction operations
             ds_tp_adj = self.bias_correction_tp(ds_tp)

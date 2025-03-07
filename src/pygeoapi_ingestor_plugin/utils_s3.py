@@ -3,7 +3,7 @@ import hashlib
 from logging import getLogger
 from tempfile import tempdir
 
-import boto3
+import botocore.session
 from botocore.exceptions import ClientError, NoCredentialsError
 
 import pygeoapi_ingestor_plugin.utils as utils
@@ -24,6 +24,17 @@ def is_s3_anon_access():
     """Determine if S3 access should be anonymous."""
     s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True')
     return s3_is_anon_access == 'True'
+
+
+def get_client(client=None):
+    """
+    get_client
+    """
+    if client is None:
+        session = botocore.session.get_session()
+        client = session.create_client('s3', region_name='us-east-1')
+    return client
+
 
 def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
     """
@@ -52,8 +63,7 @@ def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
             bucket_name, key_name = get_bucket_name_key(uri)
             if bucket_name and key_name:
                 client = get_client(client)
-                ETag = client.head_object(Bucket=bucket_name, Key=key_name)[
-                    'ETag'][1:-1]
+                ETag = client.head_object(Bucket=bucket_name, Key=key_name)['ETag'][1:-1]
         except ClientError as ex:
             Logger.debug(f"ETAG:{ex}")
             ETag = ""
@@ -63,6 +73,7 @@ def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
         return ETag
     else:
         return ""
+
 
 def s3_equals(file1, file2, client=None):
     """
@@ -95,12 +106,6 @@ def tempname4S3(uri):
     return tmp
 
 
-def get_client(client=None):
-    """
-    get_client
-    """
-    return client if client else boto3.client('s3', region_name='us-east-1')
-
 def get_bucket_name_key(uri):
     """
     get_bucket_name_key - get bucket name and key name from uri
@@ -125,10 +130,17 @@ def get_bucket_name_key(uri):
         bucket_name, key_name = None, uri
     return bucket_name, key_name
 
+
 def s3_download(uri, fileout=None, remove_src=False, client=None):
     """
     Download a file from an S3 bucket
     """
+    
+    def download_file(client, bucket, key, filename):
+        with open(filename, 'wb') as f:
+            response = client.get_object(Bucket=bucket, Key=key)
+            f.write(response['Body'].read())
+    
     bucket_name, key = get_bucket_name_key(uri)
     if bucket_name:
         try:
@@ -149,20 +161,18 @@ def s3_download(uri, fileout=None, remove_src=False, client=None):
                     # Download the file
                     Logger.debug(f"downloading {uri} into {fileout}...")
                     os.makedirs(utils.justpath(fileout), exist_ok=True)
-                    client.download_file(
-                        Filename=fileout, Bucket=bucket_name, Key=key)
+                    download_file(client, bucket_name, key, fileout)
                     if remove_src:
                         client.delete_object(Bucket=bucket_name, Key=key)
             else:
                 objects = client.list_objects_v2(
-                    Bucket=bucket_name, Prefix=key)['Contents']
+                    Bucket=bucket_name, Prefix=key).get('Contents', [])
                 for obj in objects:
                     pathname = obj['Key']
                     if not pathname.endswith("/"):
                         dst = fileout
                         pathname = pathname.replace(key, "")
-                        s3_download(f"{uri.rstrip('/')}/{pathname}",
-                                    f"{dst}/{pathname}", client)
+                        s3_download(f"{uri.rstrip('/')}/{pathname}", f"{dst}/{pathname}", client)
 
         except ClientError as ex:
             Logger.error(ex)
@@ -179,6 +189,10 @@ def s3_upload(filename, uri, remove_src=False, client=None):
     Upload a file to an S3 bucket
     Examples: s3_upload(filename, "s3://saferplaces.co/a/rimini/lidar_rimini_building_2.tif")
     """
+    
+    def upload_file(client, filename, bucket, key):
+        with open(filename, 'rb') as f:
+            client.put_object(Bucket=bucket, Key=key, Body=f)
 
     # Upload the file
     try:
@@ -189,12 +203,7 @@ def s3_upload(filename, uri, remove_src=False, client=None):
                 print(f"file {filename} already uploaded")
             else:
                 print(f"uploading {filename} into {bucket_name}/{key}...")
-
-                extra_args = {}
-
-                client.upload_file(Filename=filename,
-                                   Bucket=bucket_name, Key=key,
-                                   ExtraArgs=extra_args)
+                upload_file(client, filename, bucket_name, key)
 
             if remove_src:
                 print(f"removing {filename}")

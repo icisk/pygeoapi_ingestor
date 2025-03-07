@@ -42,7 +42,6 @@ setuptools.setup(
         "tifffile",
         "xarray==2024.7.0",
         "zarr",
-        "boto3==1.28.17",
         "dask==2024.11.2",
         "pygrib"
     ]
