@@ -4,6 +4,7 @@ import json
 import shutil
 import logging
 import datetime
+from dateutil import relativedelta
 import tempfile
 from filelock import FileLock
 
@@ -92,8 +93,13 @@ def validate_parameters(data, data_type):
     cron_invocation = data.get('cron_invocation', False)
 
     if cron_invocation:
-        period_of_interest = datetime.datetime.now().strftime("%Y-%m")
+        if data_type == 'historic':
+            period_of_interest = (datetime.datetime.now() - relativedelta.relativedelta(months=1)).strftime("%Y-%m") # INFO: previous month .. historic data for current month will never exists
+        elif data_type == 'forecast':
+            period_of_interest = datetime.datetime.now().strftime("%Y-%m")
+        
     LOGGER.debug(f"period_of_interest: {period_of_interest}")
+    
     if token is None:
         raise ProcessorExecuteError('You must provide an valid token')
     if token != os.getenv("INT_API_TOKEN", "token"):
