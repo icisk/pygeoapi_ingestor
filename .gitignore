@@ -8,3 +8,7 @@ test/*
 *__pycache__/
 src/invoke/invocation_data/TEST*
 docker-compose.yml
+
+config.local.yml
+docker-compose-local.yml
+Dockerfile.local
