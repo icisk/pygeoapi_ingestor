@@ -458,7 +458,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             ds_tp, ds_t2m = self.preprocess_cds_dataset(cds_dataset)
             
             # !!!: Just to test in reasonable time
-            ds_tp, ds_t2m = ds_tp.isel(r=[0,1]), ds_t2m.isel(r=[0,1]) 
+            # ds_tp, ds_t2m = ds_tp.isel(r=[0,1]), ds_t2m.isel(r=[0,1]) 
             
             # Bias correction operations
             ds_tp_adj = self.bias_correction_tp(ds_tp)
