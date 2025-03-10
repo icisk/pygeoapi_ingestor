@@ -261,13 +261,17 @@ def read_ref_cds_data(living_lab):
     
     REF: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-monthly-means
     """
-    
-    cds_ref_data_filepath = s3_utils.s3_download(
-        uri = _s3_living_lab_ref_data[living_lab],
-        fileout = os.path.join(_temp_dir, os.path.basename(_s3_living_lab_ref_data[living_lab]))
-    )
-    
-    cds_ref_data = xr.open_dataset(cds_ref_data_filepath) 
+    # cds_ref_data_filepath = s3_utils.s3_download(
+    #     uri = _s3_living_lab_ref_data[living_lab],
+    #     fileout = os.path.join(_temp_dir, os.path.basename(_s3_living_lab_ref_data[living_lab]))
+    # )
+
+    fs = s3fs.S3FileSystem()
+
+    with fs.open(_s3_living_lab_ref_data[living_lab]) as fileObj:
+        cds_ref_data = xr.open_dataset(fileObj)
+
+    # cds_ref_data = xr.open_dataset(_s3_living_lab_ref_data[living_lab]) 
     cds_ref_data = cds_ref_data.sortby(['time', 'lat', 'lon'])
     cds_ref_data = cds_ref_data.sel(time = slice(*_reference_period))
     
