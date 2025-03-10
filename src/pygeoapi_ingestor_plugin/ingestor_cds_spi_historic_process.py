@@ -28,7 +28,7 @@
 # =================================================================
 
 import os
-import logging,
+import logging
 import datetime
 from dateutil.relativedelta import relativedelta
 
