@@ -49,6 +49,11 @@ import pygeoapi_ingestor_plugin.utils as utils
 
 LOGGER = logging.getLogger(__name__)
 
+# Set logging level of botocore to INFO
+# FIXME make this configurable via config.yaml
+logging.getLogger('botocore').setLevel(logging.INFO)
+LOGGER.debug("Setting loglevel for botocore manually to INFO")
+
 #: Process metadata and description
 PROCESS_METADATA = {
     'version': '0.2.0',
