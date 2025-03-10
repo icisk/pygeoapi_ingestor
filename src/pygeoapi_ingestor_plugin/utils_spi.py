@@ -50,12 +50,12 @@ _living_lab_bbox = {
 _s3_bucket = os.environ.get("DEFAULT_BUCKET")
 remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
 _s3_living_lab_ref_data = {
-    'georgia': os.path.join(f"s3://{_s3_bucket}", f'{remote_path}georgia/spi/reference_data', 'era5_land__total_precipitation__georgia__monthly__1950_2024.nc')
+    'georgia': f"s3://{_s3_bucket}/{remote_path}georgia/spi/reference_data/era5_land__total_precipitation__georgia__monthly__1950_2024.nc"
 }
 _s3_spi_collection_zarr_uris = {
     'georgia': {
-        'historic': lambda date: os.path.join(f"s3://{_s3_bucket}", f'{remote_path}georgia/spi/spi_historic_{date.strftime("%Y-%m")}.zarr'),
-        'forecast': lambda date: os.path.join(f"s3://{_s3_bucket}", f'{remote_path}georgia/spi/spi_forecast_{date.strftime("%Y-%m")}.zarr')
+        'historic': lambda date: f's3://{_s3_bucket}/{remote_path}georgia/spi/spi_historic_{date.strftime("%Y-%m")}.zarr',
+        'forecast': lambda date: f's3://{_s3_bucket}/{remote_path}georgia/spi/spi_forecast_{date.strftime("%Y-%m")}.zarr'
     }
 }
 _collection_pygeoapi_identifiers = {
@@ -84,7 +84,7 @@ def validate_parameters(data, data_type):
     """
     Validate request parameters
     """
-    
+    LOGGER.debug("era5 file path at: " + _s3_living_lab_ref_data['georgia'])
     token = data.get('token', None)
     living_lab = data.get('living_lab', None)
     period_of_interest = data.get('period_of_interest', None)
