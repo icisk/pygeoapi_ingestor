@@ -33,7 +33,7 @@ LOGGER = logging.getLogger(__name__)
 _temp_dir = os.path.join(tempfile.gettempdir(), 'IngestorCDSSPIProcessProcessor')
 if not os.path.exists(_temp_dir):
     os.makedirs(_temp_dir, exist_ok=True)
-    
+
 _config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
 
 _reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 31))  # REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
@@ -67,11 +67,11 @@ _collection_pygeoapi_identifiers = {
 
 
 class Handle200Exception(Exception):
-    
+
     OK = 'OK'
     SKIPPED = 'SKIPPED'
     PARTIAL = 'PARTIAL'
-    
+
     def __init__(self, status, message):
         self.status = status
         self.message = message
@@ -97,22 +97,22 @@ def validate_parameters(data, data_type):
             period_of_interest = (datetime.datetime.now() - relativedelta.relativedelta(months=1)).strftime("%Y-%m") # INFO: previous month .. historic data for current month will never exists
         elif data_type == 'forecast':
             period_of_interest = datetime.datetime.now().strftime("%Y-%m")
-        
+
     LOGGER.debug(f"period_of_interest: {period_of_interest}")
-    
+
     if token is None:
         raise ProcessorExecuteError('You must provide an valid token')
     if token != os.getenv("INT_API_TOKEN", "token"):
         LOGGER.error(f"WRONG INTERNAL API TOKEN {token} ({type(token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})")
         raise ProcessorExecuteError('ACCESS DENIED: wrong token')
-    
+
     if living_lab is None:
         raise ProcessorExecuteError('Cannot process without a living_lab valued')
     if type(living_lab) is not str:
         raise ProcessorExecuteError('living_lab must be a string')
     if living_lab not in _living_lab_bbox.keys():
         raise ProcessorExecuteError(f'living_lab must be one of {[f"{ll}" for ll in list(_living_lab_bbox.keys())]})')
-    
+
     def validate_period_of_interest_historic(period_of_interest):
         if period_of_interest is None:
             raise ProcessorExecuteError('Cannot process without a period_of_interest valued')
@@ -121,15 +121,15 @@ def validate_parameters(data, data_type):
         try:
             period_of_interest = datetime.datetime.strptime(period_of_interest, "%Y-%m")
             if period_of_interest.strftime("%Y-%m") >= datetime.datetime.now().strftime("%Y-%m"):
-                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest must be a date before current date month')                
+                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest must be a date before current date month')
         except ValueError:
             raise ProcessorExecuteError('period_of_interest must be a valid datetime YYYY-MM string')
         period_of_interest = [
-            period_of_interest.date(), 
+            period_of_interest.date(),
             period_of_interest.replace(day=utils.days_in_month(period_of_interest)).date()
         ]
         return period_of_interest
-    
+
     def validate_period_of_interest_forecast(period_of_interest):
         diff_months = lambda date1, date2: (date2.year - date1.year) * 12 + (date2.month - date1.month)
         if period_of_interest is None:
@@ -138,49 +138,49 @@ def validate_parameters(data, data_type):
             raise ProcessorExecuteError('period_of_interest must be a string')
         try:
             period_of_interest = datetime.datetime.strptime(period_of_interest, "%Y-%m")
-            
+
             # INFO: We are able to retrieve forecast data of past months
-            # if period_of_interest.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"): 
-            #     raise ProcessorExecuteError('period_of_interest must be a date after current date month') 
-            
-            # INFO: If requested period of intereset is in the current month or later it will be used last avaliable init month for the forecast data
+            # if period_of_interest.strftime("%Y-%m") < datetime.datetime.now().strftime("%Y-%m"):
+            #     raise ProcessorExecuteError('period_of_interest must be a date after current date month')
+
+            # INFO: If requested period of interest is in the current month or later it will be used last available init month for the forecast data
             if period_of_interest.strftime("%Y-%m") == datetime.datetime.now().strftime("%Y-%m") and datetime.datetime.now() <= datetime.datetime.now().replace(day=6, hour=12, minute=0, second=0):
-                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest in current month is avaliable from day 6 at 12UTC')
-            
-            # INFO: If requested period is in future months, even if some forecast data are already avaliable, we will not use them. We wait until the init month of the requested period is avaliable
+                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest in current month is available from day 6 at 12UTC')
+
+            # INFO: If requested period is in future months, even if some forecast data are already available, we will not use them. We wait until the init month of the requested period is available
             if period_of_interest.strftime("%Y-%m") > datetime.datetime.now().strftime("%Y-%m"):
-                raise Handle200Exception(Handle200Exception.SKIPPED, f'period_of_interest of {period_of_interest.strftime("%Y-%m")} will be avaliable from day {period_of_interest.strftime("%Y-%m")}-06 at 12UTC')
-            
+                raise Handle200Exception(Handle200Exception.SKIPPED, f'period_of_interest of {period_of_interest.strftime("%Y-%m")} will be available from day {period_of_interest.strftime("%Y-%m")}-06 at 12UTC')
+
             if diff_months(datetime.datetime.now(), period_of_interest) > 6:
-                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest must be within 6 months from current date')              
+                raise Handle200Exception(Handle200Exception.SKIPPED, 'period_of_interest must be within 6 months from current date')
         except ValueError:
             raise ProcessorExecuteError('period_of_interest must be a valid datetime YYYY-MM string')
         period_of_interest = [
-            period_of_interest.date(), 
+            period_of_interest.date(),
             period_of_interest.replace(day=utils.days_in_month(period_of_interest)).date() # INFO: Copernicus gives forecast data from the init month to ~7 month (5160 hours) after but we choose to get the data only of the declared month into the period of interest .. if we are interest in other month, pleas send specific requests. If we want all the forecast data of the declared month, we can use the following code: `(period_of_interest + datetime.timedelta(hours=5160)).replace(day=1, hour=0).date()` # REF: https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download#leadtime_hour
         ]
-        return period_of_interest            
-            
-    if data_type == 'historic':            
+        return period_of_interest
+
+    if data_type == 'historic':
         period_of_interest = validate_period_of_interest_historic(period_of_interest)
     elif data_type == 'forecast':
         period_of_interest = validate_period_of_interest_forecast(period_of_interest)
     else:
         raise ProcessorExecuteError('data_type must be one of ["forecast", "historic"]')
-        
+
     if spi_ts is None:
         raise ProcessorExecuteError('Cannot process without a spi_ts valued')
     if type(spi_ts) is not int:
         raise ProcessorExecuteError('spi_ts must be an integer')
     if spi_ts not in [1]: # TODO: timescales [3,6,12,24,48] to be implemented
         raise ProcessorExecuteError('spi_ts must be 1. Other values are not supported yet')
-    
+
     if out_format is not None:
         if type(out_format) is not str:
             raise ProcessorExecuteError('out_format must be a string or null')
         if out_format not in ['netcdf', 'json', 'dataframe', 'tif', 'zarr']:
             raise ProcessorExecuteError('out_format must be one of ["netcdf", "json", "dataframe", "tif", "zarr"]')
-        
+
     def check_s3_path_exists(living_lab, period_of_interest, data_type):
         """Check if the S3 path already exists."""
         s3_zarr_collection_uri = _s3_spi_collection_zarr_uris[living_lab][data_type](date = period_of_interest[0])
@@ -198,14 +198,14 @@ def validate_parameters(data, data_type):
                         'time': {
                             'begin': ds.time.min().dt.date.item(),
                             'end': ds.time.max().dt.date.item()
-                        },                        
+                        },
                         'pygeoapi_id': pygeoapi_collection_id
-                    }                    
+                    }
                     update_config(living_lab, collection_params)
                     raise Handle200Exception(Handle200Exception.PARTIAL, f"Path {s3_zarr_collection_uri} already exists in bucket, updates config at '{_config_file}'")
-    
+
     check_s3_path_exists(living_lab, period_of_interest, data_type)
-    
+
     LOGGER.debug('parameters validated')
     return living_lab, period_of_interest, spi_ts, out_format
 
@@ -254,23 +254,23 @@ def grib2xr(grib_filename, grib_var_name, xr_var_name=None):
 
 
 
-def read_ref_cds_data(living_lab):   
+def read_ref_cds_data(living_lab):
     """
-    Read reference data from S3. 
+    Read reference data from S3.
     Slice them in the bbox range and a default reference period.
-    
+
     REF: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-monthly-means
     """
-    
+
     cds_ref_data_filepath = s3_utils.s3_download(
         uri = _s3_living_lab_ref_data[living_lab],
         fileout = os.path.join(_temp_dir, os.path.basename(_s3_living_lab_ref_data[living_lab]))
     )
-    
-    cds_ref_data = xr.open_dataset(cds_ref_data_filepath) 
+
+    cds_ref_data = xr.open_dataset(cds_ref_data_filepath)
     cds_ref_data = cds_ref_data.sortby(['time', 'lat', 'lon'])
     cds_ref_data = cds_ref_data.sel(time = slice(*_reference_period))
-    
+
     LOGGER.debug('reference data read')
     return cds_ref_data
 
@@ -290,11 +290,11 @@ def preprocess_ref_dataset(ref_dataset):
 def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
         """
         Compute SPI index for a time series of monthly data
-        
+
         REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
         REF: https://mountainscholar.org/items/842b69e8-a465-4aeb-b7ec-021703baa6af [ page 18 to 24 ]
         """
-        
+
         df = pd.DataFrame({'monthly_data': monthly_data})
 
         # Totalled data over t_scale rolling windows
@@ -306,7 +306,7 @@ def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
         # Gamma fitted params
         a, _, b = stats.gamma.fit(t_scaled_monthly_data, floc=0)
 
-        # Distribuzione probabilità cumulata
+        # Cumulative probability distribution
         G = lambda x: stats.gamma.cdf(x, a=a, loc=0, scale=b)
 
         m = (t_scaled_monthly_data==0).sum()
@@ -322,29 +322,29 @@ def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
 
         c0, c1, c2 = 2.515517, 0.802853, 0.010328
         d1, d2, d3 = 1.432788, 0.189269, 0.001308
-        
+
         Hxs = t_scaled_monthly_data[-spi_ts:].apply(H)
         txs = Hxs.apply(t)
 
         Z = lambda Hx, tx: ( tx - ((c0 + c1*tx + c2*math.pow(tx,2)) / (1 + d1*tx + d2*math.pow(tx,2) + d3*math.pow(tx,3) )) ) * (-1 if 0<Hx<=0.5 else 1)
 
         spi_t_indexes = pd.DataFrame(zip(Hxs, txs), columns=['H','t']).apply(lambda x: Z(x.H, x.t), axis=1).to_list()
-        
+
         return np.array(spi_t_indexes[-nt_return]) if nt_return==1 else np.array(spi_t_indexes[-nt_return:])
-    
+
 
 
 def create_s3_collection_data(living_lab, ds, data_type):
     collection_date = ds.time.min().dt.date.item()
-    
+
     s3_zarr_collection_uri = _s3_spi_collection_zarr_uris[living_lab][data_type](date = collection_date)
     s3 = s3fs.S3FileSystem()
     s3_store = s3fs.S3Map(root=s3_zarr_collection_uri, s3=s3, check=False)
-    
+
     min_x, max_x = ds.lon.values.min().item(), ds.lon.values.max().item()
     min_y, max_y = ds.lat.values.min().item(), ds.lat.values.max().item()
     min_dt, max_dt = ds.time.min().dt.date.item(), ds.time.max().dt.date.item()
-    
+
     collection_params = {
         's3_uri': s3_zarr_collection_uri,
         'bbox': [min_x, min_y, max_x, max_y],
@@ -352,12 +352,12 @@ def create_s3_collection_data(living_lab, ds, data_type):
             'begin': min_dt,
             'end': max_dt
         },
-        
+
         'pygeoapi_id': _collection_pygeoapi_identifiers[living_lab][data_type](date = collection_date)
     }
-    
+
     ds.to_zarr(store=s3_store, consolidated=True, mode='w')
-    
+
     return collection_params
 
 
@@ -371,7 +371,7 @@ def update_config(living_lab, collection_params):
         config = utils.read_config(_config_file)
 
         collection_pygeoapi_identifier = collection_params['pygeoapi_id']
-        
+
         LOGGER.info(f"resource identifier and title: '{collection_pygeoapi_identifier}'")
         dataset_definition = {
             'type': 'collection',
@@ -397,7 +397,7 @@ def update_config(living_lab, collection_params):
                     'y_field': 'lat',
                     'time_field': 'time',
                     'format': {
-                        'name': 'zarr', 
+                        'name': 'zarr',
                         'mimetype': 'application/zip'
                     }
                 }
@@ -425,7 +425,7 @@ def update_config(living_lab, collection_params):
                             'requester_pays': False
                         }
                     }
-                
+
         LOGGER.info(f"dataset definition to add: '{dataset_definition}'")
 
         utils.write_config(config_path=_config_file, config_out=config)
@@ -442,7 +442,7 @@ def coverage_to_out_format(coverage_ds, out_format):
     """
     Convert SPI coverage in the requested output format
     """
-    
+
     coverage_out = None
 
     if out_format == 'netcdf':
@@ -472,10 +472,10 @@ def coverage_to_out_format(coverage_ds, out_format):
         coverage_zarr_filepath = os.path.join(_temp_dir, 'spi_coverage.zarr')
         coverage_zarr_zip_filepath = os.path.join(_temp_dir, 'spi_coverage_zarr')
         coverage_ds.to_zarr(coverage_zarr_filepath, mode="w")
-        shutil.make_archive(coverage_zarr_zip_filepath, "zip", coverage_zarr_filepath)  # Comprimo in .zip per trasmetterlo come byte
+        shutil.make_archive(coverage_zarr_zip_filepath, "zip", coverage_zarr_filepath)  # Compress to .zip to transmit as bytes
         with open(coverage_zarr_zip_filepath, "rb") as f:
             zarr_bytes = f.read()
         coverage_out = str(zarr_bytes)
-        
+
     LOGGER.debug(f'SPI coverage converted in {out_format} format')
     return coverage_out
