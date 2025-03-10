@@ -28,30 +28,19 @@
 # =================================================================
 
 import os
-import logging, time
-import math
-import json
-import shutil
+import logging
 import datetime
 from dateutil.relativedelta import relativedelta
-from calendar import monthrange
-import tempfile
-from filelock import FileLock
 
 import numpy as np
 import pandas as pd
 
-import scipy.stats as stats
-from scipy.special import gammainc, gamma
-
 import xarray as xr
 
-import s3fs
 import cdsapi
 
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
 import pygeoapi_ingestor_plugin.utils_spi as spi_utils
 import pygeoapi_ingestor_plugin.utils as utils
 
