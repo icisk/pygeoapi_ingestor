@@ -28,35 +28,31 @@
 # =================================================================
 
 import os
-import logging, time
-import math
-import json
-import shutil
+import logging
 import datetime
 from dateutil.relativedelta import relativedelta
-import tempfile
-from filelock import FileLock
 
 import numpy as np
 import pandas as pd
 
 import scipy.stats as stats
-from scipy.special import gammainc, gamma
 
 import xarray as xr
-import pygrib
 
-import s3fs
 import cdsapi
 
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
 import pygeoapi_ingestor_plugin.utils_spi as spi_utils
 import pygeoapi_ingestor_plugin.utils as utils
 
 
 LOGGER = logging.getLogger(__name__)
+
+# Set logging level of botocore to INFO
+# FIXME make this configurable via config.yaml
+logging.getLogger('botocore').setLevel(logging.INFO)
+LOGGER.debug("Setting loglevel for botocore manually to INFO")
 
 #: Process metadata and description
 PROCESS_METADATA = {
@@ -107,7 +103,7 @@ PROCESS_METADATA = {
             'description': 'The return format type.',
             'schema': {
             }
-        }, 
+        },
         'debug': {
             'title': 'Debug',
             'description': 'Enable Debug mode',
@@ -118,7 +114,7 @@ PROCESS_METADATA = {
     'outputs': {
         'status': {
             'title': 'status',
-            'description': 'Staus of the process execution [OK or KO]',
+            'description': 'Status of the process execution [OK or KO]',
             'schema': {
             }
         },
@@ -126,7 +122,7 @@ PROCESS_METADATA = {
             'title': 'SPI coverage S3 URI',
             'description': 'SPI coverage S3 URI',
             'schema': {
-            }  
+            }
         },
         'spi_coverage_data': {
             'title': 'SPI dataset',
@@ -151,10 +147,10 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
     """
     Ingestor Processor
 
-    Takes bbox range, a period of interest and a time_scale in month and returns the SPI calculation coverage data. 
+    Takes bbox range, a period of interest and a time_scale in month and returns the SPI calculation coverage data.
     Uploads result to S3 and add coverage data to a related bbox and time_scale collection.
     """
-    
+
 
     def __init__(self, processor_def):
         """
@@ -166,24 +162,24 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
-        
+
         self.cds_client = cdsapi.Client(
             url = 'https://cds.climate.copernicus.eu/api',
             key = os.getenv('CDSAPI_KEY')
         )
-        
-        
-            
+
+
+
     def query_poi_cds_data(self, living_lab, period_of_interest, spi_ts):
         """
         Query data from CDS API based on bbox range, period of interest and time scale.
-        
+
         REF: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land
         """
-        
-        # Format params for CDS API query    
-        # period_of_interest = spi_utils.format_params_for_poi_cds_query(period_of_interest)    
-        
+
+        # Format params for CDS API query
+        # period_of_interest = spi_utils.format_params_for_poi_cds_query(period_of_interest)
+
         # Get (Years, Years-Months) couple for the CDS api query. (We can query just one month at time)
         spi_start_date = period_of_interest[0] - relativedelta(months=spi_ts-1)
         spi_years_range = list(range(spi_start_date.year, period_of_interest[1].year+1))
@@ -197,7 +193,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
                 spi_month_range.append([month for month in range(1, period_of_interest[1].month+1)])
             else:
                 spi_month_range.append([month for month in range(1, 13)])
-        
+
         # Build CDS query response filepath
         def build_cds_hourly_data_filepath(year, month):
             dataset_part = 'reanalysis_era5_land__total_precipitation__hourly'
@@ -208,12 +204,12 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
                 os.makedirs(filedir, exist_ok=True)
             filepath = os.path.join(filedir, filename)
             return filepath
-        
-        # CDS API query    
-        cds_poi_data_filepaths = []    
+
+        # CDS API query
+        cds_poi_data_filepaths = []
         for q_idx, (year,year_months) in enumerate(zip(spi_years_range, spi_month_range)):
-            cds_poi_data_filepath = build_cds_hourly_data_filepath(year, year_months)       
-            
+            cds_poi_data_filepath = build_cds_hourly_data_filepath(year, year_months)
+
             if not os.path.exists(cds_poi_data_filepath):
                 cds_dataset = 'reanalysis-era5-land'
                 cds_query =  {
@@ -232,11 +228,11 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
                     "download_format": "unarchived"
                 }
                 self.cds_client.retrieve(cds_dataset, cds_query, cds_poi_data_filepath)
-                
-            LOGGER.debug(f'{q_idx+1}/{len(spi_years_range)} - CDS API query completed')            
+
+            LOGGER.debug(f'{q_idx+1}/{len(spi_years_range)} - CDS API query completed')
             cds_poi_data_filepaths.append(cds_poi_data_filepath)
-           
-        # Merge all the grib files in a single xarray dataset 
+
+        # Merge all the grib files in a single xarray dataset
         cds_poi_datasets = []
         for cds_poi_data_filepath in cds_poi_data_filepaths:
             cds_poi_dataset = spi_utils.grib2xr(cds_poi_data_filepath, grib_var_name='Total precipitation', xr_var_name='tp')
@@ -244,89 +240,89 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         cds_poi_data = xr.concat(cds_poi_datasets, dim='time')
         cds_poi_data = cds_poi_data.sortby(['time', 'lat', 'lon'])
         cds_poi_data = cds_poi_data.sel(time=(cds_poi_data.time.dt.date>=period_of_interest[0]) & (cds_poi_data.time.dt.date<=period_of_interest[1]))
-        
+
         LOGGER.debug('period of interest data read')
-        return cds_poi_data        
-    
-    
+        return cds_poi_data
+
+
     def compute_coverage_spi(self, ref_dataset, poi_dataset, spi_ts):
         """
         Compute SPI index for each tile in a lat-lon grid datasets.
         """
-        
+
         def preprocess_poi_dataset(poi_dataset):
             poi_dataset = poi_dataset.resample(time='1ME').sum()                                   # Resample to monthly total data
             poi_dataset = poi_dataset.assign_coords(time=poi_dataset.time.dt.strftime('%Y-%m-01'))  # Set month day to 01
             poi_dataset = poi_dataset.assign_coords(time=pd.to_datetime(poi_dataset.time))
-            poi_dataset['tp'] = poi_dataset['tp'] / 12                                              # Convert total precipitation to monthly average precipitation 
+            poi_dataset['tp'] = poi_dataset['tp'] / 12                                              # Convert total precipitation to monthly average precipitation
             poi_dataset = poi_dataset.assign_coords(
                 lat=np.round(poi_dataset.lat.values, 6),
                 lon=np.round(poi_dataset.lon.values, 6),
             )
             poi_dataset = poi_dataset.sortby(['time', 'lat', 'lon'])
-            return poi_dataset        
-        
+            return poi_dataset
+
         ref_dataset = spi_utils.preprocess_ref_dataset(ref_dataset)
         poi_dataset = preprocess_poi_dataset(poi_dataset).interp(lat=ref_dataset.lat, lon=ref_dataset.lon, method='linear')
-        
+
         cov_ts_dataset = xr.concat([ref_dataset, poi_dataset], dim='time')
         cov_ts_dataset = cov_ts_dataset.drop_duplicates(dim='time').sortby(['time', 'lat', 'lon'])
-        
+
         month_spi_coverages = []
         for month in poi_dataset.time:
             month_spi_coverage = xr.apply_ufunc(
-                lambda tile_timeseries: spi_utils.compute_timeseries_spi(tile_timeseries, spi_ts=spi_ts, nt_return=1), 
+                lambda tile_timeseries: spi_utils.compute_timeseries_spi(tile_timeseries, spi_ts=spi_ts, nt_return=1),
                 cov_ts_dataset.sel(time=cov_ts_dataset.time<=month).tp.sortby('time'),
                 input_core_dims = [['time']],
                 vectorize = True
             )
             month_spi_coverages.append((
                 month.dt.date.item(),
-                month_spi_coverage        
+                month_spi_coverage
             ))
-        
+
         period_of_interest, month_spi_coverage = month_spi_coverages[0]
-        
+
         LOGGER.debug('SPI coverage computed')
-        return period_of_interest, month_spi_coverage  
-        
+        return period_of_interest, month_spi_coverage
+
 
     def save_spi_coverage_to_collection(self, living_lab, spi_ts, period_of_interest, month_spi_coverage):
-        
+
         def build_data(spi_ts, period_of_interest, month_spi_coverage):
             ds = month_spi_coverage.expand_dims({'time': [datetime.datetime.combine(period_of_interest, datetime.time())]})
             ds = ds.to_dataset()
             ds = ds.rename_vars({'tp': f'spi{spi_ts}'})
-            return ds 
-        
-        ds = build_data(spi_ts, period_of_interest, month_spi_coverage)        
+            return ds
+
+        ds = build_data(spi_ts, period_of_interest, month_spi_coverage)
         collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type='historic')
         spi_utils.update_config(living_lab, collection_params)
         return {
             'collection_id': collection_params['pygeoapi_id'],
             'collection_s3_uri': collection_params['s3_uri']
         }
-    
-    
+
+
     def execute(self, data):
 
         mimetype = 'application/json'
-        
+
         try:
-            
+
             # Validate request params
             living_lab, period_of_interest, spi_ts, out_format = spi_utils.validate_parameters(data, data_type='historic')
-            
+
             # Gather needed data (Ref + PoI)
             ref_dataset = spi_utils.read_ref_cds_data(living_lab)
             poi_dataset = self.query_poi_cds_data(living_lab, period_of_interest, spi_ts)
-            
+
             # Compute SPI coverage
             period_of_interest, month_spi_coverage = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
-            
+
             # Save SPI coverage to collection
             collection_info = self.save_spi_coverage_to_collection(living_lab, spi_ts, period_of_interest, month_spi_coverage)
-            
+
             # Convert SPI coverage in the requested output format
             output_data = {}
             if out_format is not None:
@@ -337,13 +333,13 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
                         'collection_data': out_spi_coverages
                     }
                 }
-            
+
             outputs = {
                 'status': 'OK',
                 ** collection_info,
                 ** output_data
             }
-        
+
         except spi_utils.Handle200Exception as err:
             outputs = {
                 'status': err.status,
@@ -351,7 +347,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             }
         except Exception as err:
             raise ProcessorExecuteError(str(err))
-        
+
         return mimetype, outputs
 
     def __repr__(self):
