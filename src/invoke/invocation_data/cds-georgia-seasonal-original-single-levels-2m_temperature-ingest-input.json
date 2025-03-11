@@ -240,10 +240,10 @@
                 ],
                 "data_format": "netcdf",
                 "area": [
-                    41.120975,
-                    45.196243,
-                    43.115761,
-                    46.736885
+                    40,
+                    44,
+                    43,
+                    48
                 ]
             },
             "zarr_out": "s3://52n-i-cisk/data-ingestor/georgia/seasonal_timeseries/cds_georgia.zarr"
