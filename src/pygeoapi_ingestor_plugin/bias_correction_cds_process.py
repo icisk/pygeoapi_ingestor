@@ -430,11 +430,21 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
     
     def save_dataset_to_s3(self, dataset, ds_varname):
         ds_start_month = dataset.time.min().dt.date.item()
-        s3_uri, filename = self.build_s3_uri(ds_varname, ds_start_month)
-        filepath = os.path.join(self.process_temp_dir, filename)
-        dataset.to_netcdf(filepath)
-        s3_utils.s3_upload(filepath, s3_uri)
-        return s3_uri        
+        s3_uri, filename = self.build_s3_uri(ds_varname, ds_start_month) 
+        local_filepath = os.path.join(self.process_temp_dir, filename)       
+        s3 = s3fs.S3FileSystem()
+        
+        # Save dataset locally first
+        dataset.to_netcdf(local_filepath)
+
+        LOGGER.debug(f"Uploading to {s3_uri}")
+
+        # Upload to S3
+        with open(local_filepath, "rb") as f:
+            with s3.open(s3_uri, "wb") as s3_f:
+                s3_f.write(f.read())
+
+        return s3_uri  
         
         
         
