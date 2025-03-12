@@ -281,30 +281,33 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
                 month_spi_coverage
             ))
 
-        period_of_interest, month_spi_coverage = month_spi_coverages[0]
+        periods_of_interest = [spi_coverage[0] for spi_coverage in month_spi_coverages]
+        month_spi_coverages = [spi_coverage[1] for spi_coverage in month_spi_coverages]
 
         LOGGER.debug('SPI coverage computed')
-        return period_of_interest, month_spi_coverage
+        return periods_of_interest, month_spi_coverages
 
 
     # Save data to collection
-    def save_spi_coverage_to_collection(self, living_lab, spi_ts, period_of_interest, month_spi_coverage):
+    def save_spi_coverage_to_collection(self, living_lab, spi_ts, periods_of_interest, month_spi_coverages):
 
-        def build_data(spi_ts, period_of_interest, month_spi_coverage):
-            ds = month_spi_coverage.expand_dims({'time': [datetime.datetime.combine(period_of_interest, datetime.time())]})
+        def build_data(spi_ts, periods_of_interest, month_spi_coverages):
+            ds = xr.concat(month_spi_coverages, dim="time")
+            ds = ds.assign_coords(time = [datetime.datetime.fromisoformat(p.isoformat()) for p in periods_of_interest])
             ds = ds.to_dataset()
             for r in ds.r.values.tolist():
                 ds[f'spi{spi_ts}_r{r}'] = ds.sel(r=r).tp
-            ds = ds.drop_dims(['r'])
+            ds = ds.drop_dims(['r'])    
             return ds
 
-        ds = build_data(spi_ts, period_of_interest, month_spi_coverage)
+        ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)
         collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type='forecast')
         spi_utils.update_config(living_lab, collection_params)
-        return {
+        collection_info = {
             'collection_id': collection_params['pygeoapi_id'],
             'collection_s3_uri': collection_params['s3_uri']
         }
+        return ds, collection_info
 
 
     def execute(self, data):
@@ -313,22 +316,22 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
 
         try:
             # Validate request params
-            living_lab, period_of_interest, spi_ts, out_format = spi_utils.validate_parameters(data, data_type='forecast')
+            living_lab, periods_of_interest, spi_ts, out_format = spi_utils.validate_parameters(data, data_type='forecast')
 
             # Gather needed data (Ref + PoI)
             ref_dataset = spi_utils.read_ref_cds_data(living_lab)
-            poi_dataset = self.query_poi_cds_data(living_lab, period_of_interest, spi_ts)
+            poi_dataset = self.query_poi_cds_data(living_lab, periods_of_interest, spi_ts)
 
             # Compute SPI coverage
-            period_of_interest, month_spi_coverage = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
+            periods_of_interest, month_spi_coverages = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
 
             # Save SPI coverage to collection
-            collection_info = self.save_spi_coverage_to_collection(living_lab, spi_ts, period_of_interest, month_spi_coverage)
+            ds, collection_info = self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
 
             # Convert SPI coverage in the requested output format
             output_data = {}
             if out_format is not None:
-                out_spi_coverages = spi_utils.coverage_to_out_format(month_spi_coverage, out_format)
+                out_spi_coverages = spi_utils.coverage_to_out_format(ds, out_format)
                 output_data = {
                     'output_data': {
                         'format': out_format,

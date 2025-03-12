@@ -40,10 +40,10 @@ _reference_period = (datetime.datetime(1980, 1, 1), datetime.datetime(2010, 12, 
 
 _living_lab_bbox = {
     'georgia': {
-        'min_x': 44.9,  # W
-        'min_y': 41.1,  # S
-        'max_x': 46.8,  # E
-        'max_y': 42.3   # N
+        'min_x': 44,  # W
+        'min_y': 40,  # S
+        'max_x': 48,  # E
+        'max_y': 43   # N
     }
 }
 
@@ -157,7 +157,8 @@ def validate_parameters(data, data_type):
             raise ProcessorExecuteError('period_of_interest must be a valid datetime YYYY-MM string')
         period_of_interest = [
             period_of_interest.date(),
-            period_of_interest.replace(day=utils.days_in_month(period_of_interest)).date() # INFO: Copernicus gives forecast data from the init month to ~7 month (5160 hours) after but we choose to get the data only of the declared month into the period of interest .. if we are interest in other month, pleas send specific requests. If we want all the forecast data of the declared month, we can use the following code: `(period_of_interest + datetime.timedelta(hours=5160)).replace(day=1, hour=0).date()` # REF: https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download#leadtime_hour
+            (period_of_interest + datetime.timedelta(hours=5160)).replace(day=1, hour=0).date() # INFO: If we want all the forecast data of the declared month: 6 month # REF: https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download#leadtime_hour
+            # period_of_interest.replace(day=utils.days_in_month(period_of_interest)).date() # INFO: If we want data only of the declared month into the period of interest instaed aff all 5160 avaliable forecast hour # REF: https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download#leadtime_hour
         ]
         return period_of_interest
 
