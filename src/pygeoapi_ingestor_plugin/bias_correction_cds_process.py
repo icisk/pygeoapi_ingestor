@@ -234,6 +234,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             df_params = df_params.drop(columns=['path'])
             return df_params
         
+        LOGGER.debug("Loading bias correction parameters")
         self.df_params = load_parameters()
     
     
@@ -265,6 +266,8 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             ],
             "data_format": "netcdf",
         }
+
+        LOGGER.debug(f"Retrieving data from CDS: {cds_dataset} - {start_month.year}-{start_month.month:02d}")
         self.cds_client.retrieve(cds_dataset, cds_request, cds_retrieved_filepath)
         return cds_retrieved_filepath
     
@@ -322,6 +325,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             
             return ds_t2m
         
+        LOGGER.debug("Preprocessing CDS dataset")
         ds_tp = preprocess_tp(cds_dataset)
         ds_t2m = preprocess_t2m(cds_dataset)
         return ds_tp, ds_t2m
@@ -401,6 +405,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
 
 
     def bias_correction_tp(self, ds_tp):
+        LOGGER.debug("Bias correcting total precipitation")
         ds_tp = self.bias_correction(ds_tp, 'tp')
         ds_tp = ds_tp.drop_vars('tp')
         ds_tp['tp_adj'] = xr.where(ds_tp['tp_adj'] < 0, 0, ds_tp['tp_adj'])
@@ -409,6 +414,7 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
     
     
     def bias_correction_t2m(self, ds_t2m):
+        LOGGER.debug("Bias correcting temperature")
         ds_t2m = self.bias_correction(ds_t2m, 't2m_min')
         ds_t2m = self.bias_correction(ds_t2m, 't2m_range')
         ds_t2m = ds_t2m.drop_vars(['t2m_min', 't2m_range'])
