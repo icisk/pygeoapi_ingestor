@@ -40,10 +40,10 @@ jobs:
       run: |
         if [[ "${{ github.ref }}" == refs/heads/* ]]; then
           echo "BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
-          echo "TAG=" >> $GITHUB_ENV
+          echo "TAG=build-by-branch" >> $GITHUB_ENV
         elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
           echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
-          echo "BRANCH=" >> $GITHUB_ENV
+          echo "BRANCH=build-by-tag" >> $GITHUB_ENV
         fi
     -
       name: Extract metadata (tags, labels) for tagging Docker Image
