@@ -35,6 +35,17 @@ jobs:
       name: Set up Docker Buildkit env
       uses: docker/setup-buildx-action@v3
     -
+      name: Determine Branch or Tag
+      id: determine
+      run: |
+        if [[ "${{ github.ref }}" == refs/heads/* ]]; then
+          echo "BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "TAG=" >> $GITHUB_ENV
+        elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "BRANCH=" >> $GITHUB_ENV
+        fi
+    -
       name: Extract metadata (tags, labels) for tagging Docker Image
       id: meta
       uses: docker/metadata-action@v5
@@ -60,6 +71,10 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: "${{ env.BUILD_CONTEXT }}"
+        build-args: |
+           GIT_HASH=${{ github.sha }}
+           GIT_TAG=${{ env.TAG }}
+           GIT_BRANCH=${{ env.BRANCH }}
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}

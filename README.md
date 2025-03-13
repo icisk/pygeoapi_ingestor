@@ -35,7 +35,10 @@ Below is a detailed description of the components and functionalities of the Cli
 To start the docker container of Pygeoapi service simply edit `docker-compose.yml` file to include the required environment variables and build plugin package, then start it.
 
 ```shell
-docker compose build
+docker compose build \
+    --build-arg GIT_COMMIT_HASH=$(git log -n1 --pretty=format:"%H") \
+    --build-arg GIT_COMMIT_TAG=$(git describe --tags) \
+    --build-arg GIT_COMMIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) && \
 docker compose up
 ```
 

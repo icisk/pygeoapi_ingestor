@@ -26,3 +26,17 @@ RUN chmod +x /pygeoapi/entrypoint.sh
 RUN mkdir -p /pygeoapi/config
 
 ENTRYPOINT ["/pygeoapi/entrypoint.sh", "run"]
+
+# Add build info to deployed version available via pygeoapi-context-path/static/info.txt
+ARG INFO_FILE=pygeoapi/static/info.txt
+ARG GIT_HASH=hash-undefined
+ARG GIT_BRANCH=branch-undefined
+ARG GIT_TAG=tag-undefined
+RUN touch "${INFO_FILE}" \
+ && echo "Build" > "$INFO_FILE" \
+ && echo "----------------------------------------------------" >> "$INFO_FILE" \
+ && echo "timestamp  : $(date)" >> "$INFO_FILE" \
+ && echo "git hash   : $GIT_HASH" >> "$INFO_FILE" \
+ && echo "git branch : $GIT_BRANCH" >> "$INFO_FILE" \
+ && echo "git branch : $GIT_TAG" >> "$INFO_FILE" \
+ && cat "${INFO_FILE}"
