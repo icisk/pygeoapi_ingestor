@@ -36,9 +36,9 @@ To start the docker container of Pygeoapi service simply edit `docker-compose.ym
 
 ```shell
 docker compose build \
-    --build-arg GIT_COMMIT_HASH=$(git log -n1 --pretty=format:"%H") \
-    --build-arg GIT_COMMIT_TAG=$(git describe --tags) \
-    --build-arg GIT_COMMIT_BRANCH=$(git rev-parse --abbrev-ref HEAD) && \
+    --build-arg GIT_HASH="$(git log -n1 --pretty=format:"%H")" \
+    --build-arg GIT_TAG="$(git describe --tags)" \
+    --build-arg GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)" && \
 docker compose up
 ```
 

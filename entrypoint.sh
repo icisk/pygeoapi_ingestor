@@ -109,14 +109,14 @@ case ${entry_cmd} in
 		# Update info file to log start of deployment
 		INFO_FILE=pygeoapi/static/info.txt
 		touch "$INFO_FILE"
-		echo "----------------------------------------------------" >> "$INFO_FILE"
+		echo "-----------------------------------------------------" >> "$INFO_FILE"
 		echo "Deployment" >> "$INFO_FILE"
-		echo "----------------------------------------------------" >> "$INFO_FILE"
-		echo "start      : $(date)" >> "$INFO_FILE"
-		echo "API_ROOT   : $API_ROOT" >> "$INFO_FILE"
-		echo "SCRIPT_NAME: $SCRIPT_NAME" >> "$INFO_FILE"
-		echo "TZ         : $TZ" >> "$INFO_FILE"
-		echo "----------------------------------------------------" >> "$INFO_FILE"
+		echo "-----------------------------------------------------" >> "$INFO_FILE"
+		echo "start       : $(date)" >> "$INFO_FILE"
+		echo "API_ROOT    : $API_ROOT" >> "$INFO_FILE"
+		echo "SCRIPT_NAME : $SCRIPT_NAME" >> "$INFO_FILE"
+		echo "TZ          : $TZ" >> "$INFO_FILE"
+		echo "-----------------------------------------------------" >> "$INFO_FILE"
 		# SCRIPT_NAME should not have value '/'
 		[[ "${SCRIPT_NAME}" = '/' ]] && export SCRIPT_NAME="" && echo "make SCRIPT_NAME empty from /"
 
