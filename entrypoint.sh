@@ -80,7 +80,7 @@ case ${entry_cmd} in
 	  do
 	  	# handle the case of no test files
 	  	[[ -e "$test_py" ]] || break
-	    # Skip tests requireing backend server or libs installed
+	    # Skip tests requiring backend server or libs installed
 	    case ${test_py} in
 	        tests/test_elasticsearch__provider.py)
 	        	;&
