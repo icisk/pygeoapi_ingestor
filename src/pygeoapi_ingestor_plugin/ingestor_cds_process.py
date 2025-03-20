@@ -261,6 +261,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # convert np.datetime64 to datetime object .strftime("%Y%m")
         datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
         datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
+        datetime_min_ym = datetime_min.strftime("%Y%m")
+        datetime_max_ym = datetime_max.strftime("%Y%m")
 
 
         logger.info(f"datetime_min: {datetime_min}, datetime_max: {datetime_max}")
@@ -271,7 +273,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with lock:
             config = read_config(config_file)
 
-            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min}_{living_lab}_{variable_name}"
+            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min_ym}_{living_lab}_{variable_name}"
             if file_out.endswith('.zarr'):
                 zarr_out = file_out
 
@@ -283,7 +285,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 dataset_definition = {
                     'type': 'collection',
                     'title': dataset_pygeoapi_identifier,
-                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min} to {datetime_max} for area [{min_x},{min_y},{max_x},{max_y}]',
+                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_ym} to {datetime_max_ym} for area [{min_x},{min_y},{max_x},{max_y}]',
                     'keywords': ['country'],
                     'extents': {
                         'spatial': {
@@ -338,7 +340,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 config['resources'][resource_key] = {
                     'type': 'collection',
                     'title': resource_key,
-                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min} to {datetime_max} for area [{min_x},{min_y},{max_x},{max_y}]',
+                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_ym} to {datetime_max_ym} for area [{min_x},{min_y},{max_x},{max_y}]',
                     'keywords': [
                         living_lab,
                         'country',
@@ -440,7 +442,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
     def _check_s3_path_exists(self, zarr_out, dataset, s3_is_anon_access, living_lab):
         """Check if the S3 path already exists."""
-        msg = None
+        msg = ""
         if zarr_out.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             if s3.exists(zarr_out):
@@ -451,6 +453,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
                     msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'."
             if dataset == "cems-glofas-seasonal":
+                # TODO: set geojson_out as zarr_out justfilename with .geojson extension at georgia stations folder
                 geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
                 if s3.exists(geojson_out):
                     if geojson_out in str(read_config(self.config_file)['resources']):
@@ -772,6 +775,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             # Select data from xarray dataset based on nearest x, y
             selected_data = ds.sel(longitude=x_coord, latitude=y_coord, method='nearest')
 
+            #TODO: rename variable forecast_period to time   
+            # if 'forecast_period' in selected_data.variables:
+            #     selected_data = selected_data.rename_vars({'forecast_period': 'time'})
+
             # Convert xarray dataset to dictionary with formatted datetime
             properties = {}
             for var in selected_data.variables:
@@ -784,7 +791,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 properties[var] = values
                 
                 # Convert timestamps safely
-                if var in ["forecast_period", "forecast_reference_time", "valid_time"]:
+                if var in ["forecast_period", "forecast_reference_time", "valid_time"]:    #TODO: "forecast_period" -> "time"
                     if isinstance(values, list):
                         properties[var] = [self.normalize_timestamp(v) for v in values if v is not None]
                     else:
