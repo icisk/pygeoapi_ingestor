@@ -3,6 +3,7 @@
     "payload": {
         "inputs": {
             "cron_invocation": true,
+            "async": true,
             "debug": true,
             "living_lab": "georgia",
             "period_of_interest": "2025-01",
