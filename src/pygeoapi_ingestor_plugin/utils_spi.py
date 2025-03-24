@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import pygrib
+import geopandas as gpd
 
 from rasterio.enums import Resampling
 
@@ -46,6 +47,9 @@ _living_lab_bbox = {
         'max_y': 43   # N
     }
 }
+_living_lab_basin = {
+    'georgia': 'data/georgia_basins.geojson'
+}
 
 _s3_bucket = os.environ.get("DEFAULT_BUCKET")
 remote_path = os.environ.get("DEFAULT_REMOTE_DIR")
@@ -58,6 +62,13 @@ _s3_spi_collection_zarr_uris = {
         'forecast': lambda date: f's3://{_s3_bucket}/{remote_path}georgia/spi/spi_forecast_{date.strftime("%Y-%m")}.zarr'
     }
 }
+_s3_spi_collection_zonal_stats_uris = {
+    'georgia': {
+        'historic': lambda date: f's3://{_s3_bucket}/{remote_path}georgia/spi/spi_historic_{date.strftime("%Y-%m")}_zonal_stats.geojson',
+        'forecast': lambda date: f's3://{_s3_bucket}/{remote_path}georgia/spi/spi_forecast_{date.strftime("%Y-%m")}_zonal_stats.geojson'
+    }
+}
+
 _collection_pygeoapi_identifiers = {
     'georgia': {
         'historic': lambda date: f'georgia_spi_historic_{date.strftime("%Y-%m")}',
@@ -184,13 +195,14 @@ def validate_parameters(data, data_type):
 
     def check_s3_path_exists(living_lab, period_of_interest, data_type):
         """Check if the S3 path already exists."""
+        raise_200_exception = None        
         s3_zarr_collection_uri = _s3_spi_collection_zarr_uris[living_lab][data_type](date = period_of_interest[0])
-        pygeoapi_collection_id = _collection_pygeoapi_identifiers[living_lab][data_type](date = period_of_interest[0])
+        pygeoapi_zarr_collection_id = _collection_pygeoapi_identifiers[living_lab][data_type](date = period_of_interest[0])
         if s3_zarr_collection_uri.startswith('s3://'):
             s3 = s3fs.S3FileSystem()
             if s3.exists(s3_zarr_collection_uri):
-                if pygeoapi_collection_id in utils.read_config(_config_file)['resources']:
-                    raise Handle200Exception(Handle200Exception.OK, f"Path {s3_zarr_collection_uri} already exists in bucket and config")
+                if pygeoapi_zarr_collection_id in utils.read_config(_config_file)['resources']:
+                    raise_200_exception = {'status': Handle200Exception.OK, 'message': f"Path {s3_zarr_collection_uri} already exists in bucket and config"}
                 else:
                     ds = xr.open_zarr(s3_zarr_collection_uri)
                     collection_params = {
@@ -200,12 +212,122 @@ def validate_parameters(data, data_type):
                             'begin': ds.time.min().dt.date.item(),
                             'end': ds.time.max().dt.date.item()
                         },
-                        'pygeoapi_id': pygeoapi_collection_id
+                        'pygeoapi_id': pygeoapi_zarr_collection_id,
+                        'providers': [
+                            {
+                                'type': 'edr',
+                                'name': 'xarray-edr',
+                                'data': s3_zarr_collection_uri,
+                                'x_field': 'lon',
+                                'y_field': 'lat',
+                                'time_field': 'time',
+                                'format': {
+                                    'name': 'zarr',
+                                    'mimetype': 'application/zip'
+                                }
+                            }
+                        ]
                     }
                     update_config(living_lab, collection_params)
-                    raise Handle200Exception(Handle200Exception.PARTIAL, f"Path {s3_zarr_collection_uri} already exists in bucket, updates config at '{_config_file}'")
+                    raise_200_exception = {'status': Handle200Exception.PARTIAL, 'message': f"Path {s3_zarr_collection_uri} already exists in bucket, updates config at '{_config_file}'"}
+        
+        if data_type == 'forecast' and _living_lab_basin.get(living_lab, None) is not None:
+            s3_zonal_stats_collection_uri = _s3_spi_collection_zonal_stats_uris[living_lab][data_type](date = period_of_interest[0])
+            pygeoapi_zonal_stats_collection_id = f"{pygeoapi_zarr_collection_id}_zonal_stats" 
+            if s3_zonal_stats_collection_uri.startswith('s3://'):
+                s3 = s3fs.S3FileSystem()
+                if s3.exists(s3_zonal_stats_collection_uri):
+                    if pygeoapi_zonal_stats_collection_id in utils.read_config(_config_file)['resources']:
+                        raise_msg = f"Path {s3_zonal_stats_collection_uri} already exists in bucket and config"
+                        raise_200_exception = {
+                            'status': raise_200_exception['status'] if raise_200_exception.get('status', None) else Handle200Exception.OK,
+                            'message': f"{raise_200_exception['message']}. {raise_msg}" if raise_200_exception.get('message', None) else raise_msg
+                        }
+                    else:
+                        if s3.exists(s3_zarr_collection_uri):
+                            ds = xr.open_zarr(s3_zarr_collection_uri)
+                            zarr_collection_params = {
+                                's3_uri': s3_zarr_collection_uri,
+                                'bbox': [ds.lon.values.min().item(), ds.lat.values.min().item(), ds.lon.values.max().item(), ds.lat.values.max().item()],
+                                'time': {
+                                    'begin': ds.time.min().dt.date.item(),
+                                    'end': ds.time.max().dt.date.item()
+                                },
+                                'pygeoapi_id': pygeoapi_zarr_collection_id,
+                                'providers': [
+                                    {
+                                        'type': 'edr',
+                                        'name': 'xarray-edr',
+                                        'data': s3_zarr_collection_uri,
+                                        'x_field': 'lon',
+                                        'y_field': 'lat',
+                                        'time_field': 'time',
+                                        'format': {
+                                            'name': 'zarr',
+                                            'mimetype': 'application/zip'
+                                        }
+                                    }
+                                ]
+                            }
+                            geojson_collection_params = zarr_collection_params.copy()
+                            geojson_collection_params['s3_uri'] = s3_zonal_stats_collection_uri
+                            geojson_collection_params['pygeoapi_id'] = f"{zarr_collection_params['pygeoapi_id']}_zonal_stats"
+                            geojson_collection_params['providers'] = [
+                                {
+                                    'type': 'feature',
+                                    'name': 'S3GeoJSONProvider.S3GeoJSONProvider',
+                                    'data': s3_zonal_stats_collection_uri,
+                                    'id_field': 'id'
+                                }
+                            ]
+                            update_config(living_lab, geojson_collection_params)
+                            
+                            raise_msg = f"Path {s3_zonal_stats_collection_uri} already exists in bucket, updates config at '{_config_file}'"
+                            raise_200_exception = {
+                                'status': Handle200Exception.PARTIAL,
+                                'message': f"{raise_200_exception['message']}. {raise_msg}" if raise_200_exception.get('message', None) else raise_msg
+                            }
+                else:
+                    if s3.exists(s3_zarr_collection_uri):
+                        ds = xr.open_zarr(s3_zarr_collection_uri)
+                        zarr_collection_params = {
+                                's3_uri': s3_zarr_collection_uri,
+                                'bbox': [ds.lon.values.min().item(), ds.lat.values.min().item(), ds.lon.values.max().item(), ds.lat.values.max().item()],
+                                'time': {
+                                    'begin': ds.time.min().dt.date.item(),
+                                    'end': ds.time.max().dt.date.item()
+                                },
+                                'pygeoapi_id': pygeoapi_zarr_collection_id,
+                                'providers': [
+                                    {
+                                        'type': 'edr',
+                                        'name': 'xarray-edr',
+                                        'data': s3_zarr_collection_uri,
+                                        'x_field': 'lon',
+                                        'y_field': 'lat',
+                                        'time_field': 'time',
+                                        'format': {
+                                            'name': 'zarr',
+                                            'mimetype': 'application/zip'
+                                        }
+                                    }
+                                ]
+                            }
+                        ds_zonal_stats = compute_zonal_stats(living_lab, ds)
+                        geojson_collection_params = create_s3_zonal_stats_collection_data(living_lab, ds_zonal_stats, zarr_collection_params, data_type='forecast')
+                        update_config(living_lab, geojson_collection_params)
+                        raise_msg = f"Path {s3_zonal_stats_collection_uri} computed using {s3_zarr_collection_uri}, and uploaded to bucket, updates config at '{_config_file}'"
+                        raise_200_exception = {
+                            'status': Handle200Exception.PARTIAL,
+                            'message': f"{raise_200_exception['message']}. {raise_msg}" if raise_200_exception.get('message', None) else raise_msg
+                        }
+                    # INFO: Else if the zonal stats collection exists on S3 but the SPI collection is not available, we have to redo the whole process for safety (Zonal is strongly dependent on SPI)
+                    
+        return raise_200_exception
 
-    check_s3_path_exists(living_lab, period_of_interest, data_type)
+    raise_200_exception = check_s3_path_exists(living_lab, period_of_interest, data_type)
+    if raise_200_exception is not None:
+        raise Handle200Exception(raise_200_exception['status'], raise_200_exception['message'])
 
     LOGGER.debug('parameters validated')
     return living_lab, period_of_interest, spi_ts, out_format
@@ -352,7 +474,22 @@ def create_s3_collection_data(living_lab, ds, data_type):
             'end': max_dt
         },
 
-        'pygeoapi_id': _collection_pygeoapi_identifiers[living_lab][data_type](date = collection_date)
+        'pygeoapi_id': _collection_pygeoapi_identifiers[living_lab][data_type](date = collection_date),
+        
+        'providers': [
+            {
+                'type': 'edr',
+                'name': 'xarray-edr',
+                'data': s3_zarr_collection_uri,
+                'x_field': 'lon',
+                'y_field': 'lat',
+                'time_field': 'time',
+                'format': {
+                    'name': 'zarr',
+                    'mimetype': 'application/zip'
+                }
+            }
+        ]
     }
 
     ds.to_zarr(store=s3_store, consolidated=True, mode='w')
@@ -387,20 +524,7 @@ def update_config(living_lab, collection_params):
                     'end': datetime.datetime.combine(collection_params['time']['end'], datetime.time())
                 }
             },
-            'providers': [
-                {
-                    'type': 'edr',
-                    'name': 'xarray-edr',
-                    'data': data_src,
-                    'x_field': 'lon',
-                    'y_field': 'lat',
-                    'time_field': 'time',
-                    'format': {
-                        'name': 'zarr',
-                        'mimetype': 'application/zip'
-                    }
-                }
-            ]
+            'providers': collection_params['providers']
         }
 
         config['resources'][collection_pygeoapi_identifier] = dataset_definition
@@ -428,6 +552,93 @@ def update_config(living_lab, collection_params):
         LOGGER.info(f"dataset definition to add: '{dataset_definition}'")
 
         utils.write_config(config_path=_config_file, config_out=config)
+        
+        
+def compute_zonal_stats(living_lab, spi_dataset):
+    
+    def get_ds_basin(ds, basin_geometry):
+        ds_basin = ds.rio.clip([basin_geometry], ds.rio.crs, all_touched=True)
+        return ds_basin
+    
+    def to_time_r_lat_lon_array(ds):
+        return np.moveaxis(ds.transpose('time', 'lat', 'lon').to_array().values, 1,0)
+    
+    def to_times_array(ds):
+        return ds.time.dt.strftime('%Y%m').values
+    
+    def spi_ensemble(ds_zone):
+        ensemble_values = np.nanmedian(to_time_r_lat_lon_array(ds_zone), axis=(1,2,3))
+        return ensemble_values
+    
+    def spi_min(ds_zone):
+        min_values = np.nanmin(to_time_r_lat_lon_array(ds_zone), axis=(1,2,3))
+        return min_values
+    
+    def spi_max(ds_zone):
+        max_values = np.nanmax(to_time_r_lat_lon_array(ds_zone), axis=(1,2,3))
+        return max_values
+    
+    def spi_perc(ds_zone, perc):
+        perc_values = np.nanpercentile(to_time_r_lat_lon_array(ds_zone), perc, axis=(1,2,3))
+        return perc_values
+    
+    def basin_zonal_stat(ds, basin_gdf, stat_name, stat_func, stat_func_kwargs={}):
+        stats = basin_gdf.geometry.apply(lambda geom: stat_func(get_ds_basin(ds, geom), **stat_func_kwargs))
+        stats = np.stack(stats.values)
+        times = to_times_array(ds)
+        stat_df = pd.DataFrame(stats, columns=[f'{stat_name}_{t}' for t in times])
+        basin_gdf = pd.concat((basin_gdf, stat_df), axis=1)
+        return basin_gdf
+    
+    zonal_ds_path = _living_lab_basin.get(living_lab, None)
+    
+    if zonal_ds_path is not None:
+        basin_gdf = gpd.read_file(zonal_ds_path)
+        spi_dataset = spi_dataset.rio.write_crs("EPSG:4326").rio.set_spatial_dims('lon', 'lat')
+        
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'min', spi_min)
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc05', spi_perc, {'perc': 5})
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc10', spi_perc, {'perc': 10})
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc30', spi_perc, {'perc': 30})
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'ensemble', spi_ensemble)
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc70', spi_perc, {'perc': 70})
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc90', spi_perc, {'perc': 90})
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc95', spi_perc, {'perc': 95})
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'max', spi_max)
+        
+        return basin_gdf
+    
+    else: 
+        return None 
+    
+    
+def create_s3_zonal_stats_collection_data(living_lab, zonal_stat_gdf, spi_coverage_collection_params, data_type):
+    spi_zonal_stats_collection_params = spi_coverage_collection_params.copy()
+    
+    s3_zonal_stats_collection_uri = _s3_spi_collection_zonal_stats_uris[living_lab][data_type](date = spi_coverage_collection_params['time']['begin'])
+    
+    spi_zonal_stats_collection_params['s3_uri'] = s3_zonal_stats_collection_uri
+    spi_zonal_stats_collection_params['pygeoapi_id'] = f"{spi_coverage_collection_params['pygeoapi_id']}_zonal_stats"
+    
+    spi_zonal_stats_collection_params['providers'] = [
+        {
+            'type': 'feature',
+            'name': 'S3GeoJSONProvider.S3GeoJSONProvider',
+            'data': s3_zonal_stats_collection_uri,
+            'id_field': 'id'
+        }
+    ]
+    
+    zonal_stat_geojson = zonal_stat_gdf.to_geo_dict()
+    for feature in zonal_stat_geojson['features']:
+        feature['id'] = feature['properties']['SUBID']
+        del feature['properties']['SUBID']
+    zonal_stat_geojson_filepaths = os.path.join(_temp_dir, f"{spi_zonal_stats_collection_params['pygeoapi_id']}.geojson")
+    with open(zonal_stat_geojson_filepaths, 'w') as f:
+        json.dump(zonal_stat_geojson, f)    
+    s3_utils.s3_upload(zonal_stat_geojson_filepaths, s3_zonal_stats_collection_uri)
+    
+    return spi_zonal_stats_collection_params
 
 
 def coverages_to_out_format(coverages, out_format):
