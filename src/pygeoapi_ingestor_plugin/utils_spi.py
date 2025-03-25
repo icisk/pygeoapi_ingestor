@@ -633,10 +633,9 @@ def create_s3_zonal_stats_collection_data(living_lab, zonal_stat_gdf, spi_covera
     for feature in zonal_stat_geojson['features']:
         feature['id'] = feature['properties']['SUBID']
         del feature['properties']['SUBID']
-    zonal_stat_geojson_filepaths = os.path.join(_temp_dir, f"{spi_zonal_stats_collection_params['pygeoapi_id']}.geojson")
-    with open(zonal_stat_geojson_filepaths, 'w') as f:
-        json.dump(zonal_stat_geojson, f)    
-    s3_utils.s3_upload(zonal_stat_geojson_filepaths, s3_zonal_stats_collection_uri)
+    s3 = s3fs.S3FileSystem()
+    with s3.open(s3_zonal_stats_collection_uri, 'w') as f:
+        f.write(str(zonal_stat_geojson))
     
     return spi_zonal_stats_collection_params
 
