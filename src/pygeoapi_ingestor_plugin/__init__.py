@@ -15,4 +15,5 @@ from .ingestor_cds_spi_historic_process import IngestorCDSSPIHistoricProcessProc
 from .ingestor_cds_spi_forecast_process import IngestorCDSSPIForecastProcessProcessor
 from .bias_correction_cds_process import BiasCorrectionCDSProcessor
 from .lesotho_drought_process import LesothoDroughtProcessor
+from .ll_nl_danger_levels import DangerLevelProcessProcessor
 from .utils import write_config, read_config, download_source, cleanup_data_temp
