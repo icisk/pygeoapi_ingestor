@@ -130,6 +130,7 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         self.db_host = os.environ.get(key='DB_HOST', default="localhost")
         self.db_port = int(os.environ.get(key='DB_PORT', default="5432"))
         self.db_database = os.environ.get(key='DB_DATABASE', default="postgres")
+        self.data = None
         self.data_url = None
         self.data_path = None
         self.csv_file_name = None
@@ -190,13 +191,20 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         config = self.read_config()
         return self.title in config['resources']
 
+    # DATA MODEL CHANGED 26.03.2025
+    # def transform(self, csv):
+    #     data = pd.read_csv(csv, sep=";", encoding="iso-8859-1")
+    #     data['DATE'] = pd.to_datetime(data[['YEAR', 'MONTH']].assign(DAY=1))
+    #     gdf = gpd.GeoDataFrame(data, geometry=gpd.GeoSeries.from_xy(data['MAP_X'], data['MAP_Y'], crs="EPSG:25830"))
+    #     gdf = gdf.to_crs(epsg=4326)
+    #     gdf['LAT'] = gdf.geometry.y
+    #     gdf['LON'] = gdf.geometry.x
+    #
+    #     return gdf
+
     def transform(self, csv):
-        data = pd.read_csv(csv, sep=";", encoding="iso-8859-1")
-        data['DATE'] = pd.to_datetime(data[['YEAR', 'MONTH']].assign(DAY=1))
-        gdf = gpd.GeoDataFrame(data, geometry=gpd.GeoSeries.from_xy(data['MAP_X'], data['MAP_Y'], crs="EPSG:25830"))
-        gdf = gdf.to_crs(epsg=4326)
-        gdf['LAT'] = gdf.geometry.y
-        gdf['LON'] = gdf.geometry.x
+        data = pd.read_csv(csv)
+        gdf = gpd.GeoDataFrame(data, geometry=gpd.GeoSeries.from_xy(data["LON"], data["LON"], crs="EPSG:4326"))
 
         return gdf
 
@@ -230,11 +238,13 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         #     self.csv_file_name = 'MAXTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv'
 
         self.data_path = download_source(self.data_url)
+        # DATA MODEL CHANGED 26.03.2025
+        # vars = dict(precip="PRECIPITATION_monthlydata_GuadalquivirLL_1950_2019_v2.csv",
+        #             t_min='MINTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv',
+        #             t_max='MAXTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv',
+        #             t_mean='MEANTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv')
 
-        vars = dict(precip="PRECIPITATION_monthlydata_GuadalquivirLL_1950_2019_v2.csv",
-                    t_min='MINTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv',
-                    t_max='MAXTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv',
-                    t_mean='MEANTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv')
+        vars = dict(all='SLIM_aemet_stations.csv')
 
         for key in vars.keys():
             self.data = self.transform(os.path.join(self.data_path, vars[key]))
