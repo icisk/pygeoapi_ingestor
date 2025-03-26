@@ -600,7 +600,7 @@ def compute_zonal_stats(living_lab, spi_dataset):
         basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc05', spi_perc, {'perc': 5})
         basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc10', spi_perc, {'perc': 10})
         basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc30', spi_perc, {'perc': 30})
-        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'ensemble', spi_ensemble)
+        basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc50', spi_ensemble)
         basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc70', spi_perc, {'perc': 70})
         basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc90', spi_perc, {'perc': 90})
         basin_gdf = basin_zonal_stat(spi_dataset, basin_gdf, 'perc95', spi_perc, {'perc': 95})
@@ -629,13 +629,12 @@ def create_s3_zonal_stats_collection_data(living_lab, zonal_stat_gdf, spi_covera
         }
     ]
     
-    zonal_stat_geojson = zonal_stat_gdf.to_geo_dict()
-    for feature in zonal_stat_geojson['features']:
-        feature['id'] = feature['properties']['SUBID']
-        del feature['properties']['SUBID']
+    zonal_stat_gdf.rename(columns={'SUBID': 'id'}, inplace=True)
+    zonal_stat_gdf.set_index('id', inplace=True)
+    zonal_stat_geojson_str = zonal_stat_gdf.to_json()
     s3 = s3fs.S3FileSystem()
     with s3.open(s3_zonal_stats_collection_uri, 'w') as f:
-        f.write(str(zonal_stat_geojson))
+        f.write(zonal_stat_geojson_str)
     
     return spi_zonal_stats_collection_params
 
