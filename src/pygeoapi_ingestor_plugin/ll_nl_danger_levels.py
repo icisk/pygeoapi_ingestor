@@ -83,7 +83,7 @@ class DangerLevelProcessProcessor(BaseProcessor):
     def __init__(self, processor_def):
         super().__init__(processor_def, PROCESS_METADATA)
 
-        self.zarr_file = 'https://52n-i-cisk.obs.eu-de.otc.t-systems.com/data-ingestor/netherlands/knmi_obs_forecast.zarr'
+        self.zarr_file = 'https://52n-i-cisk.obs.eu-de.otc.t-systems.com/data-ingestor/netherlands/knmi_obs_forecast.zarr/'
         self.mask_file = '/pygeoapi/secondary_process_data/rijn_mask.nc'
         self.out_file = None
         self.otc_key = os.environ.get(key='FSSPEC_S3_KEY')
