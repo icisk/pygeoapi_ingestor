@@ -114,7 +114,7 @@ def tifs_to_ds(path, variable):
     # files_per_var = [[f for f in files if os.path.basename(f).split("_")[3] == var] for var in variables]
 
 
-    time = sorted(set([np.datetime64(f'{parts[0]}-{parts[1]}-01') for fn in file_names for parts in [fn.split("_")[1:3]]]))
+    time = sorted(set([np.datetime64(f'{parts[0]}-{parts[1]}-01') for fn in file_names for parts in [fn.split("_")[5:7]]]))
     LOGGER.debug(f"getting centereeeeeeeeeeeoids")
     x, y = get_pixel_centroids(files[0])
     # xarray creation
