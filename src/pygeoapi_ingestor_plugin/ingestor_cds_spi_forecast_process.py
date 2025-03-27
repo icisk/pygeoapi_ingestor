@@ -50,14 +50,14 @@ LOGGER = logging.getLogger(__name__)
 #: Process metadata and description
 PROCESS_METADATA = {
     'version': '0.2.0',
-    'id': 'cds-ingestor-process',
+    'id': 'cds-spi-forecast-process',
     'title': {
-        'en': 'CDS Ingestor Process',
+        'en': 'CDS SPI Forecast Process',
     },
     'description': {
-        'en': 'Ingestor process for Copernicus Climate Data Store (CDS) data',},
+        'en': 'Ingestor process for Copernicus Climate Data Store (CDS) Standardized Precipitation Index (SPI) Forecast data',},
     'jobControlOptions': ['sync-execute', 'async-execute'],
-    'keywords': ['ingestor process','cds'],
+    'keywords': ['ingestor process','cds', 'spi', 'forecast'],
     'links': [{
         'type': 'text/html',
         'rel': 'about',
@@ -303,25 +303,25 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
             ds = ds.to_dataset()
             for r in ds.r.values.tolist():
                 ds[f'spi{spi_ts}_r{r}'] = ds.sel(r=r).tp
-            ds = ds.drop_dims(['r'])    
+            ds = ds.drop_dims(['r'])
             return ds
 
         ds = build_data(spi_ts, periods_of_interest, month_spi_coverages)
         collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type='forecast')
         spi_utils.update_config(living_lab, collection_params)
         return ds, collection_params
-    
-    
+
+
     def save_spi_basin_zonal_stats_to_collection(self, living_lab, spi_dataset, spi_coverage_collection_params):
         ds_zonal_stats = spi_utils.compute_zonal_stats(living_lab, spi_dataset)
-        if ds_zonal_stats is not None:    
+        if ds_zonal_stats is not None:
             collection_params = spi_utils.create_s3_zonal_stats_collection_data(living_lab, ds_zonal_stats, spi_coverage_collection_params, data_type='forecast')
             spi_utils.update_config(living_lab, collection_params)
             return ds_zonal_stats, collection_params
         else:
             LOGGER.debug('Zonal stats not computed due to missing basin geojson')
             return None
-        
+
 
 
     def execute(self, data):
@@ -341,7 +341,7 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
 
             # Save SPI coverage to collection
             ds, spi_coverage_collection_params = self.save_spi_coverage_to_collection(living_lab, spi_ts, periods_of_interest, month_spi_coverages)
-            
+
             # Compute SPI basin-zonal-stats and save to collection
             zonal_stats_out = self.save_spi_basin_zonal_stats_to_collection(living_lab, ds, spi_coverage_collection_params)
             ds_zonal_stats, spi_zonal_stats_collection_params = zonal_stats_out if zonal_stats_out is not None else (None, None)
@@ -365,16 +365,16 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
                 }
                 if ds_zonal_stats is not None:
                     output_data['output_data']['zonal_stats'] = ds_zonal_stats.to_geo_dict()
-            
+
             # Prepare response
             outputs = {
                 'status' : 'OK',
-                
+
                 'spi_coverage_collection_id': spi_coverage_collection_params['pygeoapi_id'],
                 'spi_coverage_collection_s3_uri': spi_coverage_collection_params['s3_uri'],
-                
+
                 ** spi_zonal_stats_collection_info,
-                
+
                 ** output_data
             }
 
