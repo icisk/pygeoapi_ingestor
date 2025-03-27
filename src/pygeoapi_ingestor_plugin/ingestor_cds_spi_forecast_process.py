@@ -50,14 +50,14 @@ LOGGER = logging.getLogger(__name__)
 #: Process metadata and description
 PROCESS_METADATA = {
     'version': '0.2.0',
-    'id': 'cds-ingestor-process',
+    'id': 'cds-spi-forecast-process',
     'title': {
-        'en': 'CDS Ingestor Process',
+        'en': 'CDS SPI Forecast Process',
     },
     'description': {
-        'en': 'Ingestor process for Copernicus Climate Data Store (CDS) data',},
+        'en': 'Ingestor process for Copernicus Climate Data Store (CDS) Standardized Precipitation Index (SPI) Forecast data',},
     'jobControlOptions': ['sync-execute', 'async-execute'],
-    'keywords': ['ingestor process','cds'],
+    'keywords': ['ingestor process','cds', 'spi', 'forecast'],
     'links': [{
         'type': 'text/html',
         'rel': 'about',
