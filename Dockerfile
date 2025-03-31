@@ -1,4 +1,4 @@
-FROM geopython/pygeoapi:latest
+FROM geopython/pygeoapi:0.20.0
 
 ENV PYGEOAPI_CONFIG=config.k8s.yml
 ENV WSGI_WORKER_TIMEOUT=289067349086745908673459
