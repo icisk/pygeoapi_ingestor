@@ -106,15 +106,18 @@ def get_pixel_centroids(file_path):
 
 
 def tifs_to_ds(path, variable):
+    # LOGGER.debug(path)
     files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith('.tif') or f.endswith('.tiff')]
+    # LOGGER.debug(files)
     #naming and metadata
     file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
+    # LOGGER.debug(file_names)
 
     # variables = sorted(set([name.split("_")[3] for name in file_names]))
     # files_per_var = [[f for f in files if os.path.basename(f).split("_")[3] == var] for var in variables]
 
-
-    time = sorted(set([np.datetime64(f'{parts[0]}-{parts[1]}-01') for fn in file_names for parts in [fn.split("_")[5:7]]]))
+    # LOGGER.debug([fn.split("_") for fn in file_names])
+    time = sorted(set([np.datetime64(f'{parts[0]}-{parts[1]}-01') for fn in file_names for parts in [fn.split("_")[1:3]]]))
     LOGGER.debug(f"getting centereeeeeeeeeeeoids")
     x, y = get_pixel_centroids(files[0])
     # xarray creation
