@@ -1,0 +1,9 @@
+{
+    "process": "rer-river-discharge-arpae-process",
+    "payload": {
+        "inputs": {
+            "async": true,
+            "cron_invocation": true
+        }
+    }
+}
