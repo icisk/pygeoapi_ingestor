@@ -386,6 +386,8 @@ class RerRiverDischargeArpaeProcessor(BaseProcessor):
                 },
                 "properties": {
                     # INFO: Nome chiavi scelto
+                    "EHYPE": 9780124, 
+                    "Factor": 1.0,
                     "stat_name": station,
                     "Q": station_gdf["Q"].to_list(),
                     "time": station_gdf['date_time'].apply(lambda dt: dt.isoformat()).to_list()
