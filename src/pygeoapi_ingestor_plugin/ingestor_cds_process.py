@@ -142,9 +142,9 @@ PROCESS_METADATA = {
                 "hydrological_model": ["lisflood"],
                 "product_type": ["consolidated"],
                 "variable": ["river_discharge_in_the_last_24_hours"],
-                "hyear": ["2024"],
-                "hmonth": ["01"],
-                "hday": ["01"],
+                "year": ["2024"],
+                "month": ["01"],
+                "day": ["01"],
                 "data_format": "netcdf",
                 "download_format": "zip",
                 "area": [45, 10, 44, 11]
