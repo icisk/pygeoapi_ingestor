@@ -184,9 +184,11 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         # Extract parameters
         service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab = self._extract_parameters(data)
+        logger.debug("parameters extracted")
 
         # Validate input
         self._validate_inputs(service, dataset, query, self.token)
+        logger.debug("mandatory inputs checked")
 
         # Determine S3 access type
         s3_is_anon_access = self._is_s3_anon_access()

@@ -61,5 +61,5 @@ try:
         sys.exit(3)
     logger.info(f"Processing finished. Mimetype: '{mimetype}'; Result: '{str(result)}'")
 except Exception as e:
-    logger.error(f"Error during processing: '{e}'")
+    logger.error(f"Error '{type(e)}' during processing: '{e}'")
     sys.exit(4)
