@@ -453,7 +453,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
                     msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'."
             if dataset == "cems-glofas-seasonal":
-                # TODO: set geojson_out as zarr_out justfilename with .geojson extension at georgia stations folder
+                # TODO: set geojson_out as zarr_out: just a filename with .geojson extension at georgia stations folder
                 geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
                 if s3.exists(geojson_out):
                     if geojson_out in str(read_config(self.config_file)['resources']):
