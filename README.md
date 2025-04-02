@@ -81,7 +81,7 @@ Common environment variables used by all processes:
 
 #### Execute Processor Locally
 
-Call `python/pygeoapi/src/invoke/invoke_ingestor_locally.py` for executing the available processes locally.
+Call `python3 /pygeoapi/src/invoke/invoke_ingestor_locally.py` for executing the available processes locally.
 You MUST specify the following environment variables in addition to the ones required by the processor itself:
 
 - **optional** `PYGEOAPI_INGESTOR_PROCESSOR_PACKAGE`
