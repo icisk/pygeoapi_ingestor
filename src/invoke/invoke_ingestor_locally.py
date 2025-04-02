@@ -15,26 +15,28 @@ logger = logging.getLogger(__name__)
 #   Check environment variables
 #
 logger.debug(f"Checking environment variables")
-CLASS_KEY = "PYGEOAPI_INGESTOR_PROCESSOR_CLASS"
-processor_class_name = os.getenv(key=CLASS_KEY)
-
-if not processor_class_name or len(processor_class_name) == 0:
-    logger.error(f"Mandatory environment variable '{CLASS_KEY}' not correctly configured: '{processor_class_name}'.")
-    sys.exit(1)
-logger.debug(f"{CLASS_KEY}: {processor_class_name}")
-
-INPUTS_KEY = "PYGEOAPI_K8S_MANAGER_INPUTS"
-if raw_inputs := os.getenv(INPUTS_KEY) == None:
-    logger.error(f"Mandatory environment variable '{INPUTS_KEY}' not configured: '{raw_inputs}'")
-    sys.exit(2)
-logger.debug(f"{INPUTS_KEY}: {raw_inputs}")
 
 PACKAGE_KEY="PYGEOAPI_INGESTOR_PROCESSOR_PACKAGE"
 package = os.getenv(
     key=PACKAGE_KEY,
     default="pygeoapi_ingestor_plugin"
 )
-logger.debug(f"{PACKAGE_KEY}: {package}")
+logger.debug(f"    {PACKAGE_KEY}: {package}")
+
+CLASS_KEY = "PYGEOAPI_INGESTOR_PROCESSOR_CLASS"
+processor_class_name = os.getenv(key=CLASS_KEY)
+
+if not processor_class_name or len(processor_class_name) == 0:
+    logger.error(f"Mandatory environment variable '{CLASS_KEY}' not correctly configured: '{processor_class_name}'.")
+    sys.exit(1)
+logger.debug(f"    {CLASS_KEY}  : {processor_class_name}")
+
+INPUTS_KEY = "PYGEOAPI_K8S_MANAGER_INPUTS"
+raw_inputs = os.getenv(INPUTS_KEY)
+if  raw_inputs == None or len(raw_inputs) == 0:
+    logger.error(f"Mandatory environment variable '{INPUTS_KEY}' not correctly configured: '{raw_inputs}'")
+    sys.exit(2)
+logger.debug(f"    {INPUTS_KEY}       : {raw_inputs}")
 
 try:
     #
