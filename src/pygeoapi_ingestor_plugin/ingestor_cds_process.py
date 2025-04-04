@@ -556,6 +556,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         datasets.append(out_data)  # Collect successful outputs
                     except Exception as exc:
                         logger.error(f"Chunk {chunk[0]}-{chunk[-1]} generated an exception: {exc}")
+                        return None
 
                 xr_data = xr.merge(datasets)
         xr_split_model_data = self.split_var_to_variables(xr_data, "dis24")
