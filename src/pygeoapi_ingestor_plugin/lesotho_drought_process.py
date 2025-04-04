@@ -5,13 +5,16 @@ import tempfile
 import numpy as np
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 from filelock import FileLock
+import s3fs
 import yaml
 from droughtpipeline.pipeline import Pipeline
 from droughtpipeline.secrets import Secrets
 from droughtpipeline.settings import Settings
 from datetime import date, datetime, timedelta, timezone
-import time
+import xarray as xr
 from droughtpipeline.save_zarr import save_zarr
+
+from pygeoapi_ingestor_plugin.utils import read_config
 # =================================================================
 #
 # Authors: Valerio Luzzi <valluzzi@gmail.com>
@@ -168,7 +171,16 @@ class LesothoDroughtProcessor(BaseProcessor):
 
         self._validate_inputs(datetime_start, token)
         
-        self.run_drought_pipeline(country="LSO", prepare=True, extract=True, forecast=True, send=False,save=False, debug=True,datetimestart=datetime_start, datetimeend=datetime_start.month+6)
+        # Check if zarr_out already exists
+        msg = self._check_s3_path_exists(zarr_out, s3_is_anon_access=False)
+        if msg:
+            return mimetype, {'id': self.id, 'value': msg}
+        
+        try:
+            self.run_drought_pipeline(country="LSO", prepare=True, extract=True, forecast=True, send=False,save=False, debug=True,datetimestart=datetime_start, datetimeend=datetime_start.month+6)
+        except Exception as e:
+            logger.error(f"Error running pipeline: {e}")
+            return mimetype, {'id': self.id, 'value': f"Error running pipeline: {e}"}
         dataset = save_zarr("/tmp/data/output/", zarr_out, datetime_start)
         
         self.update_config(dataset, zarr_out, self.config_file)
@@ -333,6 +345,20 @@ class LesothoDroughtProcessor(BaseProcessor):
                     }
                 }
             self.write_config(config_path=config_file, config_out=config)
-            
+        
+    def _check_s3_path_exists(self, zarr_out, s3_is_anon_access):
+        """Check if the S3 path already exists."""
+        msg = ""
+        if zarr_out.startswith('s3://'):
+            s3 = s3fs.S3FileSystem()
+            if s3.exists(zarr_out):
+                if zarr_out in str(read_config(self.config_file)['resources']):
+                    msg = f"Path {zarr_out} already exists in bucket and config"
+                else:
+                    data = xr.open_zarr(zarr_out)
+                    self.update_config(data, zarr_out, self.config_file, s3_is_anon_access)
+                    msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'."
+        return msg
+    
     def __repr__(self):
         return f'<LesothoDroughtProcessor> {self.name}'

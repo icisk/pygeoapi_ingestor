@@ -1,10 +1,10 @@
 {
-    "process": "ingestor-drought-forecast-lesotho-process",
+    "process": "lesotho-drought-process",
     "payload": {
         "inputs": {
             "cron_invocation": true,
-            "asyn": true,
-            "start_date": "2025-01-01T00:00:00Z"
+            "async": true,
+            "datetime_start": "2025-01-01T00:00:00"
         }
     }
 }
