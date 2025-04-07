@@ -100,32 +100,31 @@ def get_pixel_centroids(file_path):
 
 def tifs_to_ds(path):
     files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith('.tif') or f.endswith('.tiff')]
-    # naming and metadata
     file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
-    variables = sorted(set([name.split("_")[3] for name in file_names]))
-    files_per_var = [[f for f in files if os.path.basename(f).split("_")[3] == var] for var in variables]
-    time = sorted(set([np.datetime64(f'{parts[1]}-{int(parts[0]):02}-01') for fn in file_names for parts in [fn.split("_")[1:4]]]))
+    variables = sorted(set([name.split("_")[5] for name in file_names]))
+    files_per_var = [[f for f in files if var in os.path.basename(f)] for var in variables]
+    info = [parts for fn in file_names for parts in [fn.split("_")[3:5]]]
+    time = sorted(set([np.datetime64(f'{parts[1]}-{parts[0]}-01') for parts in info]))
+
     x, y = get_pixel_centroids(files[0])
-    # xarray creation
     da_list = []
     for i, group in enumerate(files_per_var):
-            arrays = [tiff.imread(file) for file in group]
-            stacked = np.stack(arrays, axis=0)
-            da = xr.DataArray(stacked,
-                            dims=['time', 'latitude', 'longitude'],
-                            name=variables[i])
-            da_list.append(da)
+        arrays = [tiff.imread(file) for file in group]
+        stacked = np.stack(arrays, axis=0)
+        da = xr.DataArray(stacked,
+                          dims=['time', 'latitude', 'longitude'],
+                          name=variables[i])
+        da_list.append(da)
 
     ds = xr.Dataset({variables[i]: (['time', 'latitude', 'longitude'], da_list[i].data) for i in range(len(da_list))},
                     coords={'time': time,
                             'latitude': y,
                             'longitude': x},
                     attrs={'long_name': 'precip',
-                            'units': 'mm'})
-
+                           'units': 'mm'})
 
     for var in variables:
-        if var == 'UNCERTAINTY':
+        if var == 'memberUNCERTAINTY':
             ds[var].attrs = {'long_name': 'quality of data',
                              'units': 'categorical'}
         else:
@@ -134,26 +133,26 @@ def tifs_to_ds(path):
     return ds
 
 
-def tifs_to_da(path):
-    # file paths
-    files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith('.tif') or f.endswith('.tiff')]
-    # naming and metadata
-    file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
-    info = [f"{int(parts[0]):02}_{parts[1]}_{parts[2]}" for fn in file_names for parts in [fn.split("_")[1:4]]]
-    time = [np.datetime64(f'{parts[1]}-{parts[0]}-01T00:{i:02}') for i, date in enumerate(info) for parts in [date.split("_")]]
-    x, y = get_pixel_centroids(files[0])
-    # xarray creation
-    arrays = [tiff.imread(file) for file in files]
-    stacked = np.stack(arrays, axis=0)
-    da = xr.DataArray(stacked,
-                      dims=['time', 'latitude', 'longitude'],
-                      coords={'time': time, 'latitude': y, 'longitude': x},
-                      attrs={'info': info,
-                             'long_name': 'long name info',
-                             'units': 'units info'},
-                      name='data')
-
-    return da
+# def tifs_to_da(path):
+#     # file paths
+#     files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith('.tif') or f.endswith('.tiff')]
+#     # naming and metadata
+#     file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
+#     info = [f"{int(parts[0]):02}_{parts[1]}_{parts[2]}" for fn in file_names for parts in [fn.split("_")[1:4]]]
+#     time = [np.datetime64(f'{parts[1]}-{parts[0]}-01T00:{i:02}') for i, date in enumerate(info) for parts in [date.split("_")]]
+#     x, y = get_pixel_centroids(files[0])
+#     # xarray creation
+#     arrays = [tiff.imread(file) for file in files]
+#     stacked = np.stack(arrays, axis=0)
+#     da = xr.DataArray(stacked,
+#                       dims=['time', 'latitude', 'longitude'],
+#                       coords={'time': time, 'latitude': y, 'longitude': x},
+#                       attrs={'info': info,
+#                              'long_name': 'long name info',
+#                              'units': 'units info'},
+#                       name='data')
+#
+#     return da
 
 
 
@@ -180,6 +179,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.alternate_root = None
         self.data_path = None
         self.zarr_out = None
+        self.variable = None
 
     def read_config(self):
         with open(self.config_file, 'r') as file:
@@ -214,10 +214,10 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         with lock:
 
             config= self.read_config()
-            config['resources'][self.title] = {
+            config['resources'][f"{self.title}_{self.variable}"] = {
                 'type': 'collection',
-                'title': self.title,
-                'description': f'creaf_forecast of precipitation',
+                'title': f"{self.title}_{self.variable}",
+                'description': f'creaf_forecast of {self.variable}',
                 'keywords': ['country'],
                 'extents': {
                     'spatial': {
@@ -260,12 +260,15 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.data_source = data.get('data_source')
         self.zarr_out = data.get('zarr_out')
         self.token = data.get('token')
+        self.variable = data.get('variable')
         self.alternate_root = self.zarr_out.split("s3://")[1]
 
         if self.data_source is None:
             raise ProcessorExecuteError('Cannot process without a data path')
         if self.zarr_out is None or not self.zarr_out.startswith('s3://') :
             raise ProcessorExecuteError('Cannot process without a zarr path')
+        if self.variable is None:
+            raise ProcessorExecuteError('Cannot precoess without a variable!')
         if self.token is None:
             raise ProcessorExecuteError('Identify yourself with valid token!')
 
