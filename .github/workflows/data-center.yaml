@@ -81,46 +81,47 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha
     -
-      name: Run Trivy vulnerability scanner
+      name: Run trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       env:
-        #
-        # Using AWS repository to circumvent TOOMANYREQUEST error from github repository
-        #
         TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
         TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
-        #
-        # Original GitHub repository
-        #
-        # TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
-        # TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db:1
-        #
-        #
-        # Disable VEX notice
-        #
         TRIVY_DISABLE_VEX_NOTICE: disable_vex_notice
       with:
-        image-ref: "${{ env.IMAGE_TAG }}"
-        format: 'table'
-        output: 'trivy-results.txt'
+        scan-type: repo
+        scan-ref: '.'
+        format: json
+        output: trivy-results.json
         exit-code: '0'
         ignore-unfixed: true
-        vuln-type: 'os,library'
-        severity: 'CRITICAL,HIGH'
+        vuln-type: os,library
+        scanners: vuln,secret,misconfig
+        severity: CRITICAL,HIGH
     -
-      name: remove empty results
-      run: |
-        ls -lhA trivy-results.txt; \
-        find trivy-results.txt -type f -empty -delete -print
+     name: remove empty results
+     run: |
+       vulnerabilities=$(cat trivy-results.json | jq 'if (.Results | length) == 0 then 0 else [.Results[].Vulnerabilities | length] | add end'); \
+       if [[ "$vulnerabilities" -eq 0 ]]; then \
+        rm trivy-results.json
+       fi
     -
-      if: ${{ hashFiles('trivy-results.txt') != '' }}
-      name: remove "no HIGH or CRITICAL CVEs found" results
-      run: |
-        if [[ -s trivy-results.txt ]] \
-          && [[ $(wc -l trivy-results.txt| awk '{print $1}') -eq 5 ]] \
-          && [[ $(grep -rc "Total: 0 (HIGH: 0, CRITICAL: 0)" trivy-results.txt) -eq 1 ]]; then \
-            rm -v trivy-results.txt; \
-        fi
+     if: ${{ hashFiles('trivy-results.json') != '' }}
+     name: 2nd scan to create human readable report
+     uses: aquasecurity/trivy-action@master
+     env:
+       TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
+       TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
+       TRIVY_DISABLE_VEX_NOTICE: disable_vex_notice
+       TRIVY_FORMAT: table
+       TRIVY_OUTPUT: trivy-results.txt
+     with:
+       image-ref: "${{ env.IMAGE_TAG }}"
+       format: 'table'
+       output: 'trivy-results.txt'
+       exit-code: '0'
+       ignore-unfixed: true
+       vuln-type: 'os,library'
+       severity: 'CRITICAL,HIGH'
     -
       if: ${{ hashFiles('trivy-results.txt') != '' }}
       name: Upload to 52N slack

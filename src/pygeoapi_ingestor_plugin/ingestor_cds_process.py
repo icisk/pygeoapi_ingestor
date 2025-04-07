@@ -184,9 +184,11 @@ class IngestorCDSProcessProcessor(BaseProcessor):
 
         # Extract parameters
         service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab = self._extract_parameters(data)
+        logger.debug("parameters extracted")
 
         # Validate input
         self._validate_inputs(service, dataset, query, self.token)
+        logger.debug("mandatory inputs checked")
 
         # Determine S3 access type
         s3_is_anon_access = self._is_s3_anon_access()
@@ -204,7 +206,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         data = self._fetch_data(service, dataset, query, file_out, engine, start_date, end_date, interval)
 
         if data is None:
-            return mimetype, {'id': self.id, 'value': f'Error data for {dataset} not found'} 
+            return mimetype, {'id': self.id, 'value': f'Error data for {dataset} not found'}
         # Save the data
         self._store_data(data, zarr_out, s3_save, living_lab, dataset)
 
@@ -366,7 +368,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         'id_field': 'id'
                     }]
                 }
-                
+
                 config['resources'][resource_key]['providers'][0]['options'] = {
                     's3': {
                         'anon': True,
@@ -402,7 +404,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             query['year'] = [year]
             query['month'] = [month]
 
-        zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}.zarr"   
+        zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}.zarr"
 
         return service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab
 
@@ -453,7 +455,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
                     msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'."
             if dataset == "cems-glofas-seasonal":
-                # TODO: set geojson_out as zarr_out justfilename with .geojson extension at georgia stations folder
+                # TODO: set geojson_out as zarr_out: just a filename with .geojson extension at georgia stations folder
                 geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
                 if s3.exists(geojson_out):
                     if geojson_out in str(read_config(self.config_file)['resources']):
@@ -483,7 +485,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         """Split a list into smaller chunks."""
         for i in range(0, len(data), chunk_size):
             yield data[i:i + chunk_size]
-            
+
     # Function to handle individual chunk requests
     def fetch_chunk(self, chunk,base_request,service,dataset, file_out, engine):
         try:
@@ -504,7 +506,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             logger.debug(f"Downloaded: {output_filename}")
 
             if output_filename.endswith('.zip'):
-                extract_dir = output_filename[:-4] 
+                extract_dir = output_filename[:-4]
                 with zipfile.ZipFile(output_filename, 'r') as zip_ref:
                     zip_ref.extractall(extract_dir)
                 for file in os.listdir(extract_dir):
@@ -516,7 +518,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 data = xr.open_dataset(output_filename, engine=engine)
             # elif file_out.endswith('.grib'):
             #     data = xr.open_dataset(file_out,engine="cfgrib")
-            
+
             data.attrs['long_name'] = dataset
             data['forecast_period'] = data['valid_time']
             data.drop_vars('valid_time')
@@ -524,9 +526,9 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         except Exception as e:
             logger.error(f"Error fetching data for leadtime_hours={chunk[0]} to {chunk[-1]}: {e}")
             raise
-        
+
     def fetch_dataset_by_chunk(self, service, dataset, query, file_out, engine):
-        
+
         if len(query['leadtime_hour']) <= 30:
             logger.info(f"Fetching data for <=30 leadtime_hour {query}")
             xr_data = self.fetch_chunk(query['leadtime_hour'], query, service, dataset, file_out, engine)
@@ -554,6 +556,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         datasets.append(out_data)  # Collect successful outputs
                     except Exception as exc:
                         logger.error(f"Chunk {chunk[0]}-{chunk[-1]} generated an exception: {exc}")
+                        return None
 
                 xr_data = xr.merge(datasets)
         xr_split_model_data = self.split_var_to_variables(xr_data, "dis24")
@@ -606,7 +609,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
             # upload data as geojson
             self.upload_geojson(geojson_out, data, living_lab)
-            
+
     def upload_geojson(self, geojson_out, data, living_lab):
         geojson_data = self.create_geojson(data,living_lab)
         if geojson_out.startswith('s3://'):
@@ -679,7 +682,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 varname = 'tp'
             elif '2m_temperature' in query['variable']:
                 varname = 't2m'
-                
+
             data = self.split_var_to_variables(data, varname)
             if 'time' in data.variables:
                 data = data.drop_vars("time")  # Drop existing 'time' if necessary
@@ -751,7 +754,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         except pd.errors.ParserError:
             logger.debug("Error: Unable to parse 'georgia_stations.csv'. Check the file format.")
         return stations_df
-    
+
     def normalize_timestamp(self, value):
         """Convert large timestamps to seconds-based Unix epoch format."""
         try:
@@ -775,7 +778,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             # Select data from xarray dataset based on nearest x, y
             selected_data = ds.sel(longitude=x_coord, latitude=y_coord, method='nearest')
 
-            #TODO: rename variable forecast_period to time   
+            #TODO: rename variable forecast_period to time
             # if 'forecast_period' in selected_data.variables:
             #     selected_data = selected_data.rename_vars({'forecast_period': 'time'})
 
@@ -783,13 +786,13 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             properties = {}
             for var in selected_data.variables:
                 values = selected_data[var].values.tolist()
-                
+
                 # Flatten the list if it's a list of lists
                 if isinstance(values, list) and any(isinstance(i, list) for i in values):
                     values = list(itertools.chain.from_iterable(values))
 
                 properties[var] = values
-                
+
                 # Convert timestamps safely
                 if var in ["forecast_period", "forecast_reference_time", "valid_time"]:    #TODO: "forecast_period" -> "time"
                     if isinstance(values, list):
@@ -798,7 +801,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         properties[var] = self.normalize_timestamp(values)
                 else:
                     properties[var] = values
-            
+
             properties['id'] = int(station_id)
 
             feature = {

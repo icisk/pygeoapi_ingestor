@@ -36,6 +36,7 @@ To start the docker container of Pygeoapi service simply edit `docker-compose.ym
 
 ```shell
 docker compose build \
+    --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
     --build-arg GIT_HASH="$(git log -n1 --pretty=format:"%H")" \
     --build-arg GIT_TAG="$(git describe --tags)" \
     --build-arg GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)" && \
@@ -77,6 +78,20 @@ Common environment variables used by all processes:
   In the case of the Open Telekom Cloud: `https://obs.eu-de.otc.t-systems.com`
 
 ### Available processes
+
+#### Execute Processor Locally
+
+Call `python3 /pygeoapi/src/invoke/invoke_ingestor_locally.py` for executing the available processes locally.
+You MUST specify the following environment variables in addition to the ones required by the processor itself:
+
+- **optional** `PYGEOAPI_INGESTOR_PROCESSOR_PACKAGE`
+  defaults to `pygeoapi_ingestor_plugin`
+
+- `PYGEOAPI_INGESTOR_PROCESSOR_CLASS`
+  MUST match any class that implements `BaseProcessor` and is contained in the `PYGEOAPI_INGESTOR_PROCESSOR_PACKAGE`
+
+- `PYGEOAPI_K8S_MANAGER_INPUTS`
+  MUST provide the processor inputs as JSON string, e.g. created by `json.dumps()`.
 
 #### SMHI FTP process
 
