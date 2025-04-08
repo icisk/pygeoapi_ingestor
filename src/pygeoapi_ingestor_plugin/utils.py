@@ -12,6 +12,7 @@ import yaml
 import zipfile
 import time
 import math
+import base64
 import numpy as np
 import xarray as xr
 
@@ -33,6 +34,15 @@ def ceil_decimals(number, decimals=0):
 
 def days_in_month(date):
     return monthrange(date.year, date.month)[1]
+
+
+def string_to_int_id(s):
+    return int.from_bytes(s.encode(), 'big')
+
+def int_id_to_string(i):
+    return i.to_bytes((i.bit_length() + 7) // 8, 'big').decode()
+
+
 def justfname(pathname):
     """
     justfname - returns the basename
