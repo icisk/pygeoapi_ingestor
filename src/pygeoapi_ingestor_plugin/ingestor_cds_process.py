@@ -280,7 +280,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 zarr_out = file_out
 
                 logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
-                if dataset == "cems-glofas-seasonal":
+                if dataset == "cems-glofas-seasonal" or \
+                    (dataset == "cems-glofas-forecast" and living_lab == "italy"):
                     time_field = "forecast_period"
                 else:
                     time_field = "time"
@@ -454,7 +455,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     data = xr.open_zarr(zarr_out)
                     self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
                     msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'."
-            if dataset == "cems-glofas-seasonal":
+            if dataset == "cems-glofas-seasonal" or \
+                (dataset == "cems-glofas-forecast" and living_lab == "italy"):
                 # TODO: set geojson_out as zarr_out: just a filename with .geojson extension at georgia stations folder
                 geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
                 if s3.exists(geojson_out):
@@ -473,7 +475,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             datetime_end = datetime.strptime(end_date, '%Y-%m-%d')
             dates = list(self.generate_dates_list(datetime_start, datetime_end, interval=interval))
             return self._fetch_data_by_range(service, dataset, query, file_out, dates, interval)
-        elif dataset == "cems-glofas-seasonal":
+        elif dataset == "cems-glofas-seasonal" or dataset == "cems-glofas-forecast":
             logger.info("Fetching data for cems-glofas-seasonal")
             return self.fetch_dataset_by_chunk(service, dataset, query, file_out, engine=engine)
         else:
@@ -605,7 +607,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             store = zarr_out
         logger.info(f"Storing data to {store}, data type: {type(data)}")
         data.to_zarr(store=store, consolidated=True, mode='w')
-        if dataset == "cems-glofas-seasonal":
+        if dataset == "cems-glofas-seasonal" or \
+            (dataset == "cems-glofas-forecast" and living_lab=="italy"):
             geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
             # upload data as geojson
             self.upload_geojson(geojson_out, data, living_lab)
@@ -677,6 +680,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if dataset == 'cems-glofas-forecast':
             for var in data.data_vars:
                 data[var] = data[var].expand_dims(dim='time')
+            
         elif dataset == "seasonal-original-single-levels":
             if 'total_precipitation' in query['variable']:
                 varname = 'tp'
@@ -701,7 +705,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         """Update the config file and handle errors."""
         try:
             self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
-            if dataset == "cems-glofas-seasonal":
+            if dataset == "cems-glofas-seasonal" or \
+                (dataset == "cems-glofas-forecast" and living_lab == "italy"):
                 geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
                 self.update_config(data, dataset, geojson_out, self.config_file, s3_is_anon_access, living_lab)
         except Exception as e:
