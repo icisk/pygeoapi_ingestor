@@ -263,8 +263,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # convert np.datetime64 to datetime object .strftime("%Y%m")
         datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
         datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
-        datetime_min_ym = datetime_min.strftime("%Y%m")
-        datetime_max_ym = datetime_max.strftime("%Y%m")
+        if dataset == "cems-glofas-forecast":
+            datetime_min_descr = datetime_min.strftime("%Y%m%d")
+            datetime_max_descr = datetime_max.strftime("%Y%m%d")
+        else:
+            datetime_min_descr = datetime_min.strftime("%Y%m")
+            datetime_max_descr = datetime_max.strftime("%Y%m")
 
 
         logger.info(f"datetime_min: {datetime_min}, datetime_max: {datetime_max}")
@@ -275,7 +279,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with lock:
             config = read_config(config_file)
 
-            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min_ym}_{living_lab}_{variable_name}"
+            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min_descr}_{living_lab}_{variable_name}"
             if file_out.endswith('.zarr'):
                 zarr_out = file_out
 
@@ -288,7 +292,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 dataset_definition = {
                     'type': 'collection',
                     'title': dataset_pygeoapi_identifier,
-                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_ym} to {datetime_max_ym} for area [{min_x},{min_y},{max_x},{max_y}]',
+                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_descr} to {datetime_max_descr} for area [{min_x},{min_y},{max_x},{max_y}]',
                     'keywords': ['country'],
                     'extents': {
                         'spatial': {
@@ -343,7 +347,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 config['resources'][resource_key] = {
                     'type': 'collection',
                     'title': resource_key,
-                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_ym} to {datetime_max_ym} for area [{min_x},{min_y},{max_x},{max_y}]',
+                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_descr} to {datetime_max_descr} for area [{min_x},{min_y},{max_x},{max_y}]',
                     'keywords': [
                         living_lab,
                         'country',
@@ -404,8 +408,14 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             # day = time.strftime("%d")
             query['year'] = [year]
             query['month'] = [month]
+            if dataset == 'cems-glofas-forecast': 
+                day = time.strftime("%d")   
+                query['day'] = [day]
 
-        zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}.zarr"
+        if dataset == 'cems-glofas-forecast':
+            zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}{query['day'][0]}.zarr"
+        else:
+            zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}.zarr"
 
         return service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab
 
