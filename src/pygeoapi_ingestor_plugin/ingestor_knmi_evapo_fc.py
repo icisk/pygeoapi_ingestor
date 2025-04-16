@@ -329,24 +329,28 @@ class IngestorKNMIobsforecastProcessProcessor(BaseProcessor):
         self.knmi_homo, self.smhi_homo = self.homogenize_ds()
         LOGGER.info(f'calculating precip deficit')
         self.obs_forcast = self.calc_p_def_from_obs()
-        p_def_20 = self.obs_forcast['p_def'].sel(quantile=0.2).values
+        p_def_10 = self.obs_forcast['p_def'].sel(quantile=0.1).values
+        p_def_30 = self.obs_forcast['p_def'].sel(quantile=0.3).values
         p_def_50 = self.obs_forcast['p_def'].sel(quantile=0.5).values
-        p_def_80 = self.obs_forcast['p_def'].sel(quantile=0.8).values
+        p_def_70 = self.obs_forcast['p_def'].sel(quantile=0.7).values
+        p_def_90 = self.obs_forcast['p_def'].sel(quantile=0.9).values
 
         final_xr = xr.DataArray(
-            p_def_20,
+            p_def_10,
             dims=["time", "lat", "lon"],
             coords={
                 "time": self.obs_forcast["time"],
                 "lat": self.obs_forcast["lat"],
                 "lon": self.obs_forcast["lon"]
             },
-            name="p_def_q20"
+            name="p_def_q10"
         )
 
-        final_xr = final_xr.to_dataset(name="p_def_q20")
+        final_xr = final_xr.to_dataset(name="p_def_q10")
+        final_xr['p_def_q30'] = (('time', 'lat', 'lon'), p_def_30)
         final_xr['p_def_q50'] = (('time', 'lat', 'lon'), p_def_50)
-        final_xr['p_def_q80'] = (('time', 'lat', 'lon'), p_def_80)
+        final_xr['p_def_q70'] = (('time', 'lat', 'lon'), p_def_70)
+        final_xr['p_def_q90'] = (('time', 'lat', 'lon'), p_def_90)
 
         LOGGER.info(f"upload to '{self.fc_zarr_out}'")
         final_xr.to_zarr(store, consolidated=True, mode='w')

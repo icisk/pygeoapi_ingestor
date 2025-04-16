@@ -179,7 +179,8 @@ class RIJNLAND_evapo_dataprep_SMHI(BaseProcessor):
         res_arr = [ds.expand_dims(time=[forecast_xr['time'].values[i]]) for i, ds in enumerate(res)]
         res_res = xr.merge(res_arr)
         res_res = res_res.rename({'prAdjust': 'delta_precip_def'})
-        percentiles = res_res.quantile([0.2, 0.5, 0.8], dim=["epoches"])
+        # percentiles = res_res.quantile([0.2, 0.5, 0.8], dim=["epoches"])
+        percentiles = res_res.quantile([0.1, 0.3, 0.5, 0.7, 0.9], dim=["epoches"])
 
         return(percentiles, res_res)
 
