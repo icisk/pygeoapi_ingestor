@@ -90,3 +90,7 @@ resources:
     processor:
       name: pygeoapi_ingestor_plugin.BiasCorrectionCDSProcessor
     type: process
+  rer-river-discharge-arpae-process:
+    processor:
+      name: pygeoapi_ingestor_plugin.RerRiverDischargeArpaeProcessor
+    type: process
