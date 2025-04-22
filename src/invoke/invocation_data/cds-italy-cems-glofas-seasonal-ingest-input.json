@@ -10,9 +10,9 @@
             "file_out": "/tmp/cems-glofas-seasonal.netcdf4.zip",
             "interval": "month",
             "query": {
+                "system_version": ["operational"],
                 "hydrological_model": [
-                    "lisflood",
-                    "htessel_lisflood"
+                    "lisflood"
                 ],
                 "variable": [
                     "river_discharge_in_the_last_24_hours"
@@ -58,9 +58,9 @@
                 "download_format": "zip",
                 "data_format": "netcdf",
                 "area": [
-                    44.224998,
-                    10.4542,
-                    44.583302,
+                    44.583302, 
+                    10.4542, 
+                    44.224998, 
                     10.9592
                 ]
             },
