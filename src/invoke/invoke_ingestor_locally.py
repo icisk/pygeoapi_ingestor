@@ -46,7 +46,7 @@ def hide_secrets_before_logging(inputs_json: dict) -> dict:
         )
     return {key: hide_value_if_required(key, value) for key, value in inputs_json.items()}
 
-logger.debug(f"    {INPUTS_KEY}       : {hide_secrets_before_logging(raw_inputs)}")
+logger.debug(f"    {INPUTS_KEY}       : {hide_secrets_before_logging(json.loads(raw_inputs))}")
 
 try:
     #
