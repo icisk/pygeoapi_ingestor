@@ -178,9 +178,19 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
         self.id = 'cds-ingestor-process'
 
+    # TODO: think about moving this to a common super class
+    def hide_secrets_before_logging(self, inputs_json: dict) -> dict:
+        def hide_value_if_required(key, value):
+            return (
+                "*"
+                if any(trigger in key.lower() for trigger in ["secret", "key", "password", "token"])
+                else value
+            )
+        return {key: hide_value_if_required(key, value) for key, value in inputs_json.items()}
+
     def execute(self, data):
         mimetype = 'application/json'
-        logger.info(f"|||  INFO LOG ||| \n {data} \n ||||||||||")
+        logger.info(f"|||  INFO LOG ||| \n {self.hide_secrets_before_logging(data)} \n ||||||||||")
 
         # Extract parameters
         service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab = self._extract_parameters(data)
