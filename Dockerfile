@@ -48,7 +48,7 @@ RUN touch "${INFO_FILE}" \
  && echo "pygeoapi: $(pygeoapi --version)" >> "$INFO_FILE" \
  && cat "${INFO_FILE}"
 
- RUN sed -i '/{{ version }}/a \
+RUN sed -i '/{{ version }}/a \
  \(<a title="info" id="showInfo" href="{{ config["server"]["url"] }}/static/info.txt">info</a>\)\
  <script>\
  document.getElementById("showInfo").addEventListener("click", function(event) {\
