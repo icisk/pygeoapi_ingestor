@@ -42,7 +42,7 @@ RUN touch "${INFO_FILE}" \
  && echo "Build" > "$INFO_FILE" \
  && echo "-----" >> "$INFO_FILE" \
  && echo "timestamp: $(date)" >> "$INFO_FILE" \
- && echo "git hash: ${GIT_HASH:0:20}" >> "$INFO_FILE" \
+ && echo "git hash: $(echo $GIT_HASH | cut -c1-20)" >> "$INFO_FILE" \
  && echo "git branch: $GIT_BRANCH" >> "$INFO_FILE" \
  && echo "git tag: $GIT_TAG" >> "$INFO_FILE" \
  && echo "pygeoapi: $(pygeoapi --version)" >> "$INFO_FILE" \
