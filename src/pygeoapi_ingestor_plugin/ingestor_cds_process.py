@@ -36,6 +36,7 @@ import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
+from dateutil import relativedelta
 
 import cdsapi
 import pandas as pd
@@ -380,6 +381,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         'requester_pays': False
                     }
                 }
+                
+                if dataset == "cems-glofas-forecast" and living_lab == "italy":     # DOC: we collect data each day, so we keep only collection about last week values (so delete collection related to 7 days ago)
+                    datetime_descr_7d_ago = (datetime_min - relativedelta.relativedelta(days=7)).strftime("%Y%m%d")
+                    dataset_pygeoapi_identifier_7d_ago = f"{dataset}_{datetime_descr_7d_ago}_{living_lab}_{variable_name}_stations"
+                    _ = config['resources'].pop(dataset_pygeoapi_identifier_7d_ago, None)
+                    
             write_config(config_path=config_file, config_out=config)
 
 
@@ -714,11 +721,14 @@ class IngestorCDSProcessProcessor(BaseProcessor):
     def _update_config_with_error_handling(self, data, dataset, zarr_out, s3_is_anon_access, living_lab):
         """Update the config file and handle errors."""
         try:
-            self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
+            if not (dataset == "cems-glofas-forecast" and living_lab == "italy"):  # DOC: We don't need toc create a coverage collection to get two points in italy living lab
+                self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
+            
             if dataset == "cems-glofas-seasonal" or \
                 (dataset == "cems-glofas-forecast" and living_lab == "italy"):
                 geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
                 self.update_config(data, dataset, geojson_out, self.config_file, s3_is_anon_access, living_lab)
+                
         except Exception as e:
             logger.error(f"Error updating config: {e}")
 
