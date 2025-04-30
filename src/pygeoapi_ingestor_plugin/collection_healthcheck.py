@@ -79,7 +79,7 @@ PROCESS_METADATA = {
     }
 }
 
-class DangerLevelProcessProcessor(BaseProcessor):
+class CollectionHealthcheck(BaseProcessor):
     def __init__(self, processor_def):
         super().__init__(processor_def, PROCESS_METADATA)
 
@@ -114,4 +114,4 @@ class DangerLevelProcessProcessor(BaseProcessor):
         return mimetype, outputs
 
     def __repr__(self):
-        return f'<DangerLevelProcessProcessor> {self.name}'
+        return f'<CollectionHealthcheck> {self.name}'

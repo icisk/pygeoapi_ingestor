@@ -1,3 +1,4 @@
+from .collection_healthcheck import CollectionHealthcheck
 from .data_prep_knmi_evapo_forecast import RIJNLAND_evapo_dataprep_SMHI
 # from .ingestor_planetary_process import IngestorPlanetaryProcessProcessor
 from .ingestor_aemet_stations_process import IngestorAEMETSTATIONSProcessProcessor
