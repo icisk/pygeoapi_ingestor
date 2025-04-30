@@ -36,7 +36,17 @@ raw_inputs = os.getenv(INPUTS_KEY)
 if  raw_inputs == None or len(raw_inputs) == 0:
     logger.error(f"Mandatory environment variable '{INPUTS_KEY}' not correctly configured: '{raw_inputs}'")
     sys.exit(2)
-logger.debug(f"    {INPUTS_KEY}       : {raw_inputs}")
+
+def hide_secrets_before_logging(inputs_json: dict) -> dict:
+    def hide_value_if_required(key, value):
+        return (
+            "*"
+            if any(trigger in key.lower() for trigger in ["secret", "key", "password", "token"])
+            else value
+        )
+    return {key: hide_value_if_required(key, value) for key, value in inputs_json.items()}
+
+logger.debug(f"    {INPUTS_KEY}       : {hide_secrets_before_logging(json.loads(raw_inputs))}")
 
 try:
     #
@@ -49,8 +59,7 @@ try:
     #   Execute processor
     #
     inputs = json.loads(raw_inputs)
-    logger.debug(f"Inputs parsed: '{str(inputs)}'")
-    logger.debug(f"Executing process...")
+    logger.debug(f"Executing process with loaded inputs...")
     mimetype, result = processor.execute(data=inputs)
     #
     #   Process results
