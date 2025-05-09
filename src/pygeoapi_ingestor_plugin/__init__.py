@@ -18,4 +18,5 @@ from .bias_correction_cds_process import BiasCorrectionCDSProcessor
 from .lesotho_drought_process import LesothoDroughtProcessor
 from .ll_nl_danger_levels import DangerLevelProcessProcessor
 from .rer_river_discharge_arpae_process import RerRiverDischargeArpaeProcessor
+from .georgia_ftp_alazani_shaqriani_hydro_process import GeorgiaFTPAlazaniShaqrianiHydroProcessor
 from .utils import write_config, read_config, download_source, cleanup_data_temp

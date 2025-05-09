@@ -1,0 +1,9 @@
+{
+    "process": "georgia-ftp-alazani-shaqriani-hydro-process",
+    "payload": {
+        "inputs": {
+            "async": true,
+            "cron_invocation": true
+        }
+    }
+}
