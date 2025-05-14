@@ -36,6 +36,7 @@ import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
+from dateutil import relativedelta
 
 import cdsapi
 import pandas as pd
@@ -273,8 +274,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         # convert np.datetime64 to datetime object .strftime("%Y%m")
         datetime_max = datetime.fromtimestamp(max_time.tolist()/1e9,tz=timezone.utc)
         datetime_min = datetime.fromtimestamp(min_time.tolist()/1e9,tz=timezone.utc)
-        datetime_min_ym = datetime_min.strftime("%Y%m")
-        datetime_max_ym = datetime_max.strftime("%Y%m")
+        if dataset == "cems-glofas-forecast":
+            datetime_min_descr = datetime_min.strftime("%Y%m%d")
+            datetime_max_descr = datetime_max.strftime("%Y%m%d")
+        else:
+            datetime_min_descr = datetime_min.strftime("%Y%m")
+            datetime_max_descr = datetime_max.strftime("%Y%m")
 
 
         logger.info(f"datetime_min: {datetime_min}, datetime_max: {datetime_max}")
@@ -285,19 +290,20 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         with lock:
             config = read_config(config_file)
 
-            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min_ym}_{living_lab}_{variable_name}"
+            dataset_pygeoapi_identifier = f"{dataset}_{datetime_min_descr}_{living_lab}_{variable_name}"
             if file_out.endswith('.zarr'):
                 zarr_out = file_out
 
                 logger.info(f"resource identifier and title: '{dataset_pygeoapi_identifier}'")
-                if dataset == "cems-glofas-seasonal":
+                if dataset == "cems-glofas-seasonal" or \
+                    (dataset == "cems-glofas-forecast" and living_lab == "italy"):
                     time_field = "forecast_period"
                 else:
                     time_field = "time"
                 dataset_definition = {
                     'type': 'collection',
                     'title': dataset_pygeoapi_identifier,
-                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_ym} to {datetime_max_ym} for area [{min_x},{min_y},{max_x},{max_y}]',
+                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_descr} to {datetime_max_descr} for area [{min_x},{min_y},{max_x},{max_y}]',
                     'keywords': ['country'],
                     'extents': {
                         'spatial': {
@@ -352,7 +358,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 config['resources'][resource_key] = {
                     'type': 'collection',
                     'title': resource_key,
-                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_ym} to {datetime_max_ym} for area [{min_x},{min_y},{max_x},{max_y}]',
+                    'description': f'CDS {dataset} variable {variable_name} data from {datetime_min_descr} to {datetime_max_descr} for area [{min_x},{min_y},{max_x},{max_y}]',
                     'keywords': [
                         living_lab,
                         'country',
@@ -385,6 +391,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                         'requester_pays': False
                     }
                 }
+                
+                if dataset == "cems-glofas-forecast" and living_lab == "italy":     # DOC: we collect data each day, so we keep only collection about last week values (so delete collection related to 7 days ago)
+                    datetime_descr_7d_ago = (datetime_min - relativedelta.relativedelta(days=7)).strftime("%Y%m%d")
+                    dataset_pygeoapi_identifier_7d_ago = f"{dataset}_{datetime_descr_7d_ago}_{living_lab}_{variable_name}_stations"
+                    _ = config['resources'].pop(dataset_pygeoapi_identifier_7d_ago, None)
+                    
             write_config(config_path=config_file, config_out=config)
 
 
@@ -413,8 +425,14 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             # day = time.strftime("%d")
             query['year'] = [year]
             query['month'] = [month]
+            if dataset == 'cems-glofas-forecast': 
+                day = time.strftime("%d")   
+                query['day'] = [day]
 
-        zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}.zarr"
+        if dataset == 'cems-glofas-forecast':
+            zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}{query['day'][0]}.zarr"
+        else:
+            zarr_out = f"{zarr_out.split('.zarr')[0]}-{dataset}_{variable}_{query['year'][0]}{query['month'][0]}.zarr"
 
         return service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab
 
@@ -464,7 +482,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                     data = xr.open_zarr(zarr_out)
                     self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
                     msg = f"Path {zarr_out} already exists updates config at '{self.config_file}'."
-            if dataset == "cems-glofas-seasonal":
+            if dataset == "cems-glofas-seasonal" or \
+                (dataset == "cems-glofas-forecast" and living_lab == "italy"):
                 # TODO: set geojson_out as zarr_out: just a filename with .geojson extension at georgia stations folder
                 geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
                 if s3.exists(geojson_out):
@@ -483,7 +502,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             datetime_end = datetime.strptime(end_date, '%Y-%m-%d')
             dates = list(self.generate_dates_list(datetime_start, datetime_end, interval=interval))
             return self._fetch_data_by_range(service, dataset, query, file_out, dates, interval)
-        elif dataset == "cems-glofas-seasonal":
+        elif dataset == "cems-glofas-seasonal" or dataset == "cems-glofas-forecast":
             logger.info("Fetching data for cems-glofas-seasonal")
             return self.fetch_dataset_by_chunk(service, dataset, query, file_out, engine=engine)
         else:
@@ -615,7 +634,8 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             store = zarr_out
         logger.info(f"Storing data to {store}, data type: {type(data)}")
         data.to_zarr(store=store, consolidated=True, mode='w')
-        if dataset == "cems-glofas-seasonal":
+        if dataset == "cems-glofas-seasonal" or \
+            (dataset == "cems-glofas-forecast" and living_lab=="italy"):
             geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
             # upload data as geojson
             self.upload_geojson(geojson_out, data, living_lab)
@@ -687,6 +707,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         if dataset == 'cems-glofas-forecast':
             for var in data.data_vars:
                 data[var] = data[var].expand_dims(dim='time')
+            
         elif dataset == "seasonal-original-single-levels":
             if 'total_precipitation' in query['variable']:
                 varname = 'tp'
@@ -710,10 +731,14 @@ class IngestorCDSProcessProcessor(BaseProcessor):
     def _update_config_with_error_handling(self, data, dataset, zarr_out, s3_is_anon_access, living_lab):
         """Update the config file and handle errors."""
         try:
-            self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
-            if dataset == "cems-glofas-seasonal":
+            if not (dataset == "cems-glofas-forecast" and living_lab == "italy"):  # DOC: We don't need toc create a coverage collection to get two points in italy living lab
+                self.update_config(data, dataset, zarr_out, self.config_file, s3_is_anon_access, living_lab)
+            
+            if dataset == "cems-glofas-seasonal" or \
+                (dataset == "cems-glofas-forecast" and living_lab == "italy"):
                 geojson_out = zarr_out.split('.zarr')[0]+'.geojson'
                 self.update_config(data, dataset, geojson_out, self.config_file, s3_is_anon_access, living_lab)
+                
         except Exception as e:
             logger.error(f"Error updating config: {e}")
 

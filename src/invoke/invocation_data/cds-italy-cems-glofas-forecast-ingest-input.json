@@ -1,0 +1,79 @@
+{
+    "process": "ingestor-cds-process",
+    "payload": {
+        "inputs": {
+            "cron_invocation": true,
+            "living_lab": "italy",
+            "dataset": "cems-glofas-forecast",
+            "async": true,
+            "service": "EWDS",
+            "file_out": "/tmp/cems-glofas-forecast.netcdf4.zip",
+            "interval": "day",
+            "query": {
+                "system_version": [
+                    "operational"
+                ],
+                "hydrological_model": [
+                    "lisflood"
+                ],
+                "product_type": [
+                    "control_forecast",
+                    "ensemble_perturbed_forecasts"
+                ],
+                "variable": [
+                    "river_discharge_in_the_last_24_hours"
+                ],
+                "year": [
+                    "2025"
+                ],
+                "month": [
+                    "04"
+                ],
+                "day": [
+                    "10"
+                ],
+                "leadtime_hour": [
+                    "24",
+                    "48",
+                    "72",
+                    "96",
+                    "120",
+                    "144",
+                    "168",
+                    "192",
+                    "216",
+                    "240",
+                    "264",
+                    "288",
+                    "312",
+                    "336",
+                    "360",
+                    "384",
+                    "408",
+                    "432",
+                    "456",
+                    "480",
+                    "504",
+                    "528",
+                    "552",
+                    "576",
+                    "600",
+                    "624",
+                    "648",
+                    "672",
+                    "696",
+                    "720"
+                ],
+                "download_format": "zip",
+                "data_format": "netcdf",
+                "area": [
+                    44.224998,
+                    10.4542,
+                    44.583302,
+                    10.9592
+                ]
+            },
+            "zarr_out": "s3://52n-i-cisk/data-ingestor/italy/forecast_timeseries/cds_italy.zarr"
+        }
+    }
+}
