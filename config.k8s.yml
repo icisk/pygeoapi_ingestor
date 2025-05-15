@@ -98,3 +98,7 @@ resources:
     processor:
       name: pygeoapi_ingestor_plugin.RerRiverDischargeArpaeProcessor
     type: process
+  georgia-ftp-alazani-shaqriani-hydro-process:
+    processor:
+      name: pygeoapi_ingestor_plugin.GeorgiaFTPAlazaniShaqrianiHydroProcessor
+    type: process
