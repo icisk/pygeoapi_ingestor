@@ -43,6 +43,7 @@ setuptools.setup(
         "xarray==2024.7.0",
         "zarr",
         "dask==2024.11.2",
-        "pygrib"
+        "pygrib",
+        "openpyxl"
     ]
 )

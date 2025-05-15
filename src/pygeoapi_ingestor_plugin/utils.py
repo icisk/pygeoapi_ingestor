@@ -210,6 +210,30 @@ def check_running_jobs(retry=1,total_retries=1, time_out=10):
     return running_job
 
 
+def list_ftp_files(server, user, passwd, source):
+    try:
+        ftp = FTP(server)
+        ftp.login(user=user, passwd=passwd)
+        items = ftp.nlst(source)
+        ftp.quit()
+        return items
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+def download_ftp_file(server, user, passwd, source, out_path):
+    try:
+        ftp = FTP(server)
+        ftp.login(user=user, passwd=passwd)
+        out_dir = justpath(out_path, 1)
+        os.makedirs(out_dir, exist_ok=True)
+        with open(out_path, 'wb') as local_file:
+            ftp.retrbinary(f'RETR {source}', local_file.write)
+        ftp.quit()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
 
 
 def download_ftp_data(server, user, passwd, source, out_path):
