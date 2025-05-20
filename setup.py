@@ -2,8 +2,8 @@ import setuptools
 
 VERSION = "1.0.0"
 PACKAGE_NAME = "pygeoapi_ingestor_plugin"
-AUTHOR = "Valerio Luzzi, Marco Renzi, EHJ, JSL"
-EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com"
+AUTHOR = "Valerio Luzzi, Marco Renzi, JSL, EHJ"
+EMAIL = "valerio.luzzi@gecosistema.com, marco.renzi@gecosistema.com, j.schnell@52north.org, e.h.juerrens@52north.org"
 GITHUB = "https://github.com/icisk/pygeoapi_ingestor"
 DESCRIPTION = "An utils functions package"
 
