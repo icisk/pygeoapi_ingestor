@@ -32,6 +32,16 @@ jobs:
       name: Checkout Repository
       uses: actions/checkout@v4
     -
+      name: install ruff
+      run: |
+        pip3 install ruff
+    -
+      name: run linter and formatter
+      run: |
+        ruff check
+        ruff check --select I
+        ruff format --diff
+    -
       name: Set up Docker Buildkit env
       uses: docker/setup-buildx-action@v3
     -

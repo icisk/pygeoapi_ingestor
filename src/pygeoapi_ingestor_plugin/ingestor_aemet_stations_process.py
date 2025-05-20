@@ -1,104 +1,68 @@
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
-
-from filelock import Timeout, FileLock
-import yaml
-
+import logging
 import os
 
-import pandas as pd
 import geopandas as gpd
-
+import pandas as pd
+import yaml
+from dotenv import find_dotenv, load_dotenv
+from filelock import FileLock
+from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 from sqlalchemy import create_engine
-import geoalchemy2
-import psycopg2
-
 
 from .utils import download_source
-
-from osgeo import gdal
-
-import logging
-from dotenv import load_dotenv, find_dotenv
-
-
-
-
 
 LOGGER = logging.getLogger(__name__)
 
 load_dotenv(find_dotenv())
 
 PROCESS_METADATA = {
-    'version': '0.2.0',
-    'id': 'aemet_stations_ingestor',
-    'title': {
-        'en': 'aemet_stations',
+    "version": "0.2.0",
+    "id": "aemet_stations_ingestor",
+    "title": {
+        "en": "aemet_stations",
     },
-    'description': {
-        'en': 'downloads temp and precip data ingests ts in postgis-db'},
-    'jobControlOptions': ['sync-execute', 'async-execute'],
-    'keywords': ['ingestor process'],
-    'links': [{
-        'type': 'text/html',
-        'rel': 'about',
-        'title': 'information',
-        'href': 'https://example.org/process',
-        'hreflang': 'en-US'
-    }],
-    'inputs': {
-        'data_url': {
-            'title': 'data url',
-            'description': 'The URL of the zipped csv data',
-            'schema': {
-                'type': 'string'
-            }
-        },
-        'variable': {
-            'title': 'variable name',
-            'description': 'variable to put into db',
-            'schema': {
-                'type': 'string'
-            }
-        },
-        'db_database': {
-            'title': 'LL database name',
-            'description': 'name of LL database',
-            'schema': {
-                'type': 'string'
-            }
-        },
-        'token': {
-            'title': 'secret token',
-            'description': 'identify yourself',
-            'schema': {
-                'type': 'string'
-            }
+    "description": {"en": "downloads temp and precip data ingests ts in postgis-db"},
+    "jobControlOptions": ["sync-execute", "async-execute"],
+    "keywords": ["ingestor process"],
+    "links": [
+        {
+            "type": "text/html",
+            "rel": "about",
+            "title": "information",
+            "href": "https://example.org/process",
+            "hreflang": "en-US",
         }
-    },
-    'outputs': {
-        'id': {
-            'title': 'ID',
-            'description': 'The ID of the process execution',
-            'schema': {
-                'type': 'string'
-            }
+    ],
+    "inputs": {
+        "data_url": {
+            "title": "data url",
+            "description": "The URL of the zipped csv data",
+            "schema": {"type": "string"},
         },
-        'value': {
-            'title': 'Value',
-            'description': 'The URL of the Zarr file in the S3 bucket',
-            'schema': {
-                'type': 'string'
-            }
-        }
+        "variable": {"title": "variable name", "description": "variable to put into db", "schema": {"type": "string"}},
+        "db_database": {
+            "title": "LL database name",
+            "description": "name of LL database",
+            "schema": {"type": "string"},
+        },
+        "token": {"title": "secret token", "description": "identify yourself", "schema": {"type": "string"}},
     },
-    'example': {
+    "outputs": {
+        "id": {"title": "ID", "description": "The ID of the process execution", "schema": {"type": "string"}},
+        "value": {
+            "title": "Value",
+            "description": "The URL of the Zarr file in the S3 bucket",
+            "schema": {"type": "string"},
+        },
+    },
+    "example": {
         "inputs": {
             "data_url": "s3://example/target/bucket.zarr",
             "variable": "precip",
             "db_database": "postgres",
-            "token": "ABC123XYZ666"
+            "token": "ABC123XYZ666",
         }
-    }
+    },
 }
 
 
@@ -123,28 +87,27 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
-        self.config_file = os.environ.get(default='/pygeoapi/serv-config/local.config.yml', key='PYGEOAPI_SERV_CONFIG')
-        self.title = 'AEMET_stations'
-        self.db_user = os.environ.get(key='DB_USER', default="postgres")
-        self.db_password = os.environ.get(key='DB_PASSWORD',default= "password")
-        self.db_host = os.environ.get(key='DB_HOST', default="localhost")
-        self.db_port = int(os.environ.get(key='DB_PORT', default="5432"))
-        self.db_database = os.environ.get(key='DB_DATABASE', default="postgres")
+        self.config_file = os.environ.get(default="/pygeoapi/serv-config/local.config.yml", key="PYGEOAPI_SERV_CONFIG")
+        self.title = "AEMET_stations"
+        self.db_user = os.environ.get(key="DB_USER", default="postgres")
+        self.db_password = os.environ.get(key="DB_PASSWORD", default="password")
+        self.db_host = os.environ.get(key="DB_HOST", default="localhost")
+        self.db_port = int(os.environ.get(key="DB_PORT", default="5432"))
+        self.db_database = os.environ.get(key="DB_DATABASE", default="postgres")
         self.data = None
         self.data_url = None
         self.data_path = None
         self.csv_file_name = None
 
     def read_config(self):
-        with open(self.config_file, 'r') as file:
+        with open(self.config_file, "r") as file:
             LOGGER.debug("read config")
-            return(yaml.safe_load(file))
+            return yaml.safe_load(file)
 
     def write_config(self, new_config):
-        with  open(self.config_file, 'w') as outfile:
+        with open(self.config_file, "w") as outfile:
             yaml.dump(new_config, outfile, default_flow_style=False)
         LOGGER.debug("updated config")
-
 
     def update_config(self, var):
         min_x, min_y, max_x, max_y = [float(val) for val in self.data.total_bounds]
@@ -153,43 +116,42 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         lock = FileLock(f"{self.config_file}.lock")
 
         with lock:
-
-            config= self.read_config()
-            config['resources'][f'{self.title}_{var}'] = {
-                'type': 'collection',
-                'title': f'{self.title}_{var}',
-                'description': f'historic station data of {var}',
-                'keywords': ['country'],
-                'extents': {
-                    'spatial': {
-                        'bbox': [min_x, min_y, max_x, max_y],
-                        'crs': 'http://www.opengis.net/def/crs/EPSG/0/4326'
+            config = self.read_config()
+            config["resources"][f"{self.title}_{var}"] = {
+                "type": "collection",
+                "title": f"{self.title}_{var}",
+                "description": f"historic station data of {var}",
+                "keywords": ["country"],
+                "extents": {
+                    "spatial": {
+                        "bbox": [min_x, min_y, max_x, max_y],
+                        "crs": "http://www.opengis.net/def/crs/EPSG/0/4326",
                     },
                 },
-                'providers':
-                    [{
-                        'type': 'feature',
-                        'name': 'PostgreSQL',
-                        'data': {
-                            'host': self.db_host,
-                            'port': self.db_port,
-                            'dbname': self.db_database,
-                            'user': self.db_user,
-                            'password': self.db_password,
-                            'search_path': ['public']
+                "providers": [
+                    {
+                        "type": "feature",
+                        "name": "PostgreSQL",
+                        "data": {
+                            "host": self.db_host,
+                            "port": self.db_port,
+                            "dbname": self.db_database,
+                            "user": self.db_user,
+                            "password": self.db_password,
+                            "search_path": ["public"],
                         },
-                        'id_field': 'index',
-                        'table': f'aemet_{var}',
-                        'geom_field': 'geometry'
-                    }]
+                        "id_field": "index",
+                        "table": f"aemet_{var}",
+                        "geom_field": "geometry",
+                    }
+                ],
             }
 
             self.write_config(config)
 
-
     def check_config_if_ds_is_collection(self):
         config = self.read_config()
-        return self.title in config['resources']
+        return self.title in config["resources"]
 
     # DATA MODEL CHANGED 26.03.2025
     # def transform(self, csv):
@@ -208,24 +170,23 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
 
         return gdf
 
-
     def execute(self, data):
-        mimetype = 'application/json'
+        mimetype = "application/json"
 
-        self.data_url = data.get('data_url')
-        self.token = data.get('token')
+        self.data_url = data.get("data_url")
+        self.token = data.get("token")
 
-        LOGGER.debug(f"checking process inputs")
+        LOGGER.debug("checking process inputs")
         if self.data_url is None:
-            raise ProcessorExecuteError('Cannot process without a zarr path')
+            raise ProcessorExecuteError("Cannot process without a zarr path")
         if self.token is None:
-            raise ProcessorExecuteError('Identify yourself with valid token!')
+            raise ProcessorExecuteError("Identify yourself with valid token!")
 
-        LOGGER.debug(f"checking token")
+        LOGGER.debug("checking token")
         if self.token != os.getenv("INT_API_TOKEN", "token"):
-            #FIXME passender error?
+            # FIXME passender error?
             LOGGER.error("WRONG INTERNAL API TOKEN")
-            raise ProcessorExecuteError('ACCESS DENIED wrong token')
+            raise ProcessorExecuteError("ACCESS DENIED wrong token")
 
         # LOGGER.debug(f"selecting variable")
         # if self.variable == 'precip':
@@ -244,21 +205,19 @@ class IngestorAEMETSTATIONSProcessProcessor(BaseProcessor):
         #             t_max='MAXTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv',
         #             t_mean='MEANTEMPERATURE_monthlydata_GuadalquivirLL_1990_2019_v2.csv')
 
-        vars = dict(all='SLIM_aemet_stations.csv')
+        vars = dict(all="SLIM_aemet_stations.csv")
 
         for key in vars.keys():
             self.data = self.transform(os.path.join(self.data_path, vars[key]))
-            engine = create_engine(f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_database}")
-            self.data.to_postgis(f"aemet_{key}", engine, if_exists='replace', index=True)
+            engine = create_engine(
+                f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_database}"
+            )
+            self.data.to_postgis(f"aemet_{key}", engine, if_exists="replace", index=True)
             self.update_config(key)
 
-
-        outputs = {
-            'id': 'aemet_stations_ingestor',
-            'value': 'done'
-        }
+        outputs = {"id": "aemet_stations_ingestor", "value": "done"}
 
         return mimetype, outputs
 
     def __repr__(self):
-        return f'<IngestorAEMETSTATIONSProcessProcessor> {self.name}'
+        return f"<IngestorAEMETSTATIONSProcessProcessor> {self.name}"

@@ -1,5 +1,5 @@
-import os
 import hashlib
+import os
 from logging import getLogger
 from tempfile import tempdir
 
@@ -11,19 +11,17 @@ import pygeoapi_ingestor_plugin.utils as utils
 Logger = getLogger(__name__)
 
 
-
 def iss3(filename):
     """
     iss3
     """
-    return filename and isinstance(filename, str) and \
-        (filename.startswith("s3:/") or filename.startswith("/vsis3/"))
+    return filename and isinstance(filename, str) and (filename.startswith("s3:/") or filename.startswith("/vsis3/"))
 
 
 def is_s3_anon_access():
     """Determine if S3 access should be anonymous."""
-    s3_is_anon_access = os.environ.get('S3_ANON_ACCESS', 'True')
-    return s3_is_anon_access == 'True'
+    s3_is_anon_access = os.environ.get("S3_ANON_ACCESS", "True")
+    return s3_is_anon_access == "True"
 
 
 def get_client(client=None):
@@ -32,7 +30,7 @@ def get_client(client=None):
     """
     if client is None:
         session = botocore.session.get_session()
-        client = session.create_client('s3', region_name='us-east-1')
+        client = session.create_client("s3", region_name="us-east-1")
     return client
 
 
@@ -44,7 +42,7 @@ def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
     """
     if filename and os.path.isfile(filename):
         md5 = []
-        with open(filename, 'rb') as fp:
+        with open(filename, "rb") as fp:
             while True:
                 data = fp.read(chunk_size)
                 if not data:
@@ -52,7 +50,7 @@ def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
                 md5.append(hashlib.md5(data))
         if len(md5) == 1:
             return f"{md5[0].hexdigest()}"
-        digests = b''.join(m.digest() for m in md5)
+        digests = b"".join(m.digest() for m in md5)
         digests_md5 = hashlib.md5(digests)
         return f"{digests_md5.hexdigest()}-{len(md5)}"
 
@@ -63,7 +61,7 @@ def etag(filename, client=None, chunk_size=8 * 1024 * 1024):
             bucket_name, key_name = get_bucket_name_key(uri)
             if bucket_name and key_name:
                 client = get_client(client)
-                ETag = client.head_object(Bucket=bucket_name, Key=key_name)['ETag'][1:-1]
+                ETag = client.head_object(Bucket=bucket_name, Key=key_name)["ETag"][1:-1]
         except ClientError as ex:
             Logger.debug(f"ETAG:{ex}")
             ETag = ""
@@ -101,7 +99,7 @@ def tempname4S3(uri):
     else:
         _, path = os.path.splitdrive(uri)
         tmp = utils.normpath(dest_folder + "/" + path)
-    
+
     os.makedirs(utils.justpath(tmp), exist_ok=True)
     return tmp
 
@@ -135,12 +133,12 @@ def s3_download(uri, fileout=None, remove_src=False, client=None):
     """
     Download a file from an S3 bucket
     """
-    
+
     def download_file(client, bucket, key, filename):
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             response = client.get_object(Bucket=bucket, Key=key)
-            f.write(response['Body'].read())
-    
+            f.write(response["Body"].read())
+
     bucket_name, key = get_bucket_name_key(uri)
     if bucket_name:
         try:
@@ -148,7 +146,6 @@ def s3_download(uri, fileout=None, remove_src=False, client=None):
             client = get_client(client)
 
             if key and not key.endswith("/"):
-
                 if not fileout:
                     fileout = tempname4S3(uri)
 
@@ -165,10 +162,9 @@ def s3_download(uri, fileout=None, remove_src=False, client=None):
                     if remove_src:
                         client.delete_object(Bucket=bucket_name, Key=key)
             else:
-                objects = client.list_objects_v2(
-                    Bucket=bucket_name, Prefix=key).get('Contents', [])
+                objects = client.list_objects_v2(Bucket=bucket_name, Prefix=key).get("Contents", [])
                 for obj in objects:
-                    pathname = obj['Key']
+                    pathname = obj["Key"]
                     if not pathname.endswith("/"):
                         dst = fileout
                         pathname = pathname.replace(key, "")
@@ -189,9 +185,9 @@ def s3_upload(filename, uri, remove_src=False, client=None):
     Upload a file to an S3 bucket
     Examples: s3_upload(filename, "s3://saferplaces.co/a/rimini/lidar_rimini_building_2.tif")
     """
-    
+
     def upload_file(client, filename, bucket, key):
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             client.put_object(Bucket=bucket, Key=key, Body=f)
 
     # Upload the file

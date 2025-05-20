@@ -10,14 +10,14 @@ DESCRIPTION = "An utils functions package"
 setuptools.setup(
     name=PACKAGE_NAME,
     version=VERSION,
-    license='MIT',
+    license="MIT",
     author=AUTHOR,
     author_email=EMAIL,
     description=DESCRIPTION,
     long_description=DESCRIPTION,
     url=GITHUB,
     packages=setuptools.find_packages("src"),
-    package_dir={'': 'src'},
+    package_dir={"": "src"},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -45,5 +45,5 @@ setuptools.setup(
         "tifffile",
         "xarray==2024.7.0",
         "zarr",
-    ]
+    ],
 )
