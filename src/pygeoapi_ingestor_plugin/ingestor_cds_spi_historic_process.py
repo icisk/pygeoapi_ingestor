@@ -135,8 +135,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         """
 
         # Format params for CDS API query
-        # period_of_interest = spi_utils.format_params_for_poi_cds_query(period_of_interest)
-
+        
         # Get (Years, Years-Months) couple for the CDS api query. (We can query just one month at time)
         spi_start_date = period_of_interest[0] - relativedelta(months=spi_ts - 1)
         spi_years_range = list(range(spi_start_date.year, period_of_interest[1].year + 1))
@@ -201,8 +200,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         cds_poi_data = xr.concat(cds_poi_datasets, dim="time")
         cds_poi_data = cds_poi_data.sortby(["time", "lat", "lon"])
         cds_poi_data = cds_poi_data.sel(
-            time=(cds_poi_data.time.dt.date >= period_of_interest[0])
-            & (cds_poi_data.time.dt.date <= period_of_interest[1])
+            time=(cds_poi_data.time.dt.date >= spi_start_date) & (cds_poi_data.time.dt.date <= period_of_interest[1])
         )
 
         LOGGER.debug("period of interest data read")
@@ -236,14 +234,15 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         cov_ts_dataset = cov_ts_dataset.drop_duplicates(dim="time").sortby(["time", "lat", "lon"])
 
         month_spi_coverages = []
-        for month in poi_dataset.time:
-            month_spi_coverage = xr.apply_ufunc(
-                lambda tile_timeseries: spi_utils.compute_timeseries_spi(tile_timeseries, spi_ts=spi_ts, nt_return=1),
-                cov_ts_dataset.sel(time=cov_ts_dataset.time <= month).tp.sortby("time"),
-                input_core_dims=[["time"]],
-                vectorize=True,
-            )
-            month_spi_coverages.append((month.dt.date.item(), month_spi_coverage))
+        for im,month in enumerate(poi_dataset.time):
+            if im >= spi_ts - 1:
+                month_spi_coverage = xr.apply_ufunc(
+                    lambda tile_timeseries: spi_utils.compute_timeseries_spi(tile_timeseries, spi_ts=spi_ts, nt_return=1),
+                    cov_ts_dataset.sel(time=cov_ts_dataset.time <= month).tp.sortby("time"),
+                    input_core_dims=[["time"]],
+                    vectorize=True,
+                )
+                month_spi_coverages.append((month.dt.date.item(), month_spi_coverage))
 
         period_of_interest, month_spi_coverage = month_spi_coverages[0]
 
