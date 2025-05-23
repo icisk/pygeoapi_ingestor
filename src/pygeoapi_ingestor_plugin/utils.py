@@ -189,7 +189,7 @@ def list_ftp_files(server, user, passwd, source):
         ftp.quit()
         return items
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
         return None
 
 
@@ -204,7 +204,7 @@ def download_ftp_file(server, user, passwd, source, out_path):
         ftp.quit()
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
         return None
 
 
@@ -214,24 +214,24 @@ def download_ftp_data(server, user, passwd, source, out_path):
         ftp = FTP(server)
         ftp.login(user=user, passwd=passwd)
         ftp.set_pasv(True)
-        print(f"Connected to '{server}' as user '{user}'")
+        logger.info(f"Connected to '{server}' as user '{user}'")
 
         items = ftp.nlst(source)
 
         for item in items:
-            print(item)
+            logger.info(item)
             local_path = os.path.join(out_path, item)
             os.makedirs(os.path.join(out_path, source), exist_ok=True)
 
             with open(local_path, "wb") as local_file:
                 ftp.retrbinary(f"RETR {item}", local_file.write)
-            print(f"Downloaded: '{item}' to '{local_path}'")
+            logger.info(f"Downloaded: '{item}' to '{local_path}'")
 
         # Close the connection
         ftp.quit()
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
 
 
 def get_latest_forecast(server, user, passwd, fc_root):
@@ -242,7 +242,7 @@ def get_latest_forecast(server, user, passwd, fc_root):
     ftp = FTP(server)
     ftp.login(user=user, passwd=passwd)
     ftp.set_pasv(True)
-    print(f"Connected to '{server}' as user '{user}'")
+    logger.info(f"Connected to '{server}' as user '{user}'")
 
     root_items = ftp.nlst(fc_root)
     latest_year = max([p for p in root_items])
