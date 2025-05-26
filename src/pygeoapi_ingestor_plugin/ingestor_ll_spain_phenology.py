@@ -40,6 +40,7 @@ PROCESS_METADATA = {
         },
         "variable": {"title": "Variable", "description": "The name of the variable", "schema": {"type": "string"}},
         "token": {"title": "secret token", "description": "identify yourself", "schema": {"type": "string"}},
+        "bbox": {"title": "alternative bbox", "description": "Alternative bbox definition. MUST be a json list with 4 number values", "schema": {"type": "string"}},
     },
     "outputs": {
         "id": {"title": "ID", "description": "The ID of the process execution", "schema": {"type": "string"}},
@@ -110,15 +111,19 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
         if self.variable is None:
             raise ProcessorExecuteError("Cannot process without a variable")
 
+        bbox = json.loads(data.get("bbox")) if "bbox" in data.keys() else self.bbox_spain
+        if type(bbox) is not list or len(bbox) != 4:
+            raise ProcessorExecuteError(f"Cannot process bbox: '{bbox}' <- MUST be list of 4 numbers.")
+        epsg_code = data.get("epsg") if "epsg" in data.keys() else self.epsg
 
         var_base_path = os.path.join(self.base_path, self.variable)
         os.makedirs(var_base_path, exist_ok=True)
 
         LOGGER.debug(f"reading zarr file '{self.zarr_in}'")
         ds = xr.open_zarr(self.zarr_in)
-        x_min, y_min, x_max, y_max = self.bbox_spain
+        x_min, y_min, x_max, y_max = bbox
 
-        LOGGER.debug(f"subsetting zarr file to bbox '{self.bbox_spain}")
+        LOGGER.debug(f"subsetting zarr file to bbox '{bbox}")
         if "lat" in ds.dims and "lon" in ds.dims:
             LOGGER.debug("using lat and lon for spatial dimensions")
             ds_spain = ds.sel(lon=slice(x_min, x_max), lat=slice(y_min, y_max))
