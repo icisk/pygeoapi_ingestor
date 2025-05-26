@@ -119,7 +119,14 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
         x_min, y_min, x_max, y_max = self.bbox_spain
 
         LOGGER.debug(f"subsetting zarr file to bbox '{self.bbox_spain}")
-        ds_spain = ds.sel(lon=slice(x_min, x_max), lat=slice(y_min, y_max))
+        if "lat" in ds.dims and "lon" in ds.dims:
+            LOGGER.debug("using lat and lon for spatial dimensions")
+            ds_spain = ds.sel(lon=slice(x_min, x_max), lat=slice(y_min, y_max))
+        elif "latitude" in ds.dims and "longitude" in ds.dims:
+            LOGGER.debug("using latitude and longitude for spatial dimensions")
+            ds_spain = ds.sel(longitude=slice(x_min, x_max), latitude=slice(y_min, y_max))
+        else:
+            raise ProcessorExecuteError(f"Could not identify spatial dimensions in: '{ds.dims}'")
 
         s3 = s3fs.S3FileSystem()
 
