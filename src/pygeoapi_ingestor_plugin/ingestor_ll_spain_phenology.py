@@ -40,7 +40,16 @@ PROCESS_METADATA = {
         },
         "variable": {"title": "Variable", "description": "The name of the variable", "schema": {"type": "string"}},
         "token": {"title": "secret token", "description": "identify yourself", "schema": {"type": "string"}},
-        "bbox": {"title": "alternative bbox", "description": "Alternative bbox definition. MUST be a json list with 4 number values", "schema": {"type": "string"}},
+        "bbox": {
+            "title": "alternative bbox",
+            "description": "Alternative bbox definition. MUST be a json list with 4 number values",
+            "schema": {"type": "string"},
+        },
+        "epsg_code": {
+            "title": "EPSG code",
+            "description": "EPSG code of the data to be converted",
+            "schema": {"type": "integer"},
+        },
     },
     "outputs": {
         "id": {"title": "ID", "description": "The ID of the process execution", "schema": {"type": "string"}},
@@ -87,6 +96,7 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
         # self.tif_base_out = None
         self.variable = None
         self.bbox_spain = [-7.25, 36.25, -1.75, 39.25]
+        self.epsg = "4326"
         self.base_path = "/tmp/pheno/"
         self.bucket = "s3://52n-i-cisk"
 
@@ -146,14 +156,14 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
 
         count = len(ds_spain["time"].values)
         idx = 1
-        LOGGER.debug(f"extracting time slices and generating '{count}' geotiff files")
+        LOGGER.debug(f"extracting time slices and generating '{count}' geotiff files using 'EPSG:{epsg_code}'.")
         for t in ds_spain["time"].values:
             LOGGER.debug(f"processing time slice [{idx}/{count}]")
             file_name = f"""{self.variable}_{str(t).split("T")[0]}"""
             file_path = os.path.join(var_base_path, file_name)
             ds_spain[self.variable].sel(time=t).to_netcdf(f"{file_path}.nc")
             os.system(
-                f"gdal_translate -a_ullr {x_min} {y_max} {x_max} {y_min} -a_srs EPSG:4326 {file_path}.nc {file_path}.tif"
+                f"gdal_translate -a_ullr {x_min} {y_max} {x_max} {y_min} -a_srs EPSG:{epsg_code} {file_path}.nc {file_path}.tif"
             )
             idx += 1
 
