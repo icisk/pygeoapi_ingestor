@@ -19,7 +19,7 @@ PROCESS_METADATA = {
         "en": "creaf_historic",
     },
     "description": {
-        "en": "creates georef. tiffiles from cds agroclimatic indicators based on zarr file in online ressource; also creates json metadata"
+        "en": "creates geo-referenced tif files from cds agroclimatic indicators based on zarr file in online resource; also creates json metadata"
     },
     "jobControlOptions": ["sync-execute", "async-execute"],
     "keywords": ["ingestor process"],
@@ -60,7 +60,7 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
     """
     Ingestor Processor
 
-    joins tiff-data and saves it to zarr format and uploads it to s3 bucket
+    creates geo-referenced tif files from cds agroclimatic indicators based on zarr file in online resource; also creates json metadata
 
     Resource Requirements:
     - CPU: 3
@@ -145,7 +145,7 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
                 with s3.open(s3_path, "wb") as s3_file:
                     shutil.copyfileobj(file, s3_file)
 
-        outputs = {"id": "creaf_historic_ingestor", "value": "succes"}
+        outputs = {"id": "creaf_historic_ingestor", "value": "success"}
         return mimetype, outputs
 
     def __repr__(self):
