@@ -49,7 +49,6 @@ PROCESS_METADATA = {
         "inputs": {
             "zarr_source": "file:///data/creaf/precip_historic.zarr",
             "variable": "var_name",
-            "data_out": "s3://example/target/bucket",
             "token": "ABC123XYZ666",
         }
     },
@@ -95,7 +94,6 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
         mimetype = "application/json"
 
         self.zarr_in = data.get("zarr_in")
-        # self.tif_base_out = data.get('tif_base_out')
         self.token = data.get("token")
         self.variable = data.get("variable")
 
@@ -104,46 +102,65 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError("Cannot process without a data path")
         if self.variable is None:
             raise ProcessorExecuteError("Cannot process without a variable")
-        # if self.zarr_out is None or not self.zarr_out.startswith('s3://') :
-        #     raise ProcessorExecuteError('Cannot process without an output path')
         if self.token is None:
             raise ProcessorExecuteError("Identify yourself with valid token!")
+
+        LOGGER.debug("checking token")
+        if self.token != os.getenv("INT_API_TOKEN", "token"):
+            # FIXME matching error?
+            LOGGER.error("WRONG INTERNAL API TOKEN")
+            raise ProcessorExecuteError("ACCESS DENIED wrong token")
 
         var_base_path = os.path.join(self.base_path, self.variable)
         os.makedirs(var_base_path, exist_ok=True)
 
+        LOGGER.debug(f"reading zarr file '{self.zarr_in}'")
         ds = xr.open_zarr(self.zarr_in)
         x_min, y_min, x_max, y_max = self.bbox_spain
+
+        LOGGER.debug(f"subsetting zarr file to bbox '{self.bbox_spain}")
         ds_spain = ds.sel(lon=slice(x_min, x_max), lat=slice(y_min, y_max))
 
         s3 = s3fs.S3FileSystem()
 
+        metadata_file_name = (
+            f"{self.bucket}/data-ingestor/spain/agro_indicator/{self.variable}/{self.variable}_metadata.json"
+        )
+        LOGGER.debug(f"writing metadata file '{metadata_file_name}'")
         time = dict(time=[str(t) for t in ds_spain["time"].values])
         time_data = json.dumps(time)
-        with s3.open(
-            f"{self.bucket}/data-ingestor/spain/agro_indicator/{self.variable}/{self.variable}_metadata.json", "w"
-        ) as file:
+        with s3.open(metadata_file_name, "w") as file:
             file.write(time_data)
 
+        count = len(ds_spain["time"].values)
+        idx = 1
+        LOGGER.debug(f"extracting time slices and generating '{count}' geotiff files")
         for t in ds_spain["time"].values:
+            LOGGER.debug(f"processing time slice [{idx}/{count}]")
             file_name = f"""{self.variable}_{str(t).split("T")[0]}"""
             file_path = os.path.join(var_base_path, file_name)
             ds_spain[self.variable].sel(time=t).to_netcdf(f"{file_path}.nc")
             os.system(
                 f"gdal_translate -a_ullr {x_min} {y_max} {x_max} {y_min} -a_srs EPSG:4326 {file_path}.nc {file_path}.tif"
             )
+            idx += 1
 
         tif_file_paths = sorted(
             [os.path.join(var_base_path, f) for f in os.listdir(var_base_path) if f.endswith(".tif")]
         )
 
+        count = len(tif_file_paths)
+        idx = 1
+        LOGGER.debug(f"uploading '{count}' geotiff files to bucket")
         for tif_file_path in tif_file_paths:
+            LOGGER.debug(f"processing geotiff [{idx}/{count}]")
             tif_file = tif_file_path.split("/")[-1]
             s3_path = f"{self.bucket}/data-ingestor/spain/agro_indicator/{self.variable}/{tif_file}"
 
             with open(tif_file_path, "rb") as file:
                 with s3.open(s3_path, "wb") as s3_file:
                     shutil.copyfileobj(file, s3_file)
+            idx += 1
 
         outputs = {"id": "creaf_historic_ingestor", "value": "success"}
         return mimetype, outputs
