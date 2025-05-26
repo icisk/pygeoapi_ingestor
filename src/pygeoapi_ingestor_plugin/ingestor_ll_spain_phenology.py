@@ -85,7 +85,6 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
         self.zarr_in = None
         # self.tif_base_out = None
         self.variable = None
-        self.token = None
         self.bbox_spain = [-7.25, 36.25, -1.75, 39.25]
         self.base_path = "/tmp/pheno/"
         self.bucket = "s3://52n-i-cisk"
@@ -93,23 +92,24 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
     def execute(self, data):
         mimetype = "application/json"
 
-        self.zarr_in = data.get("zarr_in")
-        self.token = data.get("token")
-        self.variable = data.get("variable")
+        LOGGER.debug("checking token")
+        token = data.get("token")
+        if token is None:
+            raise ProcessorExecuteError("Identify yourself with valid token!")
+        if token != os.getenv("INT_API_TOKEN", "token"):
+            # FIXME matching error?
+            LOGGER.error("WRONG INTERNAL API TOKEN")
+            raise ProcessorExecuteError("ACCESS DENIED wrong token")
 
         LOGGER.debug("checking process inputs")
+        self.zarr_in = data.get("zarr_in")
+        self.variable = data.get("variable")
+
         if self.zarr_in is None:
             raise ProcessorExecuteError("Cannot process without a data path")
         if self.variable is None:
             raise ProcessorExecuteError("Cannot process without a variable")
-        if self.token is None:
-            raise ProcessorExecuteError("Identify yourself with valid token!")
 
-        LOGGER.debug("checking token")
-        if self.token != os.getenv("INT_API_TOKEN", "token"):
-            # FIXME matching error?
-            LOGGER.error("WRONG INTERNAL API TOKEN")
-            raise ProcessorExecuteError("ACCESS DENIED wrong token")
 
         var_base_path = os.path.join(self.base_path, self.variable)
         os.makedirs(var_base_path, exist_ok=True)
