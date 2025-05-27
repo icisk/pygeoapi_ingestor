@@ -19,7 +19,7 @@ PROCESS_METADATA = {
         "en": "creaf_historic",
     },
     "description": {
-        "en": "creates georef. tiffiles from cds agroclimatic indicators based on zarr file in online ressource; also creates json metadata"
+        "en": "creates geo-referenced tif files from cds agroclimatic indicators based on zarr file in online resource; also creates json metadata"
     },
     "jobControlOptions": ["sync-execute", "async-execute"],
     "keywords": ["ingestor process"],
@@ -40,6 +40,16 @@ PROCESS_METADATA = {
         },
         "variable": {"title": "Variable", "description": "The name of the variable", "schema": {"type": "string"}},
         "token": {"title": "secret token", "description": "identify yourself", "schema": {"type": "string"}},
+        "bbox": {
+            "title": "alternative bbox",
+            "description": "Alternative bbox definition. MUST be a json list with 4 number values",
+            "schema": {"type": "string"},
+        },
+        "epsg_code": {
+            "title": "EPSG code",
+            "description": "EPSG code of the data to be converted",
+            "schema": {"type": "integer"},
+        },
     },
     "outputs": {
         "id": {"title": "ID", "description": "The ID of the process execution", "schema": {"type": "string"}},
@@ -49,7 +59,6 @@ PROCESS_METADATA = {
         "inputs": {
             "zarr_source": "file:///data/creaf/precip_historic.zarr",
             "variable": "var_name",
-            "data_out": "s3://example/target/bucket",
             "token": "ABC123XYZ666",
         }
     },
@@ -60,7 +69,7 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
     """
     Ingestor Processor
 
-    joins tiff-data and saves it to zarr format and uploads it to s3 bucket
+    creates geo-referenced tif files from cds agroclimatic indicators based on zarr file in online resource; also creates json metadata
 
     Resource Requirements:
     - CPU: 3
@@ -86,66 +95,96 @@ class IngestorCDSPHENOLOGYProcessProcessor(BaseProcessor):
         self.zarr_in = None
         # self.tif_base_out = None
         self.variable = None
-        self.token = None
         self.bbox_spain = [-7.25, 36.25, -1.75, 39.25]
+        self.epsg = "4326"
         self.base_path = "/tmp/pheno/"
         self.bucket = "s3://52n-i-cisk"
 
     def execute(self, data):
         mimetype = "application/json"
 
-        self.zarr_in = data.get("zarr_in")
-        # self.tif_base_out = data.get('tif_base_out')
-        self.token = data.get("token")
-        self.variable = data.get("variable")
+        LOGGER.debug("checking token")
+        token = data.get("token")
+        if token is None:
+            raise ProcessorExecuteError("Identify yourself with valid token!")
+        if token != os.getenv("INT_API_TOKEN", "token"):
+            # FIXME matching error?
+            LOGGER.error("WRONG INTERNAL API TOKEN")
+            raise ProcessorExecuteError("ACCESS DENIED wrong token")
 
         LOGGER.debug("checking process inputs")
+        self.zarr_in = data.get("zarr_in")
+        self.variable = data.get("variable")
+
         if self.zarr_in is None:
             raise ProcessorExecuteError("Cannot process without a data path")
         if self.variable is None:
             raise ProcessorExecuteError("Cannot process without a variable")
-        # if self.zarr_out is None or not self.zarr_out.startswith('s3://') :
-        #     raise ProcessorExecuteError('Cannot process without an output path')
-        if self.token is None:
-            raise ProcessorExecuteError("Identify yourself with valid token!")
+
+        bbox = json.loads(data.get("bbox")) if "bbox" in data.keys() else self.bbox_spain
+        if type(bbox) is not list or len(bbox) != 4:
+            raise ProcessorExecuteError(f"Cannot process bbox: '{bbox}' <- MUST be list of 4 numbers.")
+        epsg_code = data.get("epsg") if "epsg" in data.keys() else self.epsg
 
         var_base_path = os.path.join(self.base_path, self.variable)
         os.makedirs(var_base_path, exist_ok=True)
 
+        LOGGER.debug(f"reading zarr file '{self.zarr_in}'")
         ds = xr.open_zarr(self.zarr_in)
-        x_min, y_min, x_max, y_max = self.bbox_spain
-        ds_spain = ds.sel(lon=slice(x_min, x_max), lat=slice(y_min, y_max))
+        x_min, y_min, x_max, y_max = bbox
+
+        LOGGER.debug(f"subsetting zarr file to bbox '{bbox}")
+        if "lat" in ds.dims and "lon" in ds.dims:
+            LOGGER.debug("using lat and lon for spatial dimensions")
+            ds_spain = ds.sel(lon=slice(x_min, x_max), lat=slice(y_min, y_max))
+        elif "latitude" in ds.dims and "longitude" in ds.dims:
+            LOGGER.debug("using latitude and longitude for spatial dimensions")
+            ds_spain = ds.sel(longitude=slice(x_min, x_max), latitude=slice(y_min, y_max))
+        else:
+            raise ProcessorExecuteError(f"Could not identify spatial dimensions in: '{ds.dims}'")
 
         s3 = s3fs.S3FileSystem()
 
+        metadata_file_name = (
+            f"{self.bucket}/data-ingestor/spain/agro_indicator/{self.variable}/{self.variable}_metadata.json"
+        )
+        LOGGER.debug(f"writing metadata file '{metadata_file_name}'")
         time = dict(time=[str(t) for t in ds_spain["time"].values])
         time_data = json.dumps(time)
-        with s3.open(
-            f"{self.bucket}/data-ingestor/spain/agro_indicator/{self.variable}/{self.variable}_metadata.json", "w"
-        ) as file:
+        with s3.open(metadata_file_name, "w") as file:
             file.write(time_data)
 
+        count = len(ds_spain["time"].values)
+        idx = 1
+        LOGGER.debug(f"extracting time slices and generating '{count}' geotiff files using 'EPSG:{epsg_code}'.")
         for t in ds_spain["time"].values:
+            LOGGER.debug(f"processing time slice [{idx}/{count}]")
             file_name = f"""{self.variable}_{str(t).split("T")[0]}"""
             file_path = os.path.join(var_base_path, file_name)
             ds_spain[self.variable].sel(time=t).to_netcdf(f"{file_path}.nc")
             os.system(
-                f"gdal_translate -a_ullr {x_min} {y_max} {x_max} {y_min} -a_srs EPSG:4326 {file_path}.nc {file_path}.tif"
+                f"gdal_translate -a_ullr {x_min} {y_max} {x_max} {y_min} -a_srs EPSG:{epsg_code} {file_path}.nc {file_path}.tif"
             )
+            idx += 1
 
         tif_file_paths = sorted(
             [os.path.join(var_base_path, f) for f in os.listdir(var_base_path) if f.endswith(".tif")]
         )
 
+        count = len(tif_file_paths)
+        idx = 1
+        LOGGER.debug(f"uploading '{count}' geotiff files to bucket")
         for tif_file_path in tif_file_paths:
+            LOGGER.debug(f"processing geotiff [{idx}/{count}]")
             tif_file = tif_file_path.split("/")[-1]
             s3_path = f"{self.bucket}/data-ingestor/spain/agro_indicator/{self.variable}/{tif_file}"
 
             with open(tif_file_path, "rb") as file:
                 with s3.open(s3_path, "wb") as s3_file:
                     shutil.copyfileobj(file, s3_file)
+            idx += 1
 
-        outputs = {"id": "creaf_historic_ingestor", "value": "succes"}
+        outputs = {"id": "creaf_historic_ingestor", "value": "success"}
         return mimetype, outputs
 
     def __repr__(self):
