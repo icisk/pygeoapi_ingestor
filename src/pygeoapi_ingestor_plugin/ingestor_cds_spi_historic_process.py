@@ -212,13 +212,11 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         """
 
         def preprocess_poi_dataset(poi_dataset):
-            poi_dataset = poi_dataset.resample(time="1ME").sum()  # Resample to monthly total data
+            # REF: https://confluence.ecmwf.int/pages/viewpage.action?pageId=197702790 
+            poi_dataset['time'] = pd.date_range(start=f"{poi_dataset.time[0].dt.date.item().strftime('%Y-%m-%d')}T01:00:00", periods=len(poi_dataset.time), freq='h')
+            poi_dataset = poi_dataset.sel(time=poi_dataset.time.dt.hour == 0).resample(time='1ME').sum()
             poi_dataset = poi_dataset.assign_coords(
-                time=poi_dataset.time.dt.strftime("%Y-%m-01")
-            )  # Set month day to 01
-            poi_dataset = poi_dataset.assign_coords(time=pd.to_datetime(poi_dataset.time))
-            poi_dataset["tp"] = poi_dataset["tp"] / 12  # Convert total precipitation to monthly average precipitation
-            poi_dataset = poi_dataset.assign_coords(
+                time = poi_dataset.time.to_series().apply(lambda dt: datetime.datetime(dt.year, dt.month, 1)),
                 lat=np.round(poi_dataset.lat.values, 6),
                 lon=np.round(poi_dataset.lon.values, 6),
             )
