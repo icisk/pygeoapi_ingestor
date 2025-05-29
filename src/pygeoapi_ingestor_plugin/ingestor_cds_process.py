@@ -682,6 +682,10 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 varname = "tp"
             elif "2m_temperature" in query["variable"]:
                 varname = "t2m"
+            elif "minimum_2m_temperature_in_the_last_24_hours" in query["variable"]:
+                varname = "mn2t24"
+            elif "maximum_2m_temperature_in_the_last_24_hours" in query["variable"]:
+                varname = "mx2t24"
 
             data = self.split_var_to_variables(data, varname)
             if "time" in data.variables:
