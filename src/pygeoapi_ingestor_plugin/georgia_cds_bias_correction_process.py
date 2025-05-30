@@ -80,6 +80,23 @@ PROCESS_METADATA = {
                 "type": "string"
             }
         },
+        "cron_invocation": {
+            "title": "cron invocation",
+            "description": "is this a cron invocation? If False, init_date must be provided",
+            "schema": {
+                "type": "boolean",
+                "default": True
+            }
+        },
+        "init_date": {
+            "title": "initial date",
+            "description": "initial date for the process, in format YYYY-MM. Required if cron_invocation is False",
+            "schema": {
+                "type": "string",
+                "format": "date",
+                "default": None
+            }
+        },
         "debug": {
             "title": "Debug",
             "description": "Enable Debug mode",
@@ -92,10 +109,54 @@ PROCESS_METADATA = {
             "description": "Staus of the process execution [OK or KO]",
             "schema": {}
         },
-        "data": {
-            "title": "data",
-            "description": "The data output file"
+        "total_precipitation": {
+            "title": "Total Precipitation",
+            "description": "Bias-corrected total precipitation dataset",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "zarr_uri": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "collection": {
+                        "type": "string"
+                    }
+                }
+            }
         },
+        "minimum_2m_temperature_in_the_last_24_hours": {
+            "title": "Minimum 2m Temperature in the Last 24 Hours",
+            "description": "Bias-corrected minimum 2m temperature dataset",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "zarr_uri": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "collection": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "maximum_2m_temperature_in_the_last_24_hours": {
+            "title": "Maximum 2m Temperature in the Last 24 Hours",
+            "description": "Bias-corrected maximum 2m temperature dataset",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "zarr_uri": {
+                        "type": "string",
+                        "format": "uri"
+                    },
+                    "collection": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
     },
     "example": {
         "inputs": {
@@ -144,6 +205,7 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
     def validate_parameters(self, data):
         token = data.get("token", None)
         cron_invocation = data.get("cron_invocation", False)
+        init_date = data.get("init_date", None)
 
         if token is None:
             raise ProcessorExecuteError("You must provide an valid token")
@@ -157,12 +219,26 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
             LOGGER.error(f"cron_invocation must be a boolean, got {type(cron_invocation)}")
             raise ProcessorExecuteError("cron_invocation must be a boolean")
         if not cron_invocation:
-            LOGGER.error("This process is intended to be run as a cron job, not manually.")
-            raise Handle200Exception(Handle200Exception.SKIPPED, "This process is intended to be run as a cron job, not manually.")
+            if init_date is None:
+                LOGGER.error("init_date must be provided when cron_invocation is False")
+                raise ProcessorExecuteError("init_date must be provided when cron_invocation is False")
+            if not isinstance(init_date, str):
+                LOGGER.error(f"init_date must be a string, got {type(init_date)}")
+                raise ProcessorExecuteError("init_date must be a string")
+            try:
+                init_date = datetime.datetime.strptime(init_date, "%Y-%m").date()
+            except ValueError as e:
+                LOGGER.error(f"Invalid init_date format: {e}")
+                raise ProcessorExecuteError("init_date must be in the format YYYY-MM")
+            if init_date.replace(day=6) > datetime.datetime.now().date():
+                LOGGER.error(f"init_date {init_date} is in the future")
+                raise ProcessorExecuteError("init_date must not be in the future and it can't be in current month if today day is greater than 6th (data is available only from 6th of the month)")
+        
+        return cron_invocation, init_date
         
     
     # DOC: 2. Run CDS ingestor process
-    def run_cds_ingestor_process(self): 
+    def run_cds_ingestor_process(self, cron_invocation=True, init_date=None): 
         IngestorCDSProcessProcessor_METADATA['name'] = IngestorCDSProcessProcessor_METADATA['id']
         ingestor_cds_process_processor =  IngestorCDSProcessProcessor(IngestorCDSProcessProcessor_METADATA)
         
@@ -170,7 +246,7 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
         t2m_min_seasonal_forecast_invcation_data = 'src/invoke/invocation_data/cds-georgia-seasonal-original-single-levels-minimum_2m_temperature_in_the_last_24_hours-ingest-input.json'
         t2m_max_seasonal_forecast_invcation_data = 'src/invoke/invocation_data/cds-georgia-seasonal-original-single-levels-maximum_2m_temperature_in_the_last_24_hours-ingest-input.json'
         
-        def invoke_ingestor(invocation_data):
+        def invoke_ingestor(invocation_data, cron_invocation, init_date):
             with open(invocation_data, "r") as f:
                 data = json.load(f)
 
@@ -180,7 +256,13 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
             payload["inputs"]["token"] = token
             
             # !!!: Zarr-output and collection-name should be returned by process execution output and then returned by invoke_ingestor (by now it returns just zarr-out). If names logic in ingestor_cds_process.py changes, this will break.
-            current_datetime = datetime.datetime.now(datetime.timezone.utc)
+            if cron_invocation:
+                init_date = datetime.datetime.now(datetime.timezone.utc)
+            else:
+                payload["inputs"]['cron_invocation'] = False
+                payload["inputs"]["query"]["year"] = [f"{init_date.year}"]
+                payload["inputs"]["query"]["month"] = [f"{init_date.month:02}"]
+                payload["inputs"]["query"]["day"] = ["01"]
             cds_variable = payload["inputs"]["query"]["variable"][0]
             collection_variable = {
                 'total_precipitation': 'tp',
@@ -189,21 +271,23 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
                 'maximum_2m_temperature_in_the_last_24_hours': 'mx2t24'
             }[cds_variable]
             
-            zarr_out = f"cds_{self.living_lab}-seasonal-original-single-levels_{cds_variable}_{current_datetime.strftime('%Y%m')}.zarr"
-            collection_name = f"seasonal-original-single-levels_{current_datetime.strftime('%Y%m')}_{self.living_lab}_{collection_variable}_0"
+            # payload["inputs"]["zarr_out"] = "s3://saferplaces.co/test/icisk/georgia/seasonal_timeseries/cds_georgia.zarr"   # TEST: Remove when in production
+            
+            zarr_out = f"cds_{self.living_lab}-seasonal-original-single-levels_{cds_variable}_{init_date.strftime('%Y%m')}.zarr"
+            collection_name = f"seasonal-original-single-levels_{init_date.strftime('%Y%m')}_{self.living_lab}_{collection_variable}_0"
             
             ingestor_cds_process_processor.execute(data=payload['inputs'])
             
             return zarr_out, collection_name
         
         LOGGER.info(f"Invoking ingestor for total precipitation (tp) seasonal forecast data")            
-        tp_zarr, tp_collection = invoke_ingestor(tp_seasonal_forecast_invcation_data)
+        tp_zarr, tp_collection = invoke_ingestor(tp_seasonal_forecast_invcation_data, cron_invocation, init_date)
         
         LOGGER.info(f"Invoking ingestor for minimum 2m temperature (t2m_min) seasonal forecast data")
-        t2m_min_zarr, t2m_min_collection = invoke_ingestor(t2m_min_seasonal_forecast_invcation_data)
+        t2m_min_zarr, t2m_min_collection = invoke_ingestor(t2m_min_seasonal_forecast_invcation_data, cron_invocation, init_date)
         
         LOGGER.info(f"Invoking ingestor for maximum 2m temperature (t2m_max) seasonal forecast data") 
-        t2m_max_zarr, t2m_max_collection = invoke_ingestor(t2m_max_seasonal_forecast_invcation_data)
+        t2m_max_zarr, t2m_max_collection = invoke_ingestor(t2m_max_seasonal_forecast_invcation_data, cron_invocation, init_date)
         
         return (tp_zarr, tp_collection), (t2m_min_zarr, t2m_min_collection), (t2m_max_zarr, t2m_max_collection) 
 
@@ -296,7 +380,7 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
                 bc_ds_local_filepath = self.get_collection_dataset(bc_zarr_filename)
                 bc_ds = xr.open_dataset(bc_ds_local_filepath)
                 bc_ds.load()
-                self.update_pygeoapi_config(bc_zarr_filename, bc_ds, collection_name)
+                self.update_pygeoapi_config(bc_zarr_uri, bc_ds, collection_name)
                 
             return (bc_zarr_uri, collection_name)
         
@@ -451,9 +535,9 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
         try:
             
             # DOC: This process is intended to be run as a cron job, not manually.
-            self.validate_parameters(data)
+            cron_invocation, init_date = self.validate_parameters(data)
             
-            tp_ingest_info, t2m_min_ingest_info, t2m_max_ingest_info = self.run_cds_ingestor_process()
+            tp_ingest_info, t2m_min_ingest_info, t2m_max_ingest_info = self.run_cds_ingestor_process(cron_invocation, init_date)
             
             tp_bc_info, t2m_min_bc_info, t2m_max_bc_info = self.create_bias_corrected_collection(
                 tp_ingest_info,
