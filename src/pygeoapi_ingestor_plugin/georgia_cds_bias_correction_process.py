@@ -18,12 +18,10 @@ import cdsapi
 
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
+from pygeoapi_ingestor_plugin.ingestor_cds_process import IngestorCDSProcessProcessor, PROCESS_METADATA as IngestorCDSProcessProcessor_METADATA
+
 import pygeoapi_ingestor_plugin.utils as utils
 import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
-
-# DOC: HACK — This is a workaround to ensure the invoke_ingestor_process function can be imported correctly. (fyi: We could import it without this hack, but other imports should be updatetd)
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from invoke.utils import invoke_ingestor_process
 
 # =================================================================
 #
@@ -165,6 +163,9 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
     
     # DOC: 2. Run CDS ingestor process
     def run_cds_ingestor_process(self): 
+        IngestorCDSProcessProcessor_METADATA['name'] = IngestorCDSProcessProcessor_METADATA['id']
+        ingestor_cds_process_processor =  IngestorCDSProcessProcessor(IngestorCDSProcessProcessor_METADATA)
+        
         tp_seasonal_forecast_invcation_data = 'src/invoke/invocation_data/cds-georgia-seasonal-original-single-levels-total_precipitation-ingest-input.json'
         t2m_min_seasonal_forecast_invcation_data = 'src/invoke/invocation_data/cds-georgia-seasonal-original-single-levels-minimum_2m_temperature_in_the_last_24_hours-ingest-input.json'
         t2m_max_seasonal_forecast_invcation_data = 'src/invoke/invocation_data/cds-georgia-seasonal-original-single-levels-maximum_2m_temperature_in_the_last_24_hours-ingest-input.json'
@@ -173,18 +174,12 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
             with open(invocation_data, "r") as f:
                 data = json.load(f)
 
-            ingestor_process = data["process"]
             payload = data["payload"]
-
-            api_root = 'http://localhost:80/' # os.getenv("API_ROOT", "http://localhost:5000/") # ???: What is the right way when in production?
-            execute_url = f"{api_root}processes/{ingestor_process}/execution"
-
+            
             token = os.getenv("INT_API_TOKEN", "token")
             payload["inputs"]["token"] = token
             
-            payload["inputs"]["zarr_out"] = "s3://saferplaces.co/test/icisk/georgia/seasonal_timeseries/cds_georgia.zarr"   # TEST: Remove when in production
-            
-            # !!!: This is ugly asf, zarr-output and collection-name should be returned by process execution output and then returned by invoke_ingestor. If names logic in ingestor_cds_process.py changes, this will break.
+            # !!!: Zarr-output and collection-name should be returned by process execution output and then returned by invoke_ingestor (by now it returns just zarr-out). If names logic in ingestor_cds_process.py changes, this will break.
             current_datetime = datetime.datetime.now(datetime.timezone.utc)
             cds_variable = payload["inputs"]["query"]["variable"][0]
             collection_variable = {
@@ -193,11 +188,11 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
                 'minimum_2m_temperature_in_the_last_24_hours': 'mn2t24',
                 'maximum_2m_temperature_in_the_last_24_hours': 'mx2t24'
             }[cds_variable]
+            
             zarr_out = f"cds_{self.living_lab}-seasonal-original-single-levels_{cds_variable}_{current_datetime.strftime('%Y%m')}.zarr"
             collection_name = f"seasonal-original-single-levels_{current_datetime.strftime('%Y%m')}_{self.living_lab}_{collection_variable}_0"
             
-            # Run ingestor_cds_process
-            invoke_ingestor_process(execute_url=execute_url, data=payload, logger=LOGGER)
+            ingestor_cds_process_processor.execute(data=payload['inputs'])
             
             return zarr_out, collection_name
         
@@ -377,7 +372,7 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
             
             ilead = diff_months(ds.forecast_reference_time[0].dt.date.item(), datetime.datetime.strptime(lead_month, "%Y-%m").date())
             
-            for var in ds_vars:
+            for var in ds_vars[:2]:
                 
                 fc_month_values = ds.sel(
                     forecast_reference_time = ds.forecast_reference_time[0],

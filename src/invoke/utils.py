@@ -44,7 +44,6 @@ def invoke_ingestor_process(execute_url, data, logger):
                 if "async" in data["inputs"] and data["inputs"]["async"] is True:
                     # response header Location should contain link to job, if body is None
                     job_url = response.headers["Location"]
-                    job_url = f"http://localhost:80/{job_url[job_url.index('jobs/') : ]}"    # ???: This shouldn't be necessary... check both docker env-vars and pygeoapi-config
                     
                     job_status = None
                     logger.info(f"Starting job state checker with job URL '{job_url}'")
