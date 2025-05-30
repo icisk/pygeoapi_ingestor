@@ -246,6 +246,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
 
         LOGGER.debug("SPI coverage computed")
         return period_of_interest, month_spi_coverage
+    
 
     def save_spi_coverage_to_collection(self, living_lab, spi_ts, period_of_interest, month_spi_coverage):
         def build_data(spi_ts, period_of_interest, month_spi_coverage):
@@ -259,7 +260,21 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         ds = build_data(spi_ts, period_of_interest, month_spi_coverage)
         collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type="historic")
         spi_utils.update_config(living_lab, collection_params)
-        return {"collection_id": collection_params["pygeoapi_id"], "collection_s3_uri": collection_params["s3_uri"]}
+        return ds, collection_params
+    
+    
+    def save_spi_basin_zonal_stats_to_collection(self, living_lab, spi_dataset, spi_coverage_collection_params):
+        ds_zonal_stats = spi_utils.compute_zonal_stats(living_lab, spi_dataset)
+        if ds_zonal_stats is not None:
+            collection_params = spi_utils.create_s3_zonal_stats_collection_data(
+                living_lab, ds_zonal_stats, spi_coverage_collection_params, data_type="forecast"
+            )
+            spi_utils.update_config(living_lab, collection_params)
+            return ds_zonal_stats, collection_params
+        else:
+            LOGGER.debug("Zonal stats not computed due to missing basin geojson")
+            return None
+    
 
     def execute(self, data):
         mimetype = "application/json"
@@ -278,17 +293,40 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             period_of_interest, month_spi_coverage = self.compute_coverage_spi(ref_dataset, poi_dataset, spi_ts)
 
             # Save SPI coverage to collection
-            collection_info = self.save_spi_coverage_to_collection(
+            ds, spi_coverage_collection_params = self.save_spi_coverage_to_collection(
                 living_lab, spi_ts, period_of_interest, month_spi_coverage
             )
+            
+            # Compute SPI basin-zonal-stats and save to collection
+            zonal_stats_out = self.save_spi_basin_zonal_stats_to_collection(
+                living_lab, ds, spi_coverage_collection_params
+            )
+            ds_zonal_stats, spi_zonal_stats_collection_params = (
+                zonal_stats_out if zonal_stats_out is not None else (None, None)
+            )
+            if spi_zonal_stats_collection_params is not None:
+                spi_zonal_stats_collection_info = {
+                    "spi_zonal_stats_collection_id": spi_zonal_stats_collection_params["pygeoapi_id"],
+                    "spi_zonal_stats_collection_s3_uri": spi_zonal_stats_collection_params["s3_uri"],
+                }
+            else:
+                spi_zonal_stats_collection_info = {}
 
             # Convert SPI coverage in the requested output format
             output_data = {}
             if out_format is not None:
                 out_spi_coverages = spi_utils.coverage_to_out_format(month_spi_coverage, out_format)
                 output_data = {"output_data": {"format": out_format, "collection_data": out_spi_coverages}}
+                if ds_zonal_stats is not None:
+                    output_data["output_data"]["zonal_stats"] = ds_zonal_stats.to_geo_dict()
 
-            outputs = {"status": "OK", **collection_info, **output_data}
+            outputs = {
+                "status": "OK",
+                "spi_coverage_collection_id": spi_coverage_collection_params["pygeoapi_id"],
+                "spi_coverage_collection_s3_uri": spi_coverage_collection_params["s3_uri"],
+                **spi_zonal_stats_collection_info,
+                **output_data
+            }
 
         except spi_utils.Handle200Exception as err:
             outputs = {"status": err.status, "message": str(err)}
