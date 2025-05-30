@@ -372,7 +372,7 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
             
             ilead = diff_months(ds.forecast_reference_time[0].dt.date.item(), datetime.datetime.strptime(lead_month, "%Y-%m").date())
             
-            for var in ds_vars[:2]:
+            for var in ds_vars: # DOC: you can set `for var in ds_vars[:2]` just to test in reasonable time
                 
                 fc_month_values = ds.sel(
                     forecast_reference_time = ds.forecast_reference_time[0],
