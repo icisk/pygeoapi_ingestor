@@ -27,19 +27,19 @@
 #
 # =================================================================
 
-import datetime
-import dateutil
-import logging
-import os
+import datetime  # noqa: I001
+import dateutil  # noqa: I001
+import logging  # noqa: I001
+import os  # noqa: I001
 
-import cdsapi
-import numpy as np
-import xarray as xr
-from dateutil.relativedelta import relativedelta
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
+import cdsapi  # noqa: I001
+import numpy as np  # noqa: I001
+import xarray as xr  # noqa: I001
+from dateutil.relativedelta import relativedelta  # noqa: I001
+from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError  # noqa: I001
 
-import pygeoapi_ingestor_plugin.utils as utils
-import pygeoapi_ingestor_plugin.utils_spi as spi_utils
+import pygeoapi_ingestor_plugin.utils as utils  # noqa: I001
+import pygeoapi_ingestor_plugin.utils_spi as spi_utils  # noqa: I001
 
 LOGGER = logging.getLogger(__name__)
 

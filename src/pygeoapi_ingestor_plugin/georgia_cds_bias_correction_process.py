@@ -1,25 +1,25 @@
-import os
-import json
-import datetime
-from dateutil.relativedelta import relativedelta
-import logging
-import tempfile
-from filelock import FileLock
+import os # noqa: I001
+import json # noqa: I001
+import datetime # noqa: I001
+from dateutil.relativedelta import relativedelta # noqa: I001
+import logging # noqa: I001
+import tempfile # noqa: I001
+from filelock import FileLock # noqa: I001
 
-import numpy as np
-import pandas as pd
-import xarray as xr
-from scipy import stats
+import numpy as np # noqa: I001
+import pandas as pd # noqa: I001
+import xarray as xr # noqa: I001
+from scipy import stats # noqa: I001
 
-import s3fs
-import cdsapi
+import s3fs # noqa: I001
+import cdsapi # noqa: I001
 
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
+from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError # noqa: I001
 
-from pygeoapi_ingestor_plugin.ingestor_cds_process import IngestorCDSProcessProcessor, PROCESS_METADATA as IngestorCDSProcessProcessor_METADATA
+from pygeoapi_ingestor_plugin.ingestor_cds_process import IngestorCDSProcessProcessor, PROCESS_METADATA as IngestorCDSProcessProcessor_METADATA # noqa: I001
 
-import pygeoapi_ingestor_plugin.utils as utils
-import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
+import pygeoapi_ingestor_plugin.utils as utils # noqa: I001
+import pygeoapi_ingestor_plugin.utils_s3 as s3_utils # noqa: I001
 
 # =================================================================
 #
