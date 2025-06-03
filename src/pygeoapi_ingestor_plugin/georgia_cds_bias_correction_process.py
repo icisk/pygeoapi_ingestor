@@ -224,9 +224,9 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
                 "maximum_2m_temperature_in_the_last_24_hours": "mx2t24",
             }[cds_variable]
 
-            payload["inputs"]["zarr_out"] = (
-                "s3://saferplaces.co/test/icisk/georgia/seasonal_timeseries/cds_georgia.zarr"  # TEST: Remove when in production
-            )
+            # payload["inputs"]["zarr_out"] = (
+            #     "s3://saferplaces.co/test/icisk/georgia/seasonal_timeseries/cds_georgia.zarr"  # TEST: Remove when in production
+            # )
 
             zarr_out = f"cds_{self.living_lab}-seasonal-original-single-levels_{cds_variable}_{init_date.strftime('%Y%m')}.zarr"
             collection_name = f"seasonal-original-single-levels_{init_date.strftime('%Y%m')}_{self.living_lab}_{collection_variable}_0"
