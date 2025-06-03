@@ -231,7 +231,7 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
                 init_date = datetime.datetime.strptime(init_date, "%Y-%m").date()
             except ValueError as e:
                 LOGGER.error(f"Invalid init_date format: {e}")
-                raise ProcessorExecuteError("init_date must be in the format YYYY-MM")
+                raise ProcessorExecuteError("init_date must be in the format YYYY-MM")  # noqa: B904
             if init_date.replace(day=6) > datetime.datetime.now().date():
                 LOGGER.error(f"init_date {init_date} is in the future")
                 raise Handle200Exception(Handle200Exception.SKIPPED, "init_date must not be in the future and it can't be in current month if today day is before than 6th (data is available only from 6th of the month)") # noqa: B904
