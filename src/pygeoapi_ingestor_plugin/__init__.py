@@ -18,4 +18,4 @@ from .ingestor_smhi_process_vector import IngestorSMHIVectorProcessProcessor  # 
 from .lesotho_drought_process import LesothoDroughtProcessor  # noqa: F401
 from .ll_nl_danger_levels import DangerLevelProcessProcessor  # noqa: F401
 from .rer_river_discharge_arpae_process import RerRiverDischargeArpaeProcessor  # noqa: F401
-from .georgia_cds_bias_correction_process import GeorgiaCDSBiasCorrectionProcessProcessor
+from .georgia_cds_bias_correction_process import GeorgiaCDSBiasCorrectionProcessProcessor   # noqa: F401

@@ -1,5 +1,4 @@
 import os
-import sys
 import json
 import datetime
 from dateutil.relativedelta import relativedelta
@@ -11,7 +10,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from scipy import stats
-from scipy.interpolate import splev
 
 import s3fs
 import cdsapi
@@ -208,23 +206,27 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
         init_date = data.get("init_date", None)
 
         if token is None:
-            raise ProcessorExecuteError("You must provide an valid token")
+            raise ProcessorExecuteError("You must provide an valid token")  # noqa: B904
         if token != os.getenv("INT_API_TOKEN", "token"):
             LOGGER.error(
                 f"WRONG INTERNAL API TOKEN {token} ({type(token)}) != {os.getenv('INT_API_TOKEN', 'token')} ({type(os.getenv('INT_API_TOKEN', 'token'))})"
             )
-            raise Handle200Exception(Handle200Exception.DENIED, "ACCESS DENIED: wrong token")
+            raise Handle200Exception(Handle200Exception.DENIED, "ACCESS DENIED: wrong token")   # noqa: B904
         
         if not isinstance(cron_invocation, bool):
             LOGGER.error(f"cron_invocation must be a boolean, got {type(cron_invocation)}")
-            raise ProcessorExecuteError("cron_invocation must be a boolean")
-        if not cron_invocation:
+            raise ProcessorExecuteError("cron_invocation must be a boolean")    # noqa: B904
+        if cron_invocation:
+            if datetime.datetime.now().date().day < 6:
+                LOGGER.error("cron_invocation is True, but today day is less than 6th")
+                raise Handle200Exception(Handle200Exception.SKIPPED, "init_date must not be in the future and it can't be in current month if today day is before than 6th (data is available only from 6th of the month)") # noqa: B904
+        else:
             if init_date is None:
                 LOGGER.error("init_date must be provided when cron_invocation is False")
-                raise ProcessorExecuteError("init_date must be provided when cron_invocation is False")
+                raise ProcessorExecuteError("init_date must be provided when cron_invocation is False") # noqa: B904
             if not isinstance(init_date, str):
                 LOGGER.error(f"init_date must be a string, got {type(init_date)}")
-                raise ProcessorExecuteError("init_date must be a string")
+                raise ProcessorExecuteError("init_date must be a string")   # noqa: B904
             try:
                 init_date = datetime.datetime.strptime(init_date, "%Y-%m").date()
             except ValueError as e:
@@ -232,7 +234,7 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
                 raise ProcessorExecuteError("init_date must be in the format YYYY-MM")
             if init_date.replace(day=6) > datetime.datetime.now().date():
                 LOGGER.error(f"init_date {init_date} is in the future")
-                raise ProcessorExecuteError("init_date must not be in the future and it can't be in current month if today day is greater than 6th (data is available only from 6th of the month)")
+                raise Handle200Exception(Handle200Exception.SKIPPED, "init_date must not be in the future and it can't be in current month if today day is before than 6th (data is available only from 6th of the month)") # noqa: B904
         
         return cron_invocation, init_date
         
@@ -271,7 +273,7 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
                 'maximum_2m_temperature_in_the_last_24_hours': 'mx2t24'
             }[cds_variable]
             
-            # payload["inputs"]["zarr_out"] = "s3://saferplaces.co/test/icisk/georgia/seasonal_timeseries/cds_georgia.zarr"   # TEST: Remove when in production
+            payload["inputs"]["zarr_out"] = "s3://saferplaces.co/test/icisk/georgia/seasonal_timeseries/cds_georgia.zarr"   # TEST: Remove when in production
             
             zarr_out = f"cds_{self.living_lab}-seasonal-original-single-levels_{cds_variable}_{init_date.strftime('%Y%m')}.zarr"
             collection_name = f"seasonal-original-single-levels_{init_date.strftime('%Y%m')}_{self.living_lab}_{collection_variable}_0"
@@ -280,13 +282,13 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
             
             return zarr_out, collection_name
         
-        LOGGER.info(f"Invoking ingestor for total precipitation (tp) seasonal forecast data")            
+        LOGGER.info("Invoking ingestor for total precipitation (tp) seasonal forecast data")            
         tp_zarr, tp_collection = invoke_ingestor(tp_seasonal_forecast_invcation_data, cron_invocation, init_date)
         
-        LOGGER.info(f"Invoking ingestor for minimum 2m temperature (t2m_min) seasonal forecast data")
+        LOGGER.info("Invoking ingestor for minimum 2m temperature (t2m_min) seasonal forecast data")
         t2m_min_zarr, t2m_min_collection = invoke_ingestor(t2m_min_seasonal_forecast_invcation_data, cron_invocation, init_date)
         
-        LOGGER.info(f"Invoking ingestor for maximum 2m temperature (t2m_max) seasonal forecast data") 
+        LOGGER.info("Invoking ingestor for maximum 2m temperature (t2m_max) seasonal forecast data") 
         t2m_max_zarr, t2m_max_collection = invoke_ingestor(t2m_max_seasonal_forecast_invcation_data, cron_invocation, init_date)
         
         return (tp_zarr, tp_collection), (t2m_min_zarr, t2m_min_collection), (t2m_max_zarr, t2m_max_collection) 
@@ -401,19 +403,19 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
         diff_months = lambda date1, date2: (date2.year - date1.year) * 12 + (date2.month - date1.month)  # noqa: E731
         
         if bc_var == 'tp':
-            preprocess = lambda og_ds: og_ds.diff(dim='time', n=1) * 1000   # DOC: convert to daily precipitation in mm from total precipitation in m
+            preprocess = lambda og_ds: og_ds.diff(dim='time', n=1) * 1000   # noqa: E731    # DOC: convert to daily precipitation in mm from total precipitation in m   
             biascorrect_model_observed = pd.read_csv(f'data/{self.living_lab}/bias_correction/bias_correction_observed_gamma.csv')
             biascorrect_model_forecast = pd.read_csv(f'data/{self.living_lab}/bias_correction/bias_correction_forecast_gamma.csv')
-            get_rv = lambda fc_pars: stats.gamma(fc_pars['alpha'], loc=0., scale=fc_pars['scale'])
-            get_rvo = lambda obs_pars: stats.gamma(obs_pars['alpha'], loc=0., scale=obs_pars['scale'])
-            post_process = lambda bc_ds: xr.where(np.isinf(bc_ds), np.nan, bc_ds)
+            get_rv = lambda fc_pars: stats.gamma(fc_pars['alpha'], loc=0., scale=fc_pars['scale'])  # noqa: E731
+            get_rvo = lambda obs_pars: stats.gamma(obs_pars['alpha'], loc=0., scale=obs_pars['scale'])  # noqa: E731
+            post_process = lambda bc_ds: xr.where(np.isinf(bc_ds), np.nan, bc_ds)   # noqa: E731
         elif bc_var in ['tmn', 'tmx']:
-            preprocess = lambda og_ds: og_ds - 273.15   # DOC: convert from Kelvin to Celsius before correction
+            preprocess = lambda og_ds: og_ds - 273.15   # noqa: E731    # DOC: convert from Kelvin to Celsius before correction 
             biascorrect_model_observed = pd.read_csv(f'data/{self.living_lab}/bias_correction/bias_correction_observed_normal.csv')
             biascorrect_model_forecast = pd.read_csv(f'data/{self.living_lab}/bias_correction/bias_correction_forecast_normal.csv')
-            get_rv = lambda fc_pars: stats.norm(fc_pars['mean'], fc_pars['stdev'])
-            get_rvo = lambda obs_pars: stats.norm(obs_pars['mean'], obs_pars['stdev'])
-            post_process = lambda bc_ds: xr.where(np.isinf(bc_ds), np.nan, bc_ds)
+            get_rv = lambda fc_pars: stats.norm(fc_pars['mean'], fc_pars['stdev'])  # noqa: E731
+            get_rvo = lambda obs_pars: stats.norm(obs_pars['mean'], obs_pars['stdev'])  # noqa: E731
+            post_process = lambda bc_ds: xr.where(np.isinf(bc_ds), np.nan, bc_ds)   # noqa: E731
         else:
             # DOC: This should never be reached
             raise ProcessorExecuteError(f"Unsupported variable for bias correction: {bc_var}. Supported variables are 'tp', 'tmn', and 'tmx'.")

@@ -192,7 +192,7 @@ def validate_parameters(data, data_type):
         raise ProcessorExecuteError("Cannot process without a spi_ts valued")
     if type(spi_ts) is not int:
         raise ProcessorExecuteError("spi_ts must be an integer")
-    if data_type is "forecast":
+    if data_type == "forecast":
         if spi_ts not in [1]:  # TODO: timescales [3,6,12,24,48] to be implemented
             raise ProcessorExecuteError("spi_ts must be 1. Other values are not supported yet")
 

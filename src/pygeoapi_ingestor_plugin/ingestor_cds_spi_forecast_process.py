@@ -34,7 +34,6 @@ import os
 
 import cdsapi
 import numpy as np
-import pandas as pd
 import xarray as xr
 from dateutil.relativedelta import relativedelta
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
