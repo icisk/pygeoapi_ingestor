@@ -7,7 +7,7 @@
             "debug": true,
             "living_lab": "georgia",
             "period_of_interest": "2025-01",
-            "spi_ts": 1
+            "spi_ts": 3
         }
     }
 }
