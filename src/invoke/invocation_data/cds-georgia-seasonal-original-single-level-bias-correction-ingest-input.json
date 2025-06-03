@@ -2,8 +2,9 @@
     "process": "georgia-cds-bias-correction-process",
     "payload": {
         "inputs": {
-            "cron_invocation": true,
+            "debug": true,
             "async": true,
+            "cron_invocation": true,
             "init_date": "2025-05"
         }
     }
