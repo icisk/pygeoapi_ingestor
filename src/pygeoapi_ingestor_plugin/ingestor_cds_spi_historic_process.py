@@ -135,7 +135,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         """
 
         # Format params for CDS API query
-        
+
         # Get (Years, Years-Months) couple for the CDS api query. (We can query just one month at time)
         spi_start_date = period_of_interest[0] - relativedelta(months=spi_ts - 1)
         spi_years_range = list(range(spi_start_date.year, period_of_interest[1].year + 1))
@@ -212,11 +212,15 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         """
 
         def preprocess_poi_dataset(poi_dataset):
-            # REF: https://confluence.ecmwf.int/pages/viewpage.action?pageId=197702790 
-            poi_dataset['time'] = pd.date_range(start=f"{poi_dataset.time[0].dt.date.item().strftime('%Y-%m-%d')}T01:00:00", periods=len(poi_dataset.time), freq='h')
-            poi_dataset = poi_dataset.sel(time=poi_dataset.time.dt.hour == 0).resample(time='1ME').sum()
+            # REF: https://confluence.ecmwf.int/pages/viewpage.action?pageId=197702790
+            poi_dataset["time"] = pd.date_range(
+                start=f"{poi_dataset.time[0].dt.date.item().strftime('%Y-%m-%d')}T01:00:00",
+                periods=len(poi_dataset.time),
+                freq="h",
+            )
+            poi_dataset = poi_dataset.sel(time=poi_dataset.time.dt.hour == 0).resample(time="1ME").sum()
             poi_dataset = poi_dataset.assign_coords(
-                time = poi_dataset.time.to_series().apply(lambda dt: datetime.datetime(dt.year, dt.month, 1)),
+                time=poi_dataset.time.to_series().apply(lambda dt: datetime.datetime(dt.year, dt.month, 1)),
                 lat=np.round(poi_dataset.lat.values, 6),
                 lon=np.round(poi_dataset.lon.values, 6),
             )
@@ -232,10 +236,12 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         cov_ts_dataset = cov_ts_dataset.drop_duplicates(dim="time").sortby(["time", "lat", "lon"])
 
         month_spi_coverages = []
-        for im,month in enumerate(poi_dataset.time):
+        for im, month in enumerate(poi_dataset.time):
             if im >= spi_ts - 1:
                 month_spi_coverage = xr.apply_ufunc(
-                    lambda tile_timeseries: spi_utils.compute_timeseries_spi(tile_timeseries, spi_ts=spi_ts, nt_return=1),
+                    lambda tile_timeseries: spi_utils.compute_timeseries_spi(
+                        tile_timeseries, spi_ts=spi_ts, nt_return=1
+                    ),
                     cov_ts_dataset.sel(time=cov_ts_dataset.time <= month).tp.sortby("time"),
                     input_core_dims=[["time"]],
                     vectorize=True,
@@ -246,7 +252,6 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
 
         LOGGER.debug("SPI coverage computed")
         return period_of_interest, month_spi_coverage
-    
 
     def save_spi_coverage_to_collection(self, living_lab, spi_ts, period_of_interest, month_spi_coverage):
         def build_data(spi_ts, period_of_interest, month_spi_coverage):
@@ -261,8 +266,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         collection_params = spi_utils.create_s3_collection_data(living_lab, ds, data_type="historic")
         spi_utils.update_config(living_lab, collection_params)
         return ds, collection_params
-    
-    
+
     def save_spi_basin_zonal_stats_to_collection(self, living_lab, spi_dataset, spi_coverage_collection_params):
         ds_zonal_stats = spi_utils.compute_zonal_stats(living_lab, spi_dataset)
         if ds_zonal_stats is not None:
@@ -274,7 +278,6 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         else:
             LOGGER.debug("Zonal stats not computed due to missing basin geojson")
             return None
-    
 
     def execute(self, data):
         mimetype = "application/json"
@@ -296,7 +299,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
             ds, spi_coverage_collection_params = self.save_spi_coverage_to_collection(
                 living_lab, spi_ts, period_of_interest, month_spi_coverage
             )
-            
+
             # Compute SPI basin-zonal-stats and save to collection
             zonal_stats_out = self.save_spi_basin_zonal_stats_to_collection(
                 living_lab, ds, spi_coverage_collection_params
@@ -325,7 +328,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
                 "spi_coverage_collection_id": spi_coverage_collection_params["pygeoapi_id"],
                 "spi_coverage_collection_s3_uri": spi_coverage_collection_params["s3_uri"],
                 **spi_zonal_stats_collection_info,
-                **output_data
+                **output_data,
             }
 
         except spi_utils.Handle200Exception as err:

@@ -432,11 +432,11 @@ def compute_timeseries_spi(monthly_data, spi_ts, nt_return=1):
     REF: https://drought.emergency.copernicus.eu/data/factsheets/factsheet_spi.pdf
     REF: https://mountainscholar.org/items/842b69e8-a465-4aeb-b7ec-021703baa6af [ page 18 to 24 ]
     """
-    
+
     # SPI calculation needs finite-values and non-zero values
-    if all([md<=0 for md in monthly_data]):
+    if all([md <= 0 for md in monthly_data]):
         return 0
-    if all([np.isnan(md) or md==0 for md in monthly_data]):
+    if all([np.isnan(md) or md == 0 for md in monthly_data]):
         return np.nan
 
     df = pd.DataFrame({"monthly_data": monthly_data})

@@ -221,10 +221,13 @@ class IngestorCDSSPIForecastProcessProcessor(BaseProcessor):
         """
 
         def preprocess_poi_dataset(poi_dataset):
-            poi_dataset = poi_dataset.diff(dim='time', n=1).resample(time='1ME').sum()
-            poi_dataset = poi_dataset.sel(time=poi_dataset.time.dt.date <= (poi_dataset.time[0].dt.date + dateutil.relativedelta.relativedelta(months=6)).item())
+            poi_dataset = poi_dataset.diff(dim="time", n=1).resample(time="1ME").sum()
+            poi_dataset = poi_dataset.sel(
+                time=poi_dataset.time.dt.date
+                <= (poi_dataset.time[0].dt.date + dateutil.relativedelta.relativedelta(months=6)).item()
+            )
             poi_dataset = poi_dataset.assign_coords(
-                time = poi_dataset.time.to_series().apply(lambda dt: datetime.datetime(dt.year, dt.month, 1)),
+                time=poi_dataset.time.to_series().apply(lambda dt: datetime.datetime(dt.year, dt.month, 1)),
                 lat=np.round(poi_dataset.lat.values, 6),
                 lon=np.round(poi_dataset.lon.values, 6),
             )
