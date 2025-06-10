@@ -257,3 +257,29 @@ def get_data_from_cloud(zarr_path, alternate_root, otc_endpoint, otc_key, otc_se
         zarr_path, alternate_root=alternate_root, endpoint_url=otc_endpoint, key=otc_key, secret=otc_secret
     )
     return xr.open_zarr(mapper)
+
+
+def is_cds_dataset_avaliable(dataset_name, datetime_query):
+    if dataset_name == 'cems-glofas-seasonal':
+        # DOC: https://ewds.climate.copernicus.eu/datasets/cems-glofas-seasonal?tab=overview — Update frequency: Monthly, made available on the 10th of each month
+        
+        if datetime_query.strftime('%Y%m') < datetime.datetime.now().strftime('%Y%m'):
+            return True
+        if datetime_query.strftime('%Y%m') == datetime.datetime.now().strftime('%Y%m'):
+            return datetime.datetime.now(datetime.timezone.utc).day > 10
+        if datetime_query.strftime('%Y%m') > datetime.datetime.now().strftime('%Y%m'):
+            return False
+        
+    
+    elif dataset_name == 'cems-glofas-forecast':
+        # DOC: https://ewds.climate.copernicus.eu/datasets/cems-glofas-forecast?tab=overview — Update frequency: Updated daily, after  13:00 UTC
+        
+        if datetime_query.date() < datetime.datetime.now().date():
+            return True
+        if datetime_query.date() == datetime.datetime.now().date():
+            return datetime.datetime.now(datetime.timezone.utc).hour > 13
+        if datetime_query.date() > datetime.datetime.now().date():
+            return False
+        
+    else:
+        return True

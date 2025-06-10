@@ -50,7 +50,7 @@ from dotenv import find_dotenv, load_dotenv
 from filelock import FileLock
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-from pygeoapi_ingestor_plugin.utils import read_config, write_config
+from pygeoapi_ingestor_plugin.utils import read_config, write_config, is_cds_dataset_avaliable
 from pygeoapi_ingestor_plugin.utils_azure import upload_file_to_azure
 
 logger = logging.getLogger(__name__)
@@ -134,6 +134,16 @@ PROCESS_METADATA = {
 }
 
 
+class Handle200Exception(Exception):
+    OK = "OK"
+    SKIPPED = "SKIPPED"
+
+    def __init__(self, status, message):
+        self.status = status
+        self.message = message
+        super().__init__(self.message)
+
+
 class Stations(Enum):
     GEORGIA = "data/georgia_stations.csv"
     ITALY = "data/italy_stations.csv"
@@ -164,44 +174,47 @@ class IngestorCDSProcessProcessor(BaseProcessor):
         return {key: hide_value_if_required(key, value) for key, value in inputs_json.items()}
 
     def execute(self, data):
-        mimetype = "application/json"
-        logger.info(f"|||  INFO LOG ||| \n {self.hide_secrets_before_logging(data)} \n ||||||||||")
+        try:
+            mimetype = "application/json"
+            logger.info(f"|||  INFO LOG ||| \n {self.hide_secrets_before_logging(data)} \n ||||||||||")
 
-        # Extract parameters
-        service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab = (
-            self._extract_parameters(data)
-        )
-        logger.debug("parameters extracted")
+            # Extract parameters
+            service, dataset, query, file_out, zarr_out, engine, s3_save, start_date, end_date, interval, living_lab = (
+                self._extract_parameters(data)
+            )
+            logger.debug("parameters extracted")
 
-        # Validate input
-        self._validate_inputs(service, dataset, query, self.token)
-        logger.debug("mandatory inputs checked")
+            # Validate input
+            self._validate_inputs(service, dataset, query, self.token)
+            logger.debug("mandatory inputs checked")
 
-        # Determine S3 access type
-        s3_is_anon_access = self._is_s3_anon_access()
-        logger.info(f"Using anon S3 access? '{s3_is_anon_access}'")
+            # Determine S3 access type
+            s3_is_anon_access = self._is_s3_anon_access()
+            logger.info(f"Using anon S3 access? '{s3_is_anon_access}'")
 
-        # Set up output paths
-        zarr_out, s3_save = self._setup_output_paths(zarr_out, s3_save, dataset, living_lab)
+            # Set up output paths
+            zarr_out, s3_save = self._setup_output_paths(zarr_out, s3_save, dataset, living_lab)
 
-        # Check if S3 path already exists
-        msg = self._check_s3_path_exists(zarr_out, dataset, s3_is_anon_access, living_lab)
-        if msg:
-            return mimetype, {"id": self.id, "value": msg}
+            # Check if S3 path already exists
+            msg = self._check_s3_path_exists(zarr_out, dataset, s3_is_anon_access, living_lab)
+            if msg:
+                return mimetype, {"id": self.id, "value": msg}
 
-        # Fetch data (either by date range or single query)
-        data = self._fetch_data(service, dataset, query, file_out, engine, start_date, end_date, interval)
+            # Fetch data (either by date range or single query)
+            data = self._fetch_data(service, dataset, query, file_out, engine, start_date, end_date, interval)
 
-        if data is None:
-            return mimetype, {"id": self.id, "value": f"Error data for {dataset} not found"}
-        # Save the data
-        self._store_data(data, zarr_out, s3_save, living_lab, dataset)
+            if data is None:
+                return mimetype, {"id": self.id, "value": f"Error data for {dataset} not found"}
+            # Save the data
+            self._store_data(data, zarr_out, s3_save, living_lab, dataset)
 
-        # Update config and handle errors
-        self._update_config_with_error_handling(data, dataset, zarr_out, s3_is_anon_access, living_lab)
+            # Update config and handle errors
+            self._update_config_with_error_handling(data, dataset, zarr_out, s3_is_anon_access, living_lab)
 
-        # Return outputs
-        outputs = {"id": self.id, "value": zarr_out}
+            # Return outputs
+            outputs = {"id": self.id, "value": zarr_out}
+        except Handle200Exception as e:
+            outputs = {"status": e.status, "error": str(e)}
         return mimetype, outputs
 
     def get_coordinates_name(self, data):
@@ -517,6 +530,12 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             return data
         except Exception as e:
             logger.error(f"Error fetching data for leadtime_hours={chunk[0]} to {chunk[-1]}: {e}")
+            if not is_cds_dataset_avaliable(dataset, datetime(int(request["year"][0]), int(request["month"][0]), int(request.get("day", ["01"])[0]))):
+                logger.error(f"Dataset {dataset} is not available for the specified leadtime_hours: {chunk}")
+                raise Handle200Exception(
+                    Handle200Exception.SKIPPED,
+                    f"Dataset {dataset} is not available for the specified date year={request['year'][0]}, month={request['month'][0]}, day={request.get('day', ['01'])[0]}",
+                )
             raise
 
     def fetch_dataset_by_chunk(self, service, dataset, query, file_out, engine):
