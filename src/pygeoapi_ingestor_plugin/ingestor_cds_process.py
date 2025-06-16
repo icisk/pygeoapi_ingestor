@@ -50,7 +50,7 @@ from dotenv import find_dotenv, load_dotenv
 from filelock import FileLock
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
-from pygeoapi_ingestor_plugin.utils import read_config, write_config, is_cds_dataset_avaliable
+from pygeoapi_ingestor_plugin.utils import is_cds_dataset_avaliable, read_config, write_config
 from pygeoapi_ingestor_plugin.utils_azure import upload_file_to_azure
 
 logger = logging.getLogger(__name__)
