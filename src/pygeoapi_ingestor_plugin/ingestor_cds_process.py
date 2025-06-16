@@ -530,7 +530,9 @@ class IngestorCDSProcessProcessor(BaseProcessor):
             return data
         except Exception as e:
             logger.error(f"Error fetching data for leadtime_hours={chunk[0]} to {chunk[-1]}: {e}")
-            if not is_cds_dataset_avaliable(dataset, datetime(int(request["year"][0]), int(request["month"][0]), int(request.get("day", ["01"])[0]))):
+            if not is_cds_dataset_avaliable(
+                dataset, datetime(int(request["year"][0]), int(request["month"][0]), int(request.get("day", ["01"])[0]))
+            ):
                 logger.error(f"Dataset {dataset} is not available for the specified leadtime_hours: {chunk}")
                 raise Handle200Exception(
                     Handle200Exception.SKIPPED,
