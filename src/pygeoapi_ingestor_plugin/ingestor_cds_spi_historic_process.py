@@ -271,7 +271,7 @@ class IngestorCDSSPIHistoricProcessProcessor(BaseProcessor):
         ds_zonal_stats = spi_utils.compute_zonal_stats(living_lab, spi_dataset)
         if ds_zonal_stats is not None:
             collection_params = spi_utils.create_s3_zonal_stats_collection_data(
-                living_lab, ds_zonal_stats, spi_coverage_collection_params, data_type="forecast"
+                living_lab, ds_zonal_stats, spi_coverage_collection_params, data_type="historic"
             )
             spi_utils.update_config(living_lab, collection_params)
             return ds_zonal_stats, collection_params
