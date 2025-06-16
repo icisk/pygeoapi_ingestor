@@ -102,3 +102,7 @@ resources:
     processor:
       name: pygeoapi_ingestor_plugin.GeorgiaFTPAlazaniShaqrianiHydroProcessor
     type: process
+  georgia-cds-bias-correction-process:
+    processor:
+      name: pygeoapi_ingestor_plugin.GeorgiaCDSBiasCorrectionProcessProcessor
+    type: process

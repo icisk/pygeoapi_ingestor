@@ -535,7 +535,7 @@ class IngestorCDSProcessProcessor(BaseProcessor):
                 raise Handle200Exception(
                     Handle200Exception.SKIPPED,
                     f"Dataset {dataset} is not available for the specified date year={request['year'][0]}, month={request['month'][0]}, day={request.get('day', ['01'])[0]}",
-                )
+                ) from None
             raise
 
     def fetch_dataset_by_chunk(self, service, dataset, query, file_out, engine):
