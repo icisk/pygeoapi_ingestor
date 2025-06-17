@@ -1,7 +1,6 @@
 import os  # noqa: I001
 import json  # noqa: I001
 import datetime  # noqa: I001
-from dateutil.relativedelta import relativedelta  # noqa: I001
 import logging  # noqa: I001
 import tempfile  # noqa: I001
 from filelock import FileLock  # noqa: I001
@@ -346,17 +345,21 @@ class GeorgiaCDSBiasCorrectionProcessProcessor(BaseProcessor):
 
     # DOC: 5. Bias correction procedure for total precipitation (tp) and 2m temperature (tmn, tmx)
     def bias_correction_procedure(self, og_zarr, bc_var):
+        diff_months = lambda date1, date2: (date2.year - date1.year) * 12 + (date2.month - date1.month)  # noqa: E731
+
         ds_local_filepath = self.get_collection_dataset(og_zarr)
         ds = xr.open_dataset(ds_local_filepath)
         ds.load()
+
+        six_months_mask = [
+            diff_months(ds.forecast_reference_time[0].dt.date.item(), pd.Timestamp(t)) < 6 for t in ds.time.values
+        ]
         ds = ds.sel(
-            time=ds.time.dt.month <= (ds.forecast_reference_time[0].dt.date + relativedelta(months=6)).item().month
+            time=ds.time[six_months_mask]
         )  # DOC: we keep only forecast inside 6 months from the reference time month
 
         ds_vars = [v for v in list(ds.variables.keys()) if v not in list(ds.coords)]
         init_month = ds.forecast_reference_time[0].dt.month.item()
-
-        diff_months = lambda date1, date2: (date2.year - date1.year) * 12 + (date2.month - date1.month)  # noqa: E731
 
         if bc_var == "tp":
             preprocess = lambda og_ds: og_ds.diff(dim="time", n=1) * 1000  # noqa: E731    # DOC: convert to daily precipitation in mm from total precipitation in m
