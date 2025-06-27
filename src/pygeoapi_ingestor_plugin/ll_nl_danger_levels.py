@@ -89,18 +89,17 @@ class DangerLevelProcessProcessor(BaseProcessor):
         LOGGER.debug(f"value to categorize: '{value}'")
         if value < 50:
             return "darkblue"
-        if 50 <= value and value < 100:
+        if 50 <= value < 100:
             return "blue"
-        if 100 <= value and value < 125:
+        if 100 <= value < 125:
             return "green"
-        if 125 <= value and value < 150:
+        if 125 <= value < 150:
             return "yellow"
-        if 150 <= value and value < 175:
+        if 150 <= value < 175:
             return "orange"
-        if 175 <= value and value < 200:
+        if 175 <= value < 200:
             return "red"
-        if 200 <= value:
-            return "darkred"
+        return "darkred"
 
     def execute(self, data):
         mimetype = "application/json"
