@@ -81,7 +81,7 @@ class DangerLevelProcessProcessor(BaseProcessor):
         LOGGER.debug(f"month #s : '{month_numbers}'")
         mask_vals = rj_mask["mask"].where(rj_mask["mask"] == 666).values
         LOGGER.debug(f"mask_vals: '{mask_vals}'")
-        vals = [ds["p_def_q50"].sel(time=t).where(mask_vals).max().values for t in time]
+        vals = [ds["p_def_q50"].sel(time=slice(t - np.timedelta64(6, 'D'), t)).where(mask_vals).max().values for t in sundays]
         LOGGER.debug(f"vals     : '{vals}'")
 
         return week_numbers, month_numbers, vals
