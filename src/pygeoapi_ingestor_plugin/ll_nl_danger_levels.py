@@ -3,7 +3,6 @@ import logging
 import os
 
 import numpy as np
-import requests
 import s3fs
 import xarray as xr
 from dotenv import find_dotenv, load_dotenv
