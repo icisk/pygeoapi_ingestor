@@ -61,31 +61,46 @@ class DangerLevelProcessProcessor(BaseProcessor):
         self.bucket_name = os.environ.get(key="DEFAULT_BUCKET")
 
     def rijnland_precip_def(self):
+        """
+        1. Load a mask and a main dataset.
+        2. Resamples the data to weekly intervals.
+        3. Extract week and month numbers for each week.
+        4. Apply a mask to select specific regions (where mask is 666).
+        5. Find the maximum value in the masked region for each week.
+        6. Return arrays of week numbers, month numbers, and the weekly maximum values.
+        """
         rj_mask = xr.open_dataset(self.mask_file)
         ds = xr.open_zarr(self.zarr_file)
         weekly = ds["time"].resample(time="1W").max()
+        LOGGER.debug(f"weekly   : '{weekly}'")
         time = weekly.time.values[:-1]
+        LOGGER.debug(f"time     : '{time}'")
         weeks = np.array([t.astype("datetime64[W]").item().isocalendar()[1] for t in time])
+        LOGGER.debug(f"weeks    : '{weeks}'")
         months = np.array([t.astype("datetime64[M]").item().month for t in time])
+        LOGGER.debug(f"months   : '{months}'")
         mask_vals = rj_mask["mask"].where(rj_mask["mask"] == 666).values
+        LOGGER.debug(f"mask_vals: '{mask_vals}'")
         vals = [ds["p_def_q50"].sel(time=t).where(mask_vals).max().values for t in time]
+        LOGGER.debug(f"vals     : '{vals}'")
 
         return weeks, months, vals
 
-    def categorize_precip_def_rijnland(self, val):
-        if val < 50:
+    def categorize_precip_def_rijnland(self, value):
+        LOGGER.debug(f"value to categorize: '{value}'")
+        if value < 50:
             return "darkblue"
-        if val >= 50 and val < 100:
+        if 50 <= value and value < 100:
             return "blue"
-        if val >= 100 and val < 125:
+        if 100 <= value and value < 125:
             return "green"
-        if val >= 125 and val < 150:
+        if 125 <= value and value < 150:
             return "yellow"
-        if val >= 150 and val < 175:
+        if 150 <= value and value < 175:
             return "orange"
-        if val >= 175 and val < 200:
+        if 175 <= value and value < 200:
             return "red"
-        if val >= 200:
+        if 200 <= value:
             return "darkred"
 
     def execute(self, data):
@@ -102,15 +117,12 @@ class DangerLevelProcessProcessor(BaseProcessor):
             # FIXME correct error?
             LOGGER.error("WRONG INTERNAL API TOKEN")
             raise ProcessorExecuteError("ACCESS DENIED wrong token")
-        LOGGER.debug(
-            f"{requests.get('https://52n-i-cisk.obs.eu-de.otc.t-systems.com/llrijnland/rijnland_example_data_10_24.zip').status_code}"
-        )
 
         LOGGER.debug("start")
         rj_weeks, rj_month, rj_vals = self.rijnland_precip_def()
         rj_cat = [self.categorize_precip_def_rijnland(val) for val in rj_vals]
         rijn_dict = {int(item[0]): item[1] for item in [x for x in zip(rj_weeks, rj_cat)]}
-        LOGGER.debug(f"have dict {rijn_dict}")
+        LOGGER.debug(f"week number to category dict: '{rijn_dict}'")
 
         json_data = json.dumps(rijn_dict)
 
