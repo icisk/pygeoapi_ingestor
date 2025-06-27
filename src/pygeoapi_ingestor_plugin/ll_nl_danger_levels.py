@@ -73,6 +73,8 @@ class DangerLevelProcessProcessor(BaseProcessor):
         sundays = ds["time"].resample(time="1W").max()
         LOGGER.debug(f"sundays  : '{sundays}'")
         # Why is the last sunday skipped?
+        # Maybe, because it's the first Sunday of next year, hence,
+        # the according week and month value might interfere with some code below.
         sundays = sundays.time.values[:-1]
         LOGGER.debug(f"sundays  : '{sundays}'")
         week_numbers = np.array([t.astype("datetime64[W]").item().isocalendar()[1] for t in sundays])
@@ -80,7 +82,6 @@ class DangerLevelProcessProcessor(BaseProcessor):
         month_numbers = np.array([t.astype("datetime64[M]").item().month for t in sundays])
         LOGGER.debug(f"month #s : '{month_numbers}'")
         mask_vals = rj_mask["mask"].where(rj_mask["mask"] == 666).values
-        LOGGER.debug(f"mask_vals: '{mask_vals}'")
         vals = [
             ds["p_def_q50"].sel(time=slice(t - np.timedelta64(6, "D"), t)).where(mask_vals).max().values
             for t in sundays
