@@ -15,11 +15,11 @@ load_dotenv(find_dotenv())
 
 PROCESS_METADATA = {
     "version": "0.2.0",
-    "id": "danger levels creation",
+    "id": "danger-levels-creation",
     "title": {
-        "en": "dangerlvls",
+        "en": "Danger Levels",
     },
-    "description": {"en": "preocesses forecast data to identify drought threats"},
+    "description": {"en": "processes forecast data to identify drought threats"},
     "jobControlOptions": ["sync-execute", "async-execute"],
     "keywords": ["process"],
     "links": [
@@ -99,7 +99,7 @@ class DangerLevelProcessProcessor(BaseProcessor):
 
         LOGGER.debug("checking token")
         if self.token != os.getenv("INT_API_TOKEN", "token"):
-            # FIXME passender error?
+            # FIXME correct error?
             LOGGER.error("WRONG INTERNAL API TOKEN")
             raise ProcessorExecuteError("ACCESS DENIED wrong token")
         LOGGER.debug(
