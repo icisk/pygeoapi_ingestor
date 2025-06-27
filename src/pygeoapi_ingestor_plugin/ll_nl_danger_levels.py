@@ -59,10 +59,10 @@ class DangerLevelProcessProcessor(BaseProcessor):
         self.otc_endpoint = os.environ.get(key="FSSPEC_S3_ENDPOINT_URL")
         self.bucket_name = os.environ.get(key="DEFAULT_BUCKET")
 
-    def rijnland_precip_def(self):
+    def rijnland_precipitation_deficit(self):
         """
         1. Load a mask and a main dataset.
-        2. Resamples the data to weekly intervals.
+        2. Get sundays for each week.
         3. Extract week and month numbers for each week.
         4. Apply a mask to select specific regions (where mask is 666).
         5. Find the maximum value in the masked region for each week.
@@ -70,23 +70,24 @@ class DangerLevelProcessProcessor(BaseProcessor):
         """
         rj_mask = xr.open_dataset(self.mask_file)
         ds = xr.open_zarr(self.zarr_file)
-        weekly = ds["time"].resample(time="1W").max()
-        LOGGER.debug(f"weekly   : '{weekly}'")
-        time = weekly.time.values[:-1]
-        LOGGER.debug(f"time     : '{time}'")
-        weeks = np.array([t.astype("datetime64[W]").item().isocalendar()[1] for t in time])
-        LOGGER.debug(f"weeks    : '{weeks}'")
-        months = np.array([t.astype("datetime64[M]").item().month for t in time])
-        LOGGER.debug(f"months   : '{months}'")
+        sundays = ds["time"].resample(time="1W").max()
+        LOGGER.debug(f"sundays  : '{sundays}'")
+        # Why is the last sunday skipped?
+        sundays = sundays.time.values[:-1]
+        LOGGER.debug(f"sundays  : '{sundays}'")
+        week_numbers = np.array([t.astype("datetime64[W]").item().isocalendar()[1] for t in sundays])
+        LOGGER.debug(f"week #s  : '{week_numbers}'")
+        month_numbers = np.array([t.astype("datetime64[M]").item().month for t in sundays])
+        LOGGER.debug(f"month #s : '{month_numbers}'")
         mask_vals = rj_mask["mask"].where(rj_mask["mask"] == 666).values
         LOGGER.debug(f"mask_vals: '{mask_vals}'")
         vals = [ds["p_def_q50"].sel(time=t).where(mask_vals).max().values for t in time]
         LOGGER.debug(f"vals     : '{vals}'")
 
-        return weeks, months, vals
+        return week_numbers, month_numbers, vals
 
-    def categorize_precip_def_rijnland(self, value):
-        LOGGER.debug(f"value to categorize: '{value}'")
+    def categorize(self, value):
+        LOGGER.debug(f"categorize: '{value}'")
         if value < 50:
             return "darkblue"
         if 50 <= value < 100:
@@ -117,10 +118,10 @@ class DangerLevelProcessProcessor(BaseProcessor):
             raise ProcessorExecuteError("ACCESS DENIED wrong token")
 
         LOGGER.debug("start")
-        rj_weeks, rj_month, rj_vals = self.rijnland_precip_def()
-        rj_cat = [self.categorize_precip_def_rijnland(val) for val in rj_vals]
+        rj_weeks, rj_month, rj_vals = self.rijnland_precipitation_deficit()
+        rj_cat = [self.categorize(val) for val in rj_vals]
         rijn_dict = {int(item[0]): item[1] for item in [x for x in zip(rj_weeks, rj_cat)]}
-        LOGGER.debug(f"week number to category dict: '{rijn_dict}'")
+        LOGGER.debug(f"week # with category: '{rijn_dict}'")
 
         json_data = json.dumps(rijn_dict)
 
