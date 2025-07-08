@@ -1,20 +1,3 @@
-import datetime
-import json
-import logging
-import os
-import tempfile
-
-import geopandas as gpd
-import pandas as pd
-import requests
-import s3fs
-from filelock import FileLock
-from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
-from shapely.geometry import Point
-
-import pygeoapi_ingestor_plugin.utils as utils
-import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
-
 # =================================================================
 #
 # Authors: Tommaso Redaelli <tommaso.redaelli@gecosistema.com>
@@ -43,6 +26,22 @@ import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # =================================================================
+import datetime
+import json
+import logging
+import os
+import tempfile
+
+import geopandas as gpd
+import pandas as pd
+import requests
+import s3fs
+from filelock import FileLock
+from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
+from shapely.geometry import Point
+
+import pygeoapi_ingestor_plugin.utils as utils
+import pygeoapi_ingestor_plugin.utils_s3 as s3_utils
 
 LOGGER = logging.getLogger(__name__)
 
