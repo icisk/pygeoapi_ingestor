@@ -122,7 +122,7 @@ class RerRiverDischargeArpaeProcessor(BaseProcessor):
                 os.environ.get("DEFAULT_REMOTE_DIR"),
                 self.living_lab,
                 "river-discharge",
-                "arpae-stations_river-dicharge.geojson",
+                "arpae-stations_river-discharge.geojson",
             )
         )
 
@@ -235,10 +235,10 @@ class RerRiverDischargeArpaeProcessor(BaseProcessor):
                 )
 
             # Process variables data part (data array from index 1 to end)
-            var_deafult_codes = ["timerange", "level"]
+            var_default_codes = ["timerange", "level"]
             df_vars = pd.DataFrame(
                 [
-                    v["vars"] | {v_default: v[v_default] for v_default in var_deafult_codes}
+                    v["vars"] | {v_default: v[v_default] for v_default in var_default_codes}
                     for record in arpae_data
                     for v in record["data"][1:]
                 ]
@@ -251,7 +251,7 @@ class RerRiverDischargeArpaeProcessor(BaseProcessor):
                 var_code for var_code in list(self.var_dict_code2name.keys()) if var_code not in missing_var_codes
             ]
 
-            df_vars = df_vars[[var_code for var_code in present_var_codes] + var_deafult_codes]
+            df_vars = df_vars[[var_code for var_code in present_var_codes] + var_default_codes]
 
             for var_code in present_var_codes:
                 df_vars[var_code] = df_vars[var_code].apply(
@@ -305,7 +305,7 @@ class RerRiverDischargeArpaeProcessor(BaseProcessor):
         arpae_meteo_gdf = arpae_meteo_gdf[arpae_meteo_gdf[self.var_dict_name2code["river_level"]].notnull()]
         arpae_meteo_gdf = arpae_meteo_gdf[
             arpae_meteo_gdf["timerange"].apply(lambda trv: trv == [254, 0, 0])
-        ]  # INFO: timerange code [254,0,0] means istantatneus data related to measure timestamp
+        ]  # INFO: timerange code [254,0,0] means instantaneous data related to measure timestamp
         # Calculate Q from RiverLevel
         arpae_meteo_gdf["Q"] = arpae_meteo_gdf[self.var_dict_name2code["river_level"]].apply(
             lambda rl: self.portata_lineare(rl)
@@ -512,13 +512,13 @@ class RerRiverDischargeArpaeProcessor(BaseProcessor):
                         existing_feature = [f for f in existing_geojson["features"] if f["id"] == feature["id"]][0]
                         union_Q = existing_feature["properties"]["Q"] + feature["properties"]["Q"]
                         union_time = existing_feature["properties"]["time"] + feature["properties"]["time"]
-                        unique_mesures = (
+                        unique_measures = (
                             pd.DataFrame({"Q": union_Q, "time": union_time})
                             .drop_duplicates(subset=["time"], keep="last")
                             .sort_values(by="time")
                         )
-                        existing_feature["properties"]["Q"] = unique_mesures["Q"].to_list()
-                        existing_feature["properties"]["time"] = unique_mesures["time"].to_list()
+                        existing_feature["properties"]["Q"] = unique_measures["Q"].to_list()
+                        existing_feature["properties"]["time"] = unique_measures["time"].to_list()
                 with s3.open(self.collection_uri, "w") as f:
                     json.dump(existing_geojson, f)
 
@@ -545,7 +545,7 @@ class RerRiverDischargeArpaeProcessor(BaseProcessor):
                     "type": "collection",
                     "title": self.collection_id,
                     "description": "River discharge for EmiliaRomagna Stations",
-                    "keywords": ["river-dischage", "arpae", "emilia-romagna", "italy"],
+                    "keywords": ["river-discharge", "arpae", "emilia-romagna", "italy"],
                     "extents": {},
                     "providers": [
                         {
