@@ -155,7 +155,8 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.data_path = None
         self.zarr_out = None
         self.variable = None
-
+        self.date_stamp = None
+        self.cron_invoke = None
     def read_config(self):
         with open(self.config_file, "r") as file:
             logger.info("read config")
@@ -188,10 +189,10 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
         with lock:
             config = self.read_config()
-            config["resources"][f"{self.title}_{self.variable}"] = {
+            config["resources"][f"{self.title}_{self.variable}_{self.date_stamp}"] = {
                 "type": "collection",
-                "title": f"{self.title}_{self.variable}",
-                "description": f"creaf_forecast of {self.variable}",
+                "title": f"{self.title}_{self.variable}_{self.date_stamp}",
+                "description": f"creaf_forecast of {self.variable} in {self.date_stamp}",
                 "keywords": ["country"],
                 "extents": {
                     "spatial": {
@@ -235,6 +236,8 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.token = data.get("token")
         self.variable = data.get("variable")
         self.alternate_root = self.zarr_out.split("s3://")[1]
+        self.date_stamp = data.get('date_stamp')
+        self.cron_invoke = data.get('cron_invoke')
 
         if self.data_source is None:
             raise ProcessorExecuteError("Cannot process without a data path")
@@ -250,6 +253,12 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
             logger.info("wrong internal API token received")
             raise ProcessorExecuteError("ACCESS DENIED wrong token")
 
+        # #adapt continous creation
+        # #gets date string eg "https://52n-i-cisk.obs.eu-de.otc.t-systems.com/tif/LL_Spain/forecast/seasonal_forecast_precip_2025_01.zip"
+        # self.date_stamp = self.data_source.split('.zip')[:-7]
+        # #adds date string to zarr filename
+        # self.zarr_out = self.zarr_out.replace('.zarr', f'{self.date_stamp}.zarr')
+
         if self.zarr_out and self.zarr_out.startswith("s3://"):
             s3 = s3fs.S3FileSystem()
             if s3.exists(self.zarr_out):
@@ -263,12 +272,18 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
                 return mimetype, {"id": "creaf_forecast_ingestor", "value": msg}
 
             else:
+                if self.cron_invoke:
+                    self.data_source = f"""https://52n-i-cisk.obs.eu-de.otc.t-systems.com/tif/LL_Spain/forecast/seasonal_forecast_precip_{self.date_stamp}.zip"""
+                    self.zarr_out = f"s3://52n-i-cisk/data-ingestor/spain/seasonal_forecast/creaf_forecast_precip{self.date_stamp}.zarr"
                 store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
                 data_path = download_source(self.data_source)
                 tiff_da = tifs_to_ds(data_path)
                 tiff_da.to_zarr(store=store, consolidated=True, mode="w")
 
                 self.update_config()
+
+                #TODO: create cogs
+
 
                 cleanup_data_temp()
 
