@@ -157,6 +157,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.variable = None
         self.date_stamp = None
         self.cron_invoke = None
+
     def read_config(self):
         with open(self.config_file, "r") as file:
             logger.info("read config")
@@ -236,8 +237,8 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.token = data.get("token")
         self.variable = data.get("variable")
         self.alternate_root = self.zarr_out.split("s3://")[1]
-        self.date_stamp = data.get('date_stamp')
-        self.cron_invoke = data.get('cron_invoke')
+        self.date_stamp = data.get("date_stamp")
+        self.cron_invoke = data.get("cron_invoke")
 
         if self.data_source is None:
             raise ProcessorExecuteError("Cannot process without a data path")
@@ -283,8 +284,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
                 self.update_config()
 
-                #TODO: create cogs
-
+                # TODO: create cogs
 
                 cleanup_data_temp()
 
