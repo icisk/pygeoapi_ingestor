@@ -78,13 +78,35 @@ def get_pixel_centroids(file_path):
     return x_centroids, y_centroids
 
 
+def get_variable_name(filename):
+    """
+    Extracts the variable name from a filename, handling both single and
+    multiple-part variable names.
+    100% AI
+    """
+    # Remove the file extension and split the filename by '_'
+    parts = os.path.splitext(filename)[0].split("_")
+
+    # The variable name starts after the fourth underscore (index 4)
+    # The number of parts after this depends on the variable name format
+
+    # Check if the part at index 4 is a two-letter abbreviation followed by an underscore
+    # This pattern indicates a two-part variable name like 'pc_50' or 'q_90'
+    if len(parts) > 5 and len(parts[4]) == 2 and parts[4].isalpha() and parts[5].isdigit():
+        return f"{parts[4]}_{parts[5]}"
+    else:
+        # Otherwise, the variable name is a single part
+        return parts[4]
+
+
 def tifs_to_ds(path):
     files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith(".tif") or f.endswith(".tiff")]
     file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
-    variables = sorted(set([name.split("_")[5] for name in file_names]))
+    variables = sorted(list(set([get_variable_name(f) for f in os.listdir(file_names)])))
     files_per_var = [[f for f in files if var in os.path.basename(f)] for var in variables]
-    info = [parts for fn in file_names for parts in [fn.split("_")[3:5]]]
-    time = sorted(set([np.datetime64(f"{parts[1]}-{parts[0]}-01") for parts in info]))
+    info = [parts for fn in file_names for parts in [fn.split("_")[3]]]
+    time = sorted(set([np.datetime64(f"{parts.split("-")[1]}-{parts.split("-")[0]}-01") for parts in info]))
+
 
     x, y = get_pixel_centroids(files[0])
     da_list = []
