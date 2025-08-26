@@ -102,7 +102,7 @@ def get_variable_name(filename):
 def tifs_to_ds(path):
     files = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith(".tif") or f.endswith(".tiff")]
     file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
-    variables = sorted(list(set([get_variable_name(f) for f in os.listdir(file_names)])))
+    variables = sorted(list(set([get_variable_name(f) for f in file_names])))
     files_per_var = [[f for f in files if var in os.path.basename(f)] for var in variables]
     info = [parts for fn in file_names for parts in [fn.split("_")[3]]]
     time = sorted(set([np.datetime64(f"{parts.split('-')[1]}-{parts.split('-')[0]}-01") for parts in info]))
