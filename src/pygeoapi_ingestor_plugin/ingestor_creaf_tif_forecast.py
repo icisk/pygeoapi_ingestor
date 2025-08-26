@@ -296,7 +296,8 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
             else:
                 if self.cron_invoke:
                     self.data_source = f"""https://52n-i-cisk.obs.eu-de.otc.t-systems.com/tif/LL_Spain/forecast/seasonal_forecast_{self.variable}_{self.date_stamp}.zip"""
-                    self.zarr_out = f"s3://52n-i-cisk/data-ingestor/spain/seasonal_forecast/creaf_forecast_{self.variable}{self.date_stamp}.zarr"
+                    self.zarr_out = f"s3://52n-i-cisk/data-ingestor/spain/seasonal_forecast/creaf_forecast_{self.variable}_{self.date_stamp}.zarr"
+                    self.alternate_root = self.zarr_out.split("s3://")[1]
                 logger.debug(f"""{self.data_source}, {self.zarr_out}""")
                 store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
                 data_path = download_source(self.data_source)
