@@ -105,8 +105,7 @@ def tifs_to_ds(path):
     variables = sorted(list(set([get_variable_name(f) for f in os.listdir(file_names)])))
     files_per_var = [[f for f in files if var in os.path.basename(f)] for var in variables]
     info = [parts for fn in file_names for parts in [fn.split("_")[3]]]
-    time = sorted(set([np.datetime64(f"{parts.split("-")[1]}-{parts.split("-")[0]}-01") for parts in info]))
-
+    time = sorted(set([np.datetime64(f"{parts.split('-')[1]}-{parts.split('-')[0]}-01") for parts in info]))
 
     x, y = get_pixel_centroids(files[0])
     da_list = []
