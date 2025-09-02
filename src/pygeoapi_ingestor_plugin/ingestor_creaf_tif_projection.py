@@ -102,14 +102,14 @@ def get_variable_name(filename):
 
 
 def project_tiff_to_ds(path):
-    pr_r1 = sorted(glob.glob(os.path.join(path, 'pr*r1*')))
-    pr_r2 = sorted(glob.glob(os.path.join(path, 'pr*r2*')))
-    pr_mean = sorted(glob.glob(os.path.join(path, 'pr*mean*')))
-    temp_r1 = sorted(glob.glob(os.path.join(path, 'tas*r1*')))
-    temp_r2 = sorted(glob.glob(os.path.join(path, 'tas*r2*')))
-    temp_mean = sorted(glob.glob(os.path.join(path, 'tas*mean*')))
+    pr_r1 = sorted(glob.glob(os.path.join(path, "pr*r1*")))
+    pr_r2 = sorted(glob.glob(os.path.join(path, "pr*r2*")))
+    pr_mean = sorted(glob.glob(os.path.join(path, "pr*mean*")))
+    temp_r1 = sorted(glob.glob(os.path.join(path, "tas*r1*")))
+    temp_r2 = sorted(glob.glob(os.path.join(path, "tas*r2*")))
+    temp_mean = sorted(glob.glob(os.path.join(path, "tas*mean*")))
 
-    variable_names = ['pr_r1', 'pr_r2', 'pr_mean', 'temp_r1', 'temp_r2', 'temp_mean']
+    variable_names = ["pr_r1", "pr_r2", "pr_mean", "temp_r1", "temp_r2", "temp_mean"]
     variable_objects = [pr_r1, pr_r2, pr_mean, temp_r1, temp_r2, temp_mean]
     file_dict = dict(zip(variable_names, variable_objects))
 
@@ -132,12 +132,10 @@ def project_tiff_to_ds(path):
 
     ds = xr.Dataset(
         {key: (["time", "latitude", "longitude"], da_dict[key].data) for key in da_dict.keys()},
-        coords={"time": time, "latitude": y, "longitude": x}
+        coords={"time": time, "latitude": y, "longitude": x},
     )
 
     return ds
-
-
 
 
 class IngestorCREAFPROJECTIONProcessProcessor(BaseProcessor):
@@ -245,7 +243,6 @@ class IngestorCREAFPROJECTIONProcessProcessor(BaseProcessor):
         self.token = data.get("token")
         self.alternate_root = self.zarr_out.split("s3://")[1]
 
-
         if self.data_source is None:
             raise ProcessorExecuteError("Cannot process without a data path")
         if self.zarr_out is None or not self.zarr_out.startswith("s3://"):
@@ -276,8 +273,6 @@ class IngestorCREAFPROJECTIONProcessProcessor(BaseProcessor):
 
                 logger.info(msg)
                 return mimetype, {"id": "creaf_projection_ingestor", "value": msg}
-
-
 
         logger.debug(f"""{self.data_source}, {self.zarr_out}""")
         store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)

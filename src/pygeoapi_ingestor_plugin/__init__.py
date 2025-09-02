@@ -8,6 +8,7 @@ from .ingestor_cds_spi_forecast_process import IngestorCDSSPIForecastProcessProc
 from .ingestor_cds_spi_historic_process import IngestorCDSSPIHistoricProcessProcessor  # noqa: F401, I001
 from .ingestor_creaf_tif_forecast import IngestorCREAFFORECASTProcessProcessor  # noqa: F401, I001
 from .ingestor_creaf_tif_historic import IngestorCREAFHISTORICProcessProcessor  # noqa: F401, I001
+from .ingestor_creaf_tif_projection import IngestorCREAFPROJECTIONProcessProcessor  # noqa: F401, I001
 from .ingestor_knmi_evapo import IngestorKNMIProcessProcessor  # noqa: F401, I001
 from .ingestor_knmi_evapo_fc import IngestorKNMIobsforecastProcessProcessor  # noqa: F401, I001
 from .ingestor_ll_gpkg_process import IngestorLLGPKGProcessProcessor  # noqa: F401, I001
