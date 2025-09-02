@@ -31,6 +31,7 @@ setuptools.setup(
         "geojson",
         "geopandas",
         "h5netcdf",
+        "imagecodecs",
         "netcdf4",
         "numpy==1.24.0",
         "openpyxl",
