@@ -146,7 +146,7 @@ jobs:
         initial_comment: "Trivy Results for '${{ github.repository }}' uploaded. Please review: https://github.com/${{ github.repository }}/actions"
     -
       name: Trigger redeployment
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         github-token: ${{ secrets.GHA_WORKFLOW_TRIGGER }}
         script: |
