@@ -106,7 +106,7 @@ def project_tiff_to_ds(path):
     file_names = [os.path.splitext(f)[0] for f in sorted(os.listdir(path))]
 
     variable = 'yield'
-    years = [i for i in range(2002, 2023)]
+    years = np.array([i for i in range(2002, 2023)], dtype='datetime64[Y]')
 
     arrays = [tiff.imread(file) for file in files]
     stacked = np.stack(arrays, axis=0)
