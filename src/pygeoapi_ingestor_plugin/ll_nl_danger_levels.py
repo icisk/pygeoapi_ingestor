@@ -31,10 +31,18 @@ PROCESS_METADATA = {
         }
     ],
     "inputs": {
-        "result_json": {"title": "result", "description": "The URL of the result", "schema": {"type": "string"}}
+        "result_json": {
+            "title": "result",
+            "description": "The URL of the result",
+            "schema": {"type": "string"},
+        }
     },
     "outputs": {
-        "id": {"title": "ID", "description": "The ID of the process execution", "schema": {"type": "string"}},
+        "id": {
+            "title": "ID",
+            "description": "The ID of the process execution",
+            "schema": {"type": "string"},
+        },
         "value": {
             "title": "Value",
             "description": "The URL of the Zarr file in the S3 bucket",
@@ -49,9 +57,7 @@ class DangerLevelProcessProcessor(BaseProcessor):
     def __init__(self, processor_def):
         super().__init__(processor_def, PROCESS_METADATA)
 
-        self.zarr_file = (
-            "https://52n-i-cisk.obs.eu-de.otc.t-systems.com/data-ingestor/netherlands/knmi_obs_forecast.zarr/"
-        )
+        self.zarr_file = "https://52n-i-cisk.obs.eu-de.otc.t-systems.com/data-ingestor/netherlands/knmi_obs_forecast.zarr/"
         self.mask_file = "/pygeoapi/secondary_process_data/rijn_mask.nc"
         self.out_file = None
         self.otc_key = os.environ.get(key="FSSPEC_S3_KEY")
@@ -77,13 +83,21 @@ class DangerLevelProcessProcessor(BaseProcessor):
         # the according week and month value might interfere with some code below.
         sundays = sundays.time.values[:-1]
         LOGGER.debug(f"sundays  : '{sundays}'")
-        week_numbers = np.array([t.astype("datetime64[W]").item().isocalendar()[1] for t in sundays])
+        week_numbers = np.array(
+            [t.astype("datetime64[W]").item().isocalendar()[1] for t in sundays]
+        )
         LOGGER.debug(f"week #s  : '{week_numbers}'")
-        month_numbers = np.array([t.astype("datetime64[M]").item().month for t in sundays])
+        month_numbers = np.array(
+            [t.astype("datetime64[M]").item().month for t in sundays]
+        )
         LOGGER.debug(f"month #s : '{month_numbers}'")
         mask_vals = rj_mask["mask"].where(rj_mask["mask"] == 666).values
         vals = [
-            ds["p_def_q50"].sel(time=slice(t - np.timedelta64(6, "D"), t)).where(mask_vals).max().values
+            ds["p_def_q50"]
+            .sel(time=slice(t - np.timedelta64(6, "D"), t))
+            .where(mask_vals == 666)
+            .max()
+            .values
             for t in sundays
         ]
         LOGGER.debug(f"vals     : '{vals}'")
@@ -124,7 +138,9 @@ class DangerLevelProcessProcessor(BaseProcessor):
         LOGGER.debug("start")
         rj_weeks, rj_month, rj_vals = self.rijnland_precipitation_deficit()
         rj_cat = [self.categorize(val) for val in rj_vals]
-        rijn_dict = {int(item[0]): item[1] for item in [x for x in zip(rj_weeks, rj_cat)]}
+        rijn_dict = {
+            int(item[0]): item[1] for item in [x for x in zip(rj_weeks, rj_cat)]
+        }
         LOGGER.debug(f"week # with category: '{rijn_dict}'")
 
         json_data = json.dumps(rijn_dict)
