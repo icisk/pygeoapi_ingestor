@@ -26,7 +26,9 @@ PROCESS_METADATA = {
     "title": {
         "en": "creaf_projection",
     },
-    "description": {"en": "joins tiff-data and saves it to zarr format and uploads it to s3 bucket"},
+    "description": {
+        "en": "joins tiff-data and saves it to zarr format and uploads it to s3 bucket"
+    },
     "jobControlOptions": ["sync-execute", "async-execute"],
     "keywords": ["ingestor process"],
     "links": [
@@ -49,10 +51,18 @@ PROCESS_METADATA = {
             "description": "The URL of the Zarr file in the S3 bucket",
             "schema": {"type": "string"},
         },
-        "token": {"title": "secret token", "description": "identify yourself", "schema": {"type": "string"}},
+        "token": {
+            "title": "secret token",
+            "description": "identify yourself",
+            "schema": {"type": "string"},
+        },
     },
     "outputs": {
-        "id": {"title": "ID", "description": "The ID of the process execution", "schema": {"type": "string"}},
+        "id": {
+            "title": "ID",
+            "description": "The ID of the process execution",
+            "schema": {"type": "string"},
+        },
         "value": {
             "title": "Value",
             "description": "The URL of the Zarr file in the S3 bucket",
@@ -94,7 +104,12 @@ def get_variable_name(filename):
 
     # Check if the part at index 4 is a two-letter abbreviation followed by an underscore
     # This pattern indicates a two-part variable name like 'pc_50' or 'q_90'
-    if len(parts) > 5 and len(parts[4]) == 2 and parts[4].isalpha() and parts[5].isdigit():
+    if (
+        len(parts) > 5
+        and len(parts[4]) == 2
+        and parts[4].isalpha()
+        and parts[5].isdigit()
+    ):
         return f"{parts[4]}_{parts[5]}"
     else:
         # Otherwise, the variable name is a single part
@@ -102,15 +117,17 @@ def get_variable_name(filename):
 
 
 def project_tiff_to_ds(path):
-    pr_r1 = sorted(glob.glob(os.path.join(path, "pr*r1*")))
-    pr_r2 = sorted(glob.glob(os.path.join(path, "pr*r2*")))
-    pr_mean = sorted(glob.glob(os.path.join(path, "pr*mean*")))
-    temp_r1 = sorted(glob.glob(os.path.join(path, "tas*r1*")))
-    temp_r2 = sorted(glob.glob(os.path.join(path, "tas*r2*")))
-    temp_mean = sorted(glob.glob(os.path.join(path, "tas*mean*")))
+    # pr_r1 = sorted(glob.glob(os.path.join(path, "pr*r1*")))
+    # pr_r2 = sorted(glob.glob(os.path.join(path, "pr*r2*")))
+    pr_mean = sorted(glob.glob(os.path.join(path, "pr*")))
+    # temp_r1 = sorted(glob.glob(os.path.join(path, "tas*r1*")))
+    # temp_r2 = sorted(glob.glob(os.path.join(path, "tas*r2*")))
+    temp_mean = sorted(glob.glob(os.path.join(path, "tas*")))
 
-    variable_names = ["pr_r1", "pr_r2", "pr_mean", "temp_r1", "temp_r2", "temp_mean"]
-    variable_objects = [pr_r1, pr_r2, pr_mean, temp_r1, temp_r2, temp_mean]
+    # variable_names = ["pr_r1", "pr_r2", "pr_mean", "temp_r1", "temp_r2", "temp_mean"]
+    # variable_objects = [pr_r1, pr_r2, pr_mean, temp_r1, temp_r2, temp_mean]
+    variable_names = ["pr_mean", "tas_mean"]
+    variable_objects = [pr_mean, temp_mean]
     file_dict = dict(zip(variable_names, variable_objects))
 
     da_dict = {}
@@ -120,18 +137,23 @@ def project_tiff_to_ds(path):
         da = xr.DataArray(stacked, dims=["time", "latitude", "longitude"], name=key)
         da_dict[key] = da
 
-    x, y = get_pixel_centroids(pr_r1[0])
+    x, y = get_pixel_centroids(pr_mean[0])
 
     start_year, start_month = 2026, 1
     end_year, end_month = 2040, 12
     total_months = (end_year - start_year) * 12 + (end_month - start_month) + 1
     time = [
-        datetime(start_year + (start_month + i - 1) // 12, (start_month + i - 1) % 12 + 1, 1)
+        datetime(
+            start_year + (start_month + i - 1) // 12, (start_month + i - 1) % 12 + 1, 1
+        )
         for i in range(total_months)
     ]
 
     ds = xr.Dataset(
-        {key: (["time", "latitude", "longitude"], da_dict[key].data) for key in da_dict.keys()},
+        {
+            key: (["time", "latitude", "longitude"], da_dict[key].data)
+            for key in da_dict.keys()
+        },
         coords={"time": time, "latitude": y, "longitude": x},
     )
 
@@ -153,7 +175,9 @@ class IngestorCREAFPROJECTIONProcessProcessor(BaseProcessor):
         """
 
         super().__init__(processor_def, PROCESS_METADATA)
-        self.config_file = os.environ.get(default="/pygeoapi/serv-config/local.config.yml", key="PYGEOAPI_SERV_CONFIG")
+        self.config_file = os.environ.get(
+            default="/pygeoapi/serv-config/local.config.yml", key="PYGEOAPI_SERV_CONFIG"
+        )
         self.title = "creaf_projection"
         self.otc_key = os.environ.get(key="FSSPEC_S3_KEY")
         self.otc_secret = os.environ.get(key="FSSPEC_S3_SECRET")
@@ -199,7 +223,7 @@ class IngestorCREAFPROJECTIONProcessProcessor(BaseProcessor):
             config["resources"][f"{self.title}"] = {
                 "type": "collection",
                 "title": f"{self.title}",
-                "description": f"creaf_projection of",
+                "description": "creaf_projection of",
                 "keywords": ["country"],
                 "extents": {
                     "spatial": {
