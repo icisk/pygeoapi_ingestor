@@ -1,0 +1,11 @@
+ENVI
+samples = 2247
+lines = 1449
+bands = 1
+header offset= 0
+file type = TIFF
+data type = 4
+interleave = bsq
+byte order = 0
+map info = {UTM, 0.500, 0.500, 107847.682, 4348107.716, 231.66, 231.66, 30, North, ETRS89, units=m}
+data ignore value = -5.30000000E+037
