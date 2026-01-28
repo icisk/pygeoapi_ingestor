@@ -1,7 +1,24 @@
+check_collections <- function(metadata, collections_endpoint) {
+  ds_to_process <- c()
+  for (date in names(metadata)) {
+    formateddate <- gsub("-", "_", date)
+    url <- glue("{collections_endpoint}/creaf_forecast_temp_{formateddate}")
+    res <- GET(url)
+    if (res$status_code != 200) {
+      ds_to_process <- c(ds_to_process, date)
+    }
+  }
+  return(ds_to_process)
+}
+
+dss = check_collections(metadata, collections_endpoint)
+ds_to_process <- sort(dss[1])
+date_stamp <- gsub("-", "_", ds_to_process)
+
+
 library(zip)
 
 target_folder <- "/app/outputs"
-date_stamp <- "2025-09"
 var_keys <- list(temp = "TEMPforecast", precip = "PLforecast")
 
 all_files <- list.files(target_folder, full.names = TRUE, recursive = TRUE)
