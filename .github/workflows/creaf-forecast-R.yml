@@ -1,30 +1,30 @@
 name: "build push images of creaf forecast R"
 concurrency:
-  group: "creaf-forecast-R"
+  group: "creaf-forecast-r"
   cancel-in-progress: true
 env:
   BUILD_CONTEXT: ./bias_correction_process_data/interpolation_image/
   IMAGE_AUTHORS: https://52North.org/
   IMAGE_DESCRIPTION: 52°North I-Cisk creaf forecast R
   IMAGE_LICENSES: Gplv2
-  IMAGE_TAG: 52north/i-cisk-creaf-forecast-R
+  IMAGE_TAG: 52north/i-cisk-creaf-forecast-r
   IMAGE_TITLE: 52°North I-Cisk creaf forecast R
   IMAGE_VENDOR: 52°North GmbH
-  METADATA_TAG_PATTERN: creaf-forecast-R-v(.*)
+  METADATA_TAG_PATTERN: creaf-forecast-r-v(.*)
 on:
   workflow_dispatch:
     inputs:
       tags:
-        description: "Please provide a git tag value, e.g. creaf-forecast-R-v1.0-manually-triggered.1"
+        description: "Please provide a git tag value, e.g. creaf-forecast-r-v1.0-manually-triggered.1"
         required: true
         type: string
-        default: "creaf-forecast-R-v1.0-manually-triggered.1"
+        default: "creaf-forecast-r-v1.0-manually-triggered.1"
   push:
-    tags: ["creaf-forecast-R-v*"]
+    tags: ["creaf-forecast-r-v*"]
 
 jobs:
   push_to_docker_hub:
-    name: "creaf-forecast-R: build, publish and scan container image"
+    name: "creaf-forecast-r: build, publish and scan container image"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
