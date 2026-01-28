@@ -4,13 +4,14 @@ library(glue)
 
 meta_url <- Sys.getenv("META_URL")
 collections_endpoint <- Sys.getenv("COL_ENDPOINT")
-ds_to_process <- Sys.getenv("DS_TO_PROCESS")
+# ds_to_process <- Sys.getenv("DS_TO_PROCESS")
 metadata <- fromJSON(meta_url)
 
 check_collections <- function(metadata, collections_endpoint) {
   ds_to_process <- c()
   for (date in names(metadata)) {
-    url <- glue("{collections_endpoint}/creaf_forecast_t2m_{date}")
+    formateddate <- gsub("-", "_", date)
+    url <- glue("{collections_endpoint}/creaf_forecast_temp_{formateddate}")
     res <- GET(url)
     if (res$status_code != 200) {
       ds_to_process <- c(ds_to_process, date)
@@ -28,6 +29,9 @@ destfile <- basename(url)
   destfile
 }
 
+dss = check_collections(metadata, collections_endpoint)
+ds_to_process <- sort(dss[1])
+
 t2m_url <- metadata[[ds_to_process]]$t2m
 tp_url <- metadata[[ds_to_process]]$tp
 
@@ -42,4 +46,7 @@ source("1_CS_LoadOperationalFunctions_v2.R")
 print("doing the thing")
 source("2_CS_OperationalWorkFlow.R")
 
-#Sys.sleep(Inf)
+print("zipping; uploading")
+source("upload_zipped.R")
+
+# Sys.sleep(Inf)
