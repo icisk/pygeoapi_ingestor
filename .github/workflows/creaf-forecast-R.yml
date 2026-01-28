@@ -3,7 +3,7 @@ concurrency:
   group: "creaf-forecast-R"
   cancel-in-progress: true
 env:
-  BUILD_CONTEXT: ./bias_correction_process_data/interpolation_image/Dockerfile
+  BUILD_CONTEXT: ./bias_correction_process_data/interpolation_image/
   IMAGE_AUTHORS: https://52North.org/
   IMAGE_DESCRIPTION: 52°North I-Cisk creaf forecast R
   IMAGE_LICENSES: Gplv2
