@@ -1,5 +1,9 @@
+import glob
 import logging
 import os
+import glob
+import subprocess
+import requests
 
 import fsspec
 import numpy as np
@@ -172,6 +176,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.otc_key = os.environ.get(key="FSSPEC_S3_KEY")
         self.otc_secret = os.environ.get(key="FSSPEC_S3_SECRET")
         self.otc_endpoint = os.environ.get(key="FSSPEC_S3_ENDPOINT_URL")
+        self.metadata_url = "https://52n-i-cisk.obs.eu-de.otc.t-systems.com/data-ingestor/spain/bias_correction/metadata.json"
         self.alternate_root = None
         self.data_path = None
         self.zarr_out = None
@@ -250,6 +255,30 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         config = self.read_config()
         return self.title in config["resources"]
 
+
+    def check_collections(self):
+        collections_endpoint = os.getenv(
+            "COL_ENDPOINT",
+            "https://i-cisk.dev.52north.org/data/collections/"
+        ).rstrip("/")
+        ds_to_process = []
+        try:
+            response = requests.get(self.metadata_url)
+            response.raise_for_status()
+            metadata = response.json()
+            for date in metadata.keys():
+                check_url = f"{collections_endpoint}/creaf_forecast_t2m_{date}"
+                res = requests.get(check_url)
+                if res.status_code != 200:
+                    ds_to_process.append(date)
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data: {e}")
+            return []
+
+        return ds_to_process
+
+
     def execute(self, data):
         mimetype = "application/json"
         #
@@ -258,7 +287,8 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.token = data.get("token")
         self.variable = data.get("variable")
         self.alternate_root = self.zarr_out.split("s3://")[1]
-        self.date_stamp = data.get("date_stamp")
+        self.date_stamp = sorted(self.check_collections())[0].replace("-", "_")
+        self.month = self.date_stamp.split("_")[1]
         self.cron_invoke = data.get("cron_invoke")
 
         if self.data_source is None:
@@ -306,7 +336,18 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
 
                 self.update_config()
 
-                # TODO: create cogs
+                # creating cogs
+                pc50_files = glob.glob(f"{data_path}/*pc50*")
+                uncert_files = glob.glob(f"{data_path}/*memberUNCERTAINTY*")
+
+                for f in pc50_files + uncert_files:
+                    output_name = f"{data_path}/COG_{os.path.basename(f)}"
+                    subprocess.run(['gdal_translate', f, output_name, '-of', 'COG'])
+
+                all_files = glob.glob(os.path.join(data_path, "COG_*"))
+                target_bucket_path = f"s3://52n-i-cisk/cog/spain/data/FORECAST/{self.variable}/{self.month}"
+                for f in all_files:
+                    s3.put(f, os.path.join(target_bucket_path, os.path.basename(f)))
 
                 cleanup_data_temp()
 
