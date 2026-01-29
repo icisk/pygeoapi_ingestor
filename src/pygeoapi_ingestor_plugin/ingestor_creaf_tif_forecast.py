@@ -270,7 +270,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
             response.raise_for_status()
             metadata = response.json()
             for date in metadata.keys():
-                check_url = f"{collections_endpoint}/creaf_forecast_t2m_{date}"
+                check_url = f"{collections_endpoint}/creaf_forecast_t2m_{date.replace("-", "_")}"
                 res = requests.get(check_url)
                 if res.status_code != 200:
                     ds_to_process.append(date)
