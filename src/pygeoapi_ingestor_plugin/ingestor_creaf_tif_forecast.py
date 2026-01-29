@@ -182,7 +182,10 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
         self.zarr_out = None
         self.variable = None
         self.date_stamp = None
-        self.cron_invoke = None
+        self.month = None
+        self.year = None
+        self.data_source = None
+
 
     def read_config(self):
         with open(self.config_file, "r") as file:
@@ -282,14 +285,16 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
     def execute(self, data):
         mimetype = "application/json"
         #
-        self.data_source = data.get("data_source")
-        self.zarr_out = data.get("zarr_out")
         self.token = data.get("token")
         self.variable = data.get("variable")
-        self.alternate_root = self.zarr_out.split("s3://")[1]
+
         self.date_stamp = sorted(self.check_collections())[0].replace("-", "_")
         self.month = self.date_stamp.split("_")[1]
-        self.cron_invoke = data.get("cron_invoke")
+        self.year = self.date_stamp.split("_")[0]
+        self.zarr_out = f"s3://52n-i-cisk/data-ingestor/spain/seasonal_forecast/creaf_forecast_{self.variable}_{self.date_stamp}.zarr"
+        self.alternate_root = self.zarr_out.split("s3://")[1]
+        self.data_source = f"https://52n-i-cisk.obs.eu-de.otc.t-systems.com/tif/LL_Spain/forecast/seasonal_forecast_{self.variable}_{self.date_stamp}.zip"
+
 
         if self.data_source is None:
             raise ProcessorExecuteError("Cannot process without a data path")
@@ -324,10 +329,6 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
                 return mimetype, {"id": "creaf_forecast_ingestor", "value": msg}
 
             else:
-                if self.cron_invoke:
-                    self.data_source = f"""https://52n-i-cisk.obs.eu-de.otc.t-systems.com/tif/LL_Spain/forecast/seasonal_forecast_{self.variable}_{self.date_stamp}.zip"""
-                    self.zarr_out = f"s3://52n-i-cisk/data-ingestor/spain/seasonal_forecast/creaf_forecast_{self.variable}_{self.date_stamp}.zarr"
-                    self.alternate_root = self.zarr_out.split("s3://")[1]
                 logger.debug(f"""{self.data_source}, {self.zarr_out}""")
                 store = s3fs.S3Map(root=self.zarr_out, s3=s3, check=False)
                 data_path = download_source(self.data_source)
@@ -345,7 +346,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
                     subprocess.run(['gdal_translate', f, output_name, '-of', 'COG'])
 
                 all_files = glob.glob(os.path.join(data_path, "COG_*"))
-                target_bucket_path = f"s3://52n-i-cisk/cog/spain/data/FORECAST/{self.variable}/{self.month}"
+                target_bucket_path = f"s3://52n-i-cisk/cog/spain/data/FORECAST/{self.variable}/{self.date_stamp}"
                 for f in all_files:
                     s3.put(f, os.path.join(target_bucket_path, os.path.basename(f)))
 
