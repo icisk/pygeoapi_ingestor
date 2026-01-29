@@ -338,7 +338,7 @@ class IngestorCREAFFORECASTProcessProcessor(BaseProcessor):
                 self.update_config()
 
                 # creating cogs
-                pc50_files = glob.glob(f"{data_path}/*pc50*")
+                pc50_files = glob.glob(f"{data_path}/*pc_50*")
                 uncert_files = glob.glob(f"{data_path}/*memberUNCERTAINTY*")
 
                 for f in pc50_files + uncert_files:
