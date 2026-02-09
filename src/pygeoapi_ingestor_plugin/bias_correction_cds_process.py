@@ -2,12 +2,14 @@ import datetime
 import logging
 import os
 import tempfile
+import requests
 
 import cdsapi
 import numpy as np
 import pandas as pd
 import s3fs
 import xarray as xr
+import json
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 from scipy.interpolate import splev
 
@@ -112,6 +114,10 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             os.makedirs(self.process_temp_dir, exist_ok=True)
 
         self.process_data_dir = os.path.join(os.getcwd(), "bias_correction_process_data")
+
+        self.metadata_uri = 'https://52n-i-cisk.obs.eu-de.otc.t-systems.com/data-ingestor/spain/bias_correction/metadata.json'
+        self.s3_prefix = "s3://52n-i-cisk/"
+        self.https_prefix = "https://52n-i-cisk.obs.eu-de.otc.t-systems.com/"
 
     def validate_parameters(self, data):
         """
@@ -419,6 +425,33 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
 
         return s3_uri
 
+    def create_metadata(self, start_month, s3_tp_adj_uri, s3_t2m_adj_uri):
+        #change s3 uri to https uri
+        https_tp_uri = s3_tp_adj_uri.replace(self.s3_prefix, self.https_prefix)
+        https_t2m_uri = s3_t2m_adj_uri.replace(self.s3_prefix, self.https_prefix)
+
+        #read metadata & add entry
+        res = requests.get(self.metadata_uri)
+        if res.status_code == 200:
+            meta = json.loads(res.content)
+            meta[start_month.strftime("%Y-%m")] = {
+                    "tp": https_tp_uri,
+                    "t2m": https_t2m_uri
+                }
+        else:
+            meta = {
+                start_month.strftime("%Y-%m"): {
+                    "tp": https_tp_uri,
+                    "t2m": https_t2m_uri
+                }
+            }
+
+        #write to bucket
+        s3 = s3fs.S3FileSystem()
+        with s3.open(os.path.join(self.bucket_uri, 'metadata.json'), 'w') as f:
+            json.dump(meta, f)
+
+
     def execute(self, data):
         mimetype = "application/json"
 
@@ -447,6 +480,8 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             # Save output
             s3_tp_adj_uri = self.save_dataset_to_s3(ds_tp_adj, "tp")
             s3_t2m_adj_uri = self.save_dataset_to_s3(ds_t2m_adj, "t2m")
+
+            self.create_metadata(start_month, s3_tp_adj_uri, s3_t2m_adj_uri)
 
             outputs = {"status": "OK", "s3_uris": {"tp": s3_tp_adj_uri, "t2m": s3_t2m_adj_uri}}
 
