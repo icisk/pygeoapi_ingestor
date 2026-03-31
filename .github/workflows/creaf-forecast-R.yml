@@ -82,7 +82,8 @@ jobs:
         cache-to: type=gha
     -
       name: Run trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
+      # get latest version from https://github.com/aquasecurity/trivy-action/releases
+      uses: aquasecurity/trivy-action@v0.35.0
       env:
         TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
         TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
@@ -107,7 +108,8 @@ jobs:
     -
      if: ${{ hashFiles('trivy-results.json') != '' }}
      name: 2nd scan to create human readable report
-     uses: aquasecurity/trivy-action@master
+     # get latest version from https://github.com/aquasecurity/trivy-action/releases
+     uses: aquasecurity/trivy-action@v0.35.0
      env:
        TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
        TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
@@ -122,28 +124,6 @@ jobs:
        ignore-unfixed: true
        vuln-type: 'os,library'
        severity: 'CRITICAL,HIGH'
-    -
-      if: ${{ hashFiles('trivy-results.txt') != '' }}
-      name: Upload to 52N slack
-      uses: MeilCli/slack-upload-file@v4
-      with:
-        slack_token: ${{ secrets.SLACK_TOKEN }}
-        file_path: trivy-results.txt
-        file_type: text/plain
-        title: trivy scan results of ${{ github.repository }}
-        channel_id: ${{ secrets.SLACK_CHANNEL_ID_52N }}
-        initial_comment: "Trivy Results for '${{ github.repository }}' uploaded. Please review: https://github.com/${{ github.repository }}/actions"
-    -
-      if: ${{ hashFiles('trivy-results.txt') != '' }}
-      name: Upload to I-CISK slack
-      uses: MeilCli/slack-upload-file@v4
-      with:
-        slack_token: ${{ secrets.SLACK_TOKEN_I_CISK }}
-        file_path: trivy-results.txt
-        file_type: text/plain
-        title: trivy scan results of ${{ github.repository }}
-        channel_id: ${{ secrets.SLACK_CHANNEL_ID_I_CISK }}
-        initial_comment: "Trivy Results for '${{ github.repository }}' uploaded. Please review: https://github.com/${{ github.repository }}/actions"
     -
       name: Trigger redeployment
       uses: actions/github-script@v7
