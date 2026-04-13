@@ -477,6 +477,11 @@ class BiasCorrectionCDSProcessor(BaseProcessor):
             ds_tp_adj = self.bias_correction_tp(ds_tp)
             ds_t2m_adj = self.bias_correction_t2m(ds_t2m)
 
+            # since 2026_03 there might be a slight shift in ecmwfs landmasks causing NaNs
+            # this extrapolates over any NaNs
+            ds_tp_adj = ds_tp_adj.ffill(dim="lon").bfill(dim="lon").ffill(dim="lat").bfill(dim="lat")
+            ds_t2m_adj = ds_t2m_adj.ffill(dim="lon").bfill(dim="lon").ffill(dim="lat").bfill(dim="lat")
+
             # Save output
             s3_tp_adj_uri = self.save_dataset_to_s3(ds_tp_adj, "tp")
             s3_t2m_adj_uri = self.save_dataset_to_s3(ds_t2m_adj, "t2m")
