@@ -83,7 +83,7 @@ jobs:
     -
       name: Run trivy vulnerability scanner
       # get latest version from https://github.com/aquasecurity/trivy-action/releases
-      uses: aquasecurity/trivy-action@v0.35.0
+      uses: aquasecurity/trivy-action@v0.36.0
       env:
         TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
         TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
@@ -109,7 +109,7 @@ jobs:
      if: ${{ hashFiles('trivy-results.json') != '' }}
      name: 2nd scan to create human readable report
      # get latest version from https://github.com/aquasecurity/trivy-action/releases
-     uses: aquasecurity/trivy-action@v0.35.0
+     uses: aquasecurity/trivy-action@v0.36.0
      env:
        TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
        TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
